@@ -254,6 +254,7 @@ class HgBranch(bzrlib.branch.Branch):
         self.bzrdir = hgdir
         self.control_files = lockfiles
         self.repository = HgRepository(hgrepo, hgdir, lockfiles)
+        self.base = hgrepo.path
 
     def lock_write(self):
         self.control_files.lock_write()

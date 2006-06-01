@@ -509,61 +509,67 @@ class InterHgRepository(bzrlib.repository.InterRepository):
         order = topo_sort(needed_graph.items())
         # order is now too aggressive: filter to just what we need:
         order = [rev_id for rev_id in order if rev_id in needed]
+        total = len(order)
         inventories = {}
-        for revision_id in order:
-            revision = needed[revision_id]
-            inventory = self.source.get_inventory(revision_id)
-            inventories[revision_id] = inventory
-            hgrevid = hgrevid_from_bzr(revision_id)
-            log = self.source._hgrepo.changelog.read(hgrevid)
-            manifest = self.source._hgrepo.manifest.read(log[0])
-            for fileid in inventory:
-                if fileid == bzrlib.inventory.ROOT_ID:
-                    continue
-                entry = inventory[fileid]
-                if inventory[fileid].revision == revision_id:
-                    # changed in this revision
+        pb = bzrlib.ui.ui_factory.nested_progress_bar()
+        try:
+            for index, revision_id in enumerate(order):
+                pb.update('fetching revisions', index, total)
+                revision = needed[revision_id]
+                inventory = self.source.get_inventory(revision_id)
+                inventories[revision_id] = inventory
+                hgrevid = hgrevid_from_bzr(revision_id)
+                log = self.source._hgrepo.changelog.read(hgrevid)
+                manifest = self.source._hgrepo.manifest.read(log[0])
+                for fileid in inventory:
+                    if fileid == bzrlib.inventory.ROOT_ID:
+                        continue
                     entry = inventory[fileid]
-                    # changing the parents-to-insert-as algorithm here will
-                    # cause pulls from hg to change the per-file graph.
-                    # BEWARE of doing that.
-                    previous_inventories = []
-                    for parent in revision.parent_ids:
-                        try:
-                            previous_inventories.append(inventories[parent])
-                        except KeyError:
-                            # if its not in the cache, its in target already
-                            inventories[parent] = self.target.get_inventory(parent)
-                            previous_inventories.append(inventories[parent])
-                    file_heads = entry.find_previous_heads(
-                        previous_inventories,
-                        target_repo.weave_store,
-                        target_transaction
-                        )
+                    if inventory[fileid].revision == revision_id:
+                        # changed in this revision
+                        entry = inventory[fileid]
+                        # changing the parents-to-insert-as algorithm here will
+                        # cause pulls from hg to change the per-file graph.
+                        # BEWARE of doing that.
+                        previous_inventories = []
+                        for parent in revision.parent_ids:
+                            try:
+                                previous_inventories.append(inventories[parent])
+                            except KeyError:
+                                # if its not in the cache, its in target already
+                                inventories[parent] = self.target.get_inventory(parent)
+                                previous_inventories.append(inventories[parent])
+                        file_heads = entry.find_previous_heads(
+                            previous_inventories,
+                            target_repo.weave_store,
+                            target_transaction
+                            )
 
-                    if entry.kind == 'directory':
-                        # a bit of an abstraction variation, but we dont have a
-                        # real tree for entry to read from, and it would be 
-                        # mostly dead weight to have a stub tree here.
-                        entry._add_text_to_weave([],
-                            file_heads,
-                            target_repo.weave_store,
-                            target_transaction)
-                    else:
-                        # extract text and insert it.
-                        path = inventory.id2path(fileid)
-                        revlog = self.source._hgrepo.file(path)
-                        filerev = manifest[path]
-                        text = revlog.revision(filerev)
-                        lines = split_lines(text)
-                        entry._add_text_to_weave(
-                            split_lines(text),
-                            file_heads,
-                            target_repo.weave_store,
-                            target_transaction)
-            self.target.add_inventory(revision_id, inventory, revision.parent_ids)
-            self.target.add_revision(revision_id, revision)
-        return len(order), 0
+                        if entry.kind == 'directory':
+                            # a bit of an abstraction variation, but we dont have a
+                            # real tree for entry to read from, and it would be 
+                            # mostly dead weight to have a stub tree here.
+                            entry._add_text_to_weave([],
+                                file_heads,
+                                target_repo.weave_store,
+                                target_transaction)
+                        else:
+                            # extract text and insert it.
+                            path = inventory.id2path(fileid)
+                            revlog = self.source._hgrepo.file(path)
+                            filerev = manifest[path]
+                            text = revlog.revision(filerev)
+                            lines = split_lines(text)
+                            entry._add_text_to_weave(
+                                split_lines(text),
+                                file_heads,
+                                target_repo.weave_store,
+                                target_transaction)
+                self.target.add_inventory(revision_id, inventory, revision.parent_ids)
+                self.target.add_revision(revision_id, revision)
+        finally:
+            pb.finished()
+        return total, 0
 
     @staticmethod
     def is_compatible(source, target):

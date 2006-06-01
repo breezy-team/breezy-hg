@@ -48,6 +48,7 @@ import bzrlib.repository
 from bzrlib.revision import Revision
 from bzrlib.tests import TestLoader, TestCaseWithTransport
 from bzrlib.transport.local import LocalTransport
+from bzrlib.tsort import topo_sort
 import bzrlib.workingtree
 
 
@@ -477,26 +478,37 @@ class InterHgRepository(bzrlib.repository.InterRepository):
         # file versions and then pull all of those per file, followed by
         # inserting the inventories and revisions, rather than doing 
         # rev-at-a-time.
-        order = []
         needed = {}
         if revision_id is None:
             raise NotImplementedError("fetching of everything not yet implemented.")
         else:
             # add what can be reached from revision_id
             pending = set([revision_id])
-        # plan
+        # plan it.
+        # we build a graph of the revisions we need, and a
+        # full graph which we use for topo-sorting (we need a partial-
+        # topo-sorter done to avoid this. TODO: a partial_topo_sort.)
+        # so needed is the revisions we need, and needed_graph is the entire
+        # graph, using 'local' sources for establishing the graph where
+        # possible. TODO: also, use the bzr knit graph facility to seed the
+        # graph once we encounter revisions we know about.
+        needed_graph = {}
         while len(pending) > 0:
             node = pending.pop()
             if self.target.has_revision(node):
-                continue
-            order.append(node)
-            needed[node] = self.source.get_revision(node)
-            for revision_id in needed[node].parent_ids:
-                if revision_id not in needed:
+                parent_ids = self.target.get_revision(node).parent_ids
+            else:
+                needed[node] = self.source.get_revision(node)
+                parent_ids = needed[node].parent_ids
+            needed_graph[node] = parent_ids
+            for revision_id in parent_ids:
+                if revision_id not in needed_graph:
                     pending.add(revision_id)
         target_repo = self.target
         target_transaction = self.target.get_transaction()
-        order.reverse()
+        order = topo_sort(needed_graph.items())
+        # order is now too aggressive: filter to just what we need:
+        order = [rev_id for rev_id in order if rev_id in needed]
         inventories = {}
         for revision_id in order:
             revision = needed[revision_id]
@@ -517,7 +529,12 @@ class InterHgRepository(bzrlib.repository.InterRepository):
                     # BEWARE of doing that.
                     previous_inventories = []
                     for parent in revision.parent_ids:
-                        previous_inventories.append(inventories[parent])
+                        try:
+                            previous_inventories.append(inventories[parent])
+                        except KeyError:
+                            # if its not in the cache, its in target already
+                            inventories[parent] = self.target.get_inventory(parent)
+                            previous_inventories.append(inventories[parent])
                     file_heads = entry.find_previous_heads(
                         previous_inventories,
                         target_repo.weave_store,

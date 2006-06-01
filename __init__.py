@@ -121,6 +121,7 @@ class HgRepository(bzrlib.repository.Repository):
         manifest = self._hgrepo.manifest.read(log[0])
         manifest_flags = self._hgrepo.manifest.readflags(log[0])
         all_relevant_revisions = self.get_revision_graph(revision_id)
+        ancestry_cache = {}
         result = Inventory()
         # each directory is a key - i.e. 'foo'
         # the value is the current chosen revision value for it.
@@ -128,6 +129,10 @@ class HgRepository(bzrlib.repository.Repository):
         # must also change if the new value is older than the parents one.
         directories = {}
         def get_ancestry(some_revision_id):
+            try:
+                return ancestry_cache[some_revision_id]
+            except KeyError:
+                pass
             ancestry = set()
             # add what can be reached from some_revision_id
             # TODO: must factor this trivial iteration in bzrlib.graph cleanly.
@@ -138,6 +143,7 @@ class HgRepository(bzrlib.repository.Repository):
                 for parent_id in all_relevant_revisions[node]:
                     if parent_id not in ancestry:
                         pending.add(parent_id)
+            ancestry_cache[some_revision_id] = ancestry
             return ancestry
         def path_id(path):
             """Create a synthetic file_id for an hg file."""

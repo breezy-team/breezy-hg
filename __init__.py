@@ -102,7 +102,11 @@ class HgRepository(bzrlib.repository.Repository):
         for each file in the manifest we:
             * if the dirname of the file is not in the inventory, we add it
               recursively, with an id of the path with / replaced by :, and a 
-              prefix of 'hg:'.
+              prefix of 'hg:'. The directory gets a last-modified value of the
+              topologically oldest file.revision value under it in the 
+              inventory. In the event of multiple revisions with no topological
+              winner - that is where there is more than one root, alpha-sorting
+              is used as a tie-break.
             * use the files revlog to get the 'linkrev' of the file which 
               takes us to the revision id that introduced that revision. That
               revision becomes the revision_id in the inventory
@@ -110,40 +114,84 @@ class HgRepository(bzrlib.repository.Repository):
             * add an entry for the file, of type file, executable if needed,
               and an id of 'hg:path' with / replaced by :.
         """
+        # TODO: this deserves either _ methods on HgRepository, or a method
+        # object. Its too big!
         hgid = hgrevid_from_bzr(revision_id)
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
         manifest_flags = self._hgrepo.manifest.readflags(log[0])
+        all_relevant_revisions = self.get_revision_graph(revision_id)
         result = Inventory()
+        # each directory is a key - i.e. 'foo'
+        # the value is the current chosen revision value for it.
+        # we walk up the hierarchy - when a dir changes .revision, its parent
+        # must also change if the new value is older than the parents one.
+        directories = {}
+        def get_ancestry(some_revision_id):
+            ancestry = set()
+            # add what can be reached from some_revision_id
+            # TODO: must factor this trivial iteration in bzrlib.graph cleanly.
+            pending = set([some_revision_id])
+            while len(pending) > 0:
+                node = pending.pop()
+                ancestry.add(node)
+                for parent_id in all_relevant_revisions[node]:
+                    if parent_id not in ancestry:
+                        pending.add(parent_id)
+            return ancestry
         def path_id(path):
             """Create a synthetic file_id for an hg file."""
             return "hg:" + path.replace('/', ':')
-        def add_dir_for(file):
+        def pick_best_creator_revision(revision_a, revision_b):
+            """Picks the best creator revision from a and b.
+
+            If a is an ancestor of b, a wins, and vice verca.
+            If neither is an ancestor of the other, the lowest value wins.
+            """
+            # TODO make this much faster - use a local cache of the ancestry
+            # sets.
+            if revision_a in get_ancestry(revision_b):
+                return revision_a
+            elif revision_b in get_ancestry(revision_a):
+                return revision_b
+            elif revision_a < revision_b:
+                return revision_a
+            else:
+                return revision_b
+        def add_dir_for(file, file_revision_id):
             """ensure that file can be added by adding its parents.
 
             this is horribly inefficient at the moment, proof of concept.
             """
             path = os.path.dirname(file)
+            if path == '':
+                # special case the root node.
+                return
             if result.has_filename(path):
+                # check for a new revision
+                current_best = directories[path]
+                new_best = pick_best_creator_revision(current_best, file_revision_id)
+                if new_best != current_best:
+                    # new revision found, push this up
+                    add_dir_for(path, file_revision_id)
+                    # and update our chosen one
+                    directories[path] = file_revision_id
                 return
             # the dir is not present. Add its parent too:
-            add_dir_for(path)
+            add_dir_for(path, file_revision_id)
+            # add the dir to the directory summary for creation detection
+            directories[path] = file_revision_id
+            # and put it in the inventory. The revision value is assigned later.
             entry = result.add_path(path, 'directory', file_id=path_id(path))
-            # this causes every revision to see all the dirs as modified on
-            # every commit, which is a BAD first approximation.
-            # TODO: a much better on is to set the dir revision_id to the
-            # oldest last-modified revision id of all the revision ids below
-            # the directory - i.e. if you have foo/a @ rev-index-4 and
-            # foo/bar/b @ rev-index-2, set the last-modified revision to 2.
-            entry.revision = revision_id
         # this can and should be tuned, but for now its just fine - its a 
         # proof of concept. add_path is part of the things to tune, as is
         # the dirname() calls.
         for file, file_revision in manifest.items():
             revlog = self._hgrepo.file(file)
             changelog_index = revlog.linkrev(file_revision)
-            modified_revision = self._hgrepo.changelog.index[changelog_index][7]
-            add_dir_for(file)
+            modified_revision = bzrrevid_from_hg(
+                self._hgrepo.changelog.index[changelog_index][7])
+            add_dir_for(file, modified_revision)
             entry = result.add_path(file, 'file', file_id=path_id(file))
             entry.text_size = revlog.size(revlog.nodemap[file_revision])
             # its a shame we need to pull the text out. is there a better way?
@@ -151,7 +199,10 @@ class HgRepository(bzrlib.repository.Repository):
             entry.text_sha1 = sha_strings(text)
             if manifest_flags[file]:
                 entry.executable = True
-            entry.revision = bzrrevid_from_hg(modified_revision)
+            entry.revision = modified_revision
+        for dir, dir_revision_id in directories.items():
+            dirid = path_id(dir)
+            result[dirid].revision = dir_revision_id
         return result
 
     def get_revision(self, revision_id):
@@ -531,15 +582,23 @@ class TestPulling(TestCaseWithTransport):
         self.tree.commit('bar')
         self.revtwo_inventory = copy.deepcopy(revone_inventory)
         tip = self.tree.last_revision()
-        # FIXME: this line is to line up with the wrong dir-versioning logic.
-        print self.tree.branch.repository.get_revision(tip).parent_ids
-        self.revtwo_inventory['hg:dir'].revision = tip
         entry = self.revtwo_inventory.add_path('dir/d', kind='file',
             file_id='hg:dir:d')
         entry.revision = tip
         entry.text_size = len('contents of hg/dir/d\n')
         entry.text_sha1 = "f48fc342f707bfb4711790e1813c0df4d44e1a23"
         self.revidtwo = tip
+        #====== end revision two
+        # in revision three, we reset the exec flag on 'b'
+        os.chmod('hg/b', mode)
+        self.tree.commit('reset mode on b')
+        self.revthree_inventory = copy.deepcopy(self.revtwo_inventory)
+        tip = self.tree.last_revision()
+        # should be a new file revision with exec reset
+        entry = self.revthree_inventory['hg:b']
+        entry.revision = tip
+        entry.executable = False
+        self.revidthree = tip
 
     def test_inventory_from_manifest(self):
         repo = self.tree.branch.repository
@@ -548,6 +607,9 @@ class TestPulling(TestCaseWithTransport):
         self.assertEqual(left._byid, right._byid)
         left = self.revtwo_inventory
         right = repo.get_inventory(self.revidtwo)
+        self.assertEqual(left._byid, right._byid)
+        left = self.revthree_inventory
+        right = repo.get_inventory(self.revidthree)
         self.assertEqual(left._byid, right._byid)
 
     def test_initial_revision_from_changelog(self):
@@ -575,12 +637,10 @@ class TestPulling(TestCaseWithTransport):
         self.assertNotEqual(None, converted_rev.timestamp)
         self.assertNotEqual(None, converted_rev.timezone)
         self.assertNotEqual(None, converted_rev.committer)
-        print "baaaar"
-
 
     def test_has_revision(self):
-        tip = self.tree.last_revision()
-        self.assertTrue(self.tree.branch.repository.has_revision(tip))
+        self.assertTrue(self.tree.branch.repository.has_revision(self.revidone))
+        self.assertTrue(self.tree.branch.repository.has_revision(self.revidtwo))
         self.assertFalse(self.tree.branch.repository.has_revision('foo'))
 
     def test_pull_into_bzr(self):
@@ -592,9 +652,16 @@ class TestPulling(TestCaseWithTransport):
         
 
 # TODO: test that a last-modified in a merged branch is correctly assigned
-# TODO: test that a last-mofified some revisions back from tip is correctly
-# assigned.
-# TODO: test revid changes when file flags alter
-# TODO: test and correct the assignment of revision to InventoryDir instances.
 # TODO: test that we set the per file parents right: that is the rev of the
-# last heads, *not* the revs of the revisions parents.
+# last heads, *not* the revs of the revisions parents. (note, this should be 
+# right already, because if the use of find_previous_heads, but surety is nice.)
+# TODO: test that the assignment of .revision to directories works correctly
+# in the following case:
+# branch A adds dir/file in rev X
+# branch B adds dir/file2 in rev Y
+# branch B merges branch A: there are *two* feasible revisions that both claim
+# to have created 'dir' - X and Y. We want to always choose lower-sorting one.
+# Its potentially impossible to guarantee a consistent choice otherwise, and
+# having the dir flip-flop in bzr would be unhelpful. This choice is what I
+# think has been implemented, but not having got hg merges operating from 
+# within python yet, its quite hard to produce this scenario to test.

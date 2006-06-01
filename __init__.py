@@ -254,7 +254,7 @@ class HgBranch(bzrlib.branch.Branch):
         self.bzrdir = hgdir
         self.control_files = lockfiles
         self.repository = HgRepository(hgrepo, hgdir, lockfiles)
-        self.base = hgrepo.path
+        self.base = hgdir.root_transport.base
 
     def lock_write(self):
         self.control_files.lock_write()
@@ -428,8 +428,20 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
     @classmethod
     def probe_transport(klass, transport):
         """Our format is present if the transport ends in '.not/'."""
+        # little ugly, but works
+        format = klass() 
+        # try a manual probe first, its a little faster perhaps ?
         if transport.has('.hg'):
-            return klass()
+            return format
+        # delegate to the main opening code. This pays a double rtt cost at the
+        # moment, so perhaps we want probe_transport to return the opened thing
+        # rather than an openener ? or we could return a curried thing with the
+        # dir to open already instantiated ? Needs more thought.
+        try:
+            format.open(transport)
+            return format
+        except Exception, e:
+            raise errors.NotBranchError(path=transport.base)
         raise errors.NotBranchError(path=transport.base)
 
 

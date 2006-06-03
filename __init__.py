@@ -223,8 +223,8 @@ class HgRepository(bzrlib.repository.Repository):
             result.parent_ids.append(bzrrevid_from_hg(hgparents[1]))
         result.message = hgchange[4]
         result.inventory_sha1 = ""
+        result.timezone = -hgchange[2][1]
         result.timestamp = hgchange[2][0]
-        result.timezone = hgchange[2][1]
         result.committer = hgchange[1]
         return result
 

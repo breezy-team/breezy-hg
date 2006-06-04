@@ -193,11 +193,45 @@ class HgRepository(bzrlib.repository.Repository):
         # this can and should be tuned, but for now its just fine - its a 
         # proof of concept. add_path is part of the things to tune, as is
         # the dirname() calls.
+        known_manifests = {}
+        """manifests addressed by changelog."""
         for file, file_revision in manifest.items():
             revlog = self._hgrepo.file(file)
             changelog_index = revlog.linkrev(file_revision)
-            modified_revision = bzrrevid_from_hg(
-                self._hgrepo.changelog.index[changelog_index][7])
+
+            # find when the file was modified. 
+            # start with the manifest nodeid
+            current_log = log
+            # we should find all the tails, and then when there are > 2 heads
+            # record a new revision id at the join. We can detect this by
+            # walking out from each head and assigning ids to them, when two
+            # parents have the same manifest assign a new id.
+            # TODO currently we just pick *a* tail.
+            file_tails = []
+            current_manifest = manifest
+            parent_cls = set(self._hgrepo.changelog.parents(hgid))
+            good_id = hgid
+            done_cls = set()
+            while parent_cls:
+                current_cl = parent_cls.pop()
+                if current_cl != mercurial.node.nullid:
+                    continue
+                if current_cl not in known_manifests:
+                    current_manifest_id = self._hgrepo.changelog.read(current_cl)[0]
+                    known_manifests[current_cl] = self._hgrepo.manifest.read(
+                        current_manifest_id)
+                current_manifest = known_manifests[current_cl]
+                done_cls.add(current_cl)
+                if current_manifest.get(file, None) != file_revision:
+                    continue
+                # same in parent
+                good_id = current_cl
+                for parent_cl in self._hgrepo.changelog.parents(current_cl):
+                    if parent_cl not in done_cls:
+                        parent_cls.add(parent_cl)
+            modified_revision = bzrrevid_from_hg(good_id)
+#            modified_revision = bzrrevid_from_hg(
+#                self._hgrepo.changelog.index[changelog_index][7])
             add_dir_for(file, modified_revision)
             entry = result.add_path(file, 'file', file_id=path_id(file))
             entry.text_size = revlog.size(revlog.nodemap[file_revision])
@@ -707,3 +741,4 @@ class TestPulling(TestCaseWithTransport):
 # having the dir flip-flop in bzr would be unhelpful. This choice is what I
 # think has been implemented, but not having got hg merges operating from 
 # within python yet, its quite hard to produce this scenario to test.
+# TODO: file version extraction should elide 'copy' and 'copyrev file headers.

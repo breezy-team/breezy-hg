@@ -236,7 +236,8 @@ class HgRepository(bzrlib.repository.Repository):
             entry = result.add_path(file, 'file', file_id=path_id(file))
             entry.text_size = revlog.size(revlog.nodemap[file_revision])
             # its a shame we need to pull the text out. is there a better way?
-            text = revlog.revision(file_revision)
+            # TODO: perhaps we should use readmeta here to figure out renames ?
+            text = revlog.read(file_revision)
             entry.text_sha1 = sha_strings(text)
             if manifest_flags[file]:
                 entry.executable = True
@@ -592,7 +593,8 @@ class InterHgRepository(bzrlib.repository.InterRepository):
                             path = inventory.id2path(fileid)
                             revlog = self.source._hgrepo.file(path)
                             filerev = manifest[path]
-                            text = revlog.revision(filerev)
+                            # TODO: perhaps we should use readmeta here to figure out renames ?
+                            text = revlog.read(filerev)
                             lines = split_lines(text)
                             entry._add_text_to_weave(
                                 split_lines(text),

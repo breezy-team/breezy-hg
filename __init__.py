@@ -447,7 +447,7 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
     def open(self, transport, _create=False, _found=None):
         """Open this directory.
         
-        :param _create: create the hg dir on the fly. private to HgDirFormat.
+        :param _create: create the hg dir on the fly. private to HgBzrDirFormat.
         """
         # we dont grok readonly - hg isn't integrated with transport.
         url = transport.base
@@ -487,16 +487,15 @@ bzrlib.bzrdir.BzrDirFormat.register_control_format(HgBzrDirFormat)
 class HgToSomethingConverter(bzrlib.bzrdir.Converter):
     """A class to upgrade an hg dir to something else."""
 
-
 class InterHgRepository(bzrlib.repository.InterRepository):
-    """Hg to Hg repository actions."""
+    """Hg to any repository actions."""
 
     _matching_repo_format = None 
     """The formate to test with - as yet there is no HgRepoFormat."""
 
     @needs_write_lock
     def copy_content(self, revision_id=None, basis=None):
-        """See InterRepository.copy_content. Partial implemnetaiton of that.
+        """See InterRepository.copy_content. Partial implementation of that.
 
         To date the revision_id and basis parameters are not supported.
         """
@@ -610,8 +609,7 @@ class InterHgRepository(bzrlib.repository.InterRepository):
     @staticmethod
     def is_compatible(source, target):
         """Be compatible with HgRepositories."""
-        return (isinstance(source, HgRepository) or
-            isinstance(target, HgRepository))
+        return isinstance(source, HgRepository)
 
 bzrlib.repository.InterRepository.register_optimiser(InterHgRepository)
 

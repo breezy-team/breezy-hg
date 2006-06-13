@@ -580,14 +580,14 @@ class InterHgRepository(bzrlib.repository.InterRepository):
                             target_transaction
                             )
 
+                        weave = target_repo.weave_store.get_weave_or_empty(
+                                    fileid, target_transaction)
+
                         if entry.kind == 'directory':
                             # a bit of an abstraction variation, but we dont have a
                             # real tree for entry to read from, and it would be 
                             # mostly dead weight to have a stub tree here.
-                            entry._add_text_to_weave([],
-                                file_heads,
-                                target_repo.weave_store,
-                                target_transaction)
+                            weave.add_lines(revision_id, file_heads, [])
                         else:
                             # extract text and insert it.
                             path = inventory.id2path(fileid)
@@ -596,12 +596,10 @@ class InterHgRepository(bzrlib.repository.InterRepository):
                             # TODO: perhaps we should use readmeta here to figure out renames ?
                             text = revlog.read(filerev)
                             lines = split_lines(text)
-                            entry._add_text_to_weave(
-                                split_lines(text),
-                                file_heads,
-                                target_repo.weave_store,
-                                target_transaction)
-                self.target.add_inventory(revision_id, inventory, revision.parent_ids)
+                            weave.add_lines(revision_id, file_heads, 
+                                            split_lines(text))
+                self.target.add_inventory(revision_id, inventory, 
+                                          revision.parent_ids)
                 self.target.add_revision(revision_id, revision)
         finally:
             pb.finished()

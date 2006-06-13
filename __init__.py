@@ -487,6 +487,7 @@ bzrlib.bzrdir.BzrDirFormat.register_control_format(HgBzrDirFormat)
 class HgToSomethingConverter(bzrlib.bzrdir.Converter):
     """A class to upgrade an hg dir to something else."""
 
+
 class InterHgRepository(bzrlib.repository.InterRepository):
     """Hg to any repository actions."""
 

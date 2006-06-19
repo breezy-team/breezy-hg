@@ -39,6 +39,7 @@ import mercurial.ui
 
 import bzrlib.branch
 import bzrlib.bzrdir
+from bzrlib.config import TreeConfig
 from bzrlib.decorators import *
 import bzrlib.errors as errors
 from bzrlib.inventory import Inventory
@@ -72,6 +73,9 @@ class HgLock(object):
     def lock_read(self):
         self._lock = self._hgrepo.lock()
 
+    def peek(self):
+        raise NotImplementedError(self.peek)
+
     def unlock(self):
         self._lock.release()
 
@@ -86,6 +90,19 @@ class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
         self._lock_count = 0
 
 
+class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
+    """Mercurial Repository Format.
+
+    This is currently not aware of different working tree formats,
+    but simply relies on the installed copy of mercurial to 
+    support the working tree format.
+    """
+
+    def get_format_description(self):
+        """See RepositoryFormat.get_format_description()."""
+        return "Mercurial Repository Format"
+
+
 class HgRepository(bzrlib.repository.Repository):
     """An adapter to mercurial repositories for bzr."""
 
@@ -93,6 +110,11 @@ class HgRepository(bzrlib.repository.Repository):
         self._hgrepo = hgrepo
         self.bzrdir = hgdir
         self.control_files = lockfiles
+        self._format = HgRepositoryFormat()
+
+    def _check(self, revision_ids):
+        # TODO: Call out to mercurial for consistency checking?
+        return bzrlib.branch.BranchCheckResult(self)
 
     def get_inventory(self, revision_id):
         """Synthesize a bzr inventory from an hg manifest...
@@ -281,6 +303,30 @@ class HgRepository(bzrlib.repository.Repository):
     def has_revision(self, revision_id):
         return hgrevid_from_bzr(revision_id) in self._hgrepo.changelog.nodemap
 
+    def is_shared(self):
+        """Whether this repository is being shared between multiple branches. 
+        
+        Always false for Mercurial as it doesn't support checkouts yet.
+        """
+        return False
+
+
+class HgBranchFormat(bzrlib.branch.BranchFormat):
+    """Mercurial Branch Format.
+
+    This is currently not aware of different working tree formats,
+    but simply relies on the installed copy of mercurial to 
+    support the working tree format.
+    """
+
+    def get_format_description(self):
+        """See BranchFormat.get_format_description()."""
+        return "Mercurial Branch Format"
+
+    def get_format_string(self):
+        """See BranchFormat.get_branch_format()."""
+        return "Mercurial Branch Format"
+
 
 class HgBranch(bzrlib.branch.Branch):
     """An adapter to mercurial repositories for bzr Branch objects."""
@@ -291,6 +337,22 @@ class HgBranch(bzrlib.branch.Branch):
         self.control_files = lockfiles
         self.repository = HgRepository(hgrepo, hgdir, lockfiles)
         self.base = hgdir.root_transport.base
+        self._format = HgBranchFormat()
+
+    def _check(self):
+        # TODO: Call out to mercurial for consistency checking?
+        return bzrlib.branch.BranchCheckResult(self)
+
+    def get_parent(self):
+        """Return the URL of the parent branch."""
+        return None
+
+    def get_physical_lock_status(self):
+        return False
+
+    def get_push_location(self):
+        """Return default push location of this branch."""
+        return None
 
     def lock_write(self):
         self.control_files.lock_write()
@@ -303,6 +365,7 @@ class HgBranch(bzrlib.branch.Branch):
         while next_rev != mercurial.node.nullid:
             revs.append(bzrrevid_from_hg(next_rev))
             next_rev = self._hgrepo.changelog.parents(next_rev)[0]
+        revs.reverse()
         return revs
 
     @needs_read_lock
@@ -313,6 +376,9 @@ class HgBranch(bzrlib.branch.Branch):
     def lock_read(self):
         self.control_files.lock_read()
 
+    def tree_config(self):
+        return TreeConfig(self)
+  
     def unlock(self):
         self.control_files.unlock()
 
@@ -326,6 +392,19 @@ class HgBranch(bzrlib.branch.Branch):
         return to_bzrdir.open_branch()
 
 
+class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
+    """Working Tree format for Mercurial Working Trees.
+
+    This is currently not aware of different working tree formats,
+    but simply relies on the installed copy of mercurial to 
+    support the working tree format.
+    """
+
+    def get_format_description(self):
+        """See WorkingTreeFormat.get_format_description()."""
+        return "Mercurial Working Tree Format"
+
+
 class HgWorkingTree(bzrlib.workingtree.WorkingTree):
     """An adapter to mercurial repositories for bzr WorkingTree obejcts."""
 
@@ -334,6 +413,7 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self.bzrdir = hgdir
         self._control_files = lockfiles
         self._branch = HgBranch(hgrepo, hgdir, lockfiles)
+        self._format = HgWorkingTreeFormat()
 
     @needs_write_lock
     def add(self, files, ids=None):
@@ -435,6 +515,9 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
     def get_converter(self):
         """We should write a converter."""
         return HgToSomethingConverter()
+
+    def get_format_description(self):
+        return "Mercurial Branch"
 
     def initialize_on_transport(self, transport):
         """Initialize a new .not dir in the base directory of a Transport."""

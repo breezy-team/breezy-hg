@@ -43,7 +43,7 @@ from bzrlib.decorators import *
 import bzrlib.errors as errors
 from bzrlib.inventory import Inventory
 import bzrlib.lockable_files
-from bzrlib.osutils import split_lines, sha_strings
+from bzrlib.osutils import basename, split_lines, sha_strings
 import bzrlib.repository
 from bzrlib.revision import Revision
 from bzrlib.tests import TestLoader, TestCaseWithTransport
@@ -282,6 +282,19 @@ class HgRepository(bzrlib.repository.Repository):
         return hgrevid_from_bzr(revision_id) in self._hgrepo.changelog.nodemap
 
 
+class HgBranchConfig(object):
+    """Access Branch Configuration data for an HgBranch.
+
+    This is not fully compatible with bzr yet - but it should be made so.
+    """
+
+    def __init__(self, branch):
+        self._branch = branch
+
+    def get_nickname(self):
+        return basename(self._branch.base)
+
+
 class HgBranch(bzrlib.branch.Branch):
     """An adapter to mercurial repositories for bzr Branch objects."""
 
@@ -291,6 +304,14 @@ class HgBranch(bzrlib.branch.Branch):
         self.control_files = lockfiles
         self.repository = HgRepository(hgrepo, hgdir, lockfiles)
         self.base = hgdir.root_transport.base
+
+    def get_config(self):
+        """See Branch.get_config().
+
+        We return an HgBranchConfig, which is a stub class with little
+        functionality.
+        """
+        return HgBranchConfig(self)
 
     def lock_write(self):
         self.control_files.lock_write()
@@ -714,6 +735,10 @@ class TestPulling(TestCaseWithTransport):
         self.assertNotEqual(None, converted_rev.timestamp)
         self.assertNotEqual(None, converted_rev.timezone)
         self.assertNotEqual(None, converted_rev.committer)
+
+    def test_get_config_nickname(self):
+        # the branch nickname should be hg because the test dir is called hg.
+        self.assertEqual("hg", self.tree.branch.get_config().get_nickname())
 
     def test_has_revision(self):
         self.assertTrue(self.tree.branch.repository.has_revision(self.revidone))

@@ -450,14 +450,14 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         :param _create: create the hg dir on the fly. private to HgBzrDirFormat.
         """
         # we dont grok readonly - hg isn't integrated with transport.
-        url = transport.base
-        if url.startswith('readonly+'):
-            url = url[len('readonly+'):]
-        if url.startswith('file://'):
-            url = url[len('file://'):]
-        url = url.encode('utf8')
+        if transport.base.startswith('readonly+'):
+            transport = transport._decorated
+        if transport.base.startswith('file://'):
+            path = transport.local_abspath('.').encode('utf-8')
+        else:
+            raise errors.BzrCommandError('cannot use hg on %s transport' % transport)
         ui = mercurial.ui.ui()
-        repository = mercurial.hg.repository(ui, url, create=_create)
+        repository = mercurial.hg.repository(ui, path, create=_create)
         lockfiles = HgLockableFiles(HgLock(repository))
         return HgDir(repository, transport, lockfiles, self)
 
@@ -488,7 +488,7 @@ class HgToSomethingConverter(bzrlib.bzrdir.Converter):
     """A class to upgrade an hg dir to something else."""
 
 
-class InterHgRepository(bzrlib.repository.InterRepository):
+class FromHgRepository(bzrlib.repository.InterRepository):
     """Hg to any repository actions."""
 
     _matching_repo_format = None 
@@ -515,7 +515,9 @@ class InterHgRepository(bzrlib.repository.InterRepository):
         # rev-at-a-time.
         needed = {}
         if revision_id is None:
-            raise NotImplementedError("fetching of everything not yet implemented.")
+            pending = set()
+            for revision_id in self.source._hgrepo.changelog.heads():
+                pending.add(bzrrevid_from_hg(revision_id))
         else:
             # add what can be reached from revision_id
             pending = set([revision_id])
@@ -610,7 +612,7 @@ class InterHgRepository(bzrlib.repository.InterRepository):
         """Be compatible with HgRepositories."""
         return isinstance(source, HgRepository)
 
-bzrlib.repository.InterRepository.register_optimiser(InterHgRepository)
+bzrlib.repository.InterRepository.register_optimiser(FromHgRepository)
 
 def test_suite():
     return TestLoader().loadTestsFromName(__name__)

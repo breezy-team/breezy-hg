@@ -44,7 +44,7 @@ from bzrlib.decorators import *
 import bzrlib.errors as errors
 from bzrlib.inventory import Inventory
 import bzrlib.lockable_files
-from bzrlib.osutils import split_lines, sha_strings
+from bzrlib.osutils import basename, split_lines, sha_strings
 import bzrlib.repository
 from bzrlib.revision import Revision
 from bzrlib.tests import TestLoader, TestCaseWithTransport
@@ -328,6 +328,19 @@ class HgBranchFormat(bzrlib.branch.BranchFormat):
         return "Mercurial Branch Format"
 
 
+class HgBranchConfig(object):
+    """Access Branch Configuration data for an HgBranch.
+
+    This is not fully compatible with bzr yet - but it should be made so.
+    """
+
+    def __init__(self, branch):
+        self._branch = branch
+
+    def get_nickname(self):
+        return basename(self._branch.base)
+
+
 class HgBranch(bzrlib.branch.Branch):
     """An adapter to mercurial repositories for bzr Branch objects."""
 
@@ -353,6 +366,14 @@ class HgBranch(bzrlib.branch.Branch):
     def get_push_location(self):
         """Return default push location of this branch."""
         return None
+
+    def get_config(self):
+        """See Branch.get_config().
+
+        We return an HgBranchConfig, which is a stub class with little
+        functionality.
+        """
+        return HgBranchConfig(self)
 
     def lock_write(self):
         self.control_files.lock_write()
@@ -533,14 +554,14 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         :param _create: create the hg dir on the fly. private to HgBzrDirFormat.
         """
         # we dont grok readonly - hg isn't integrated with transport.
-        url = transport.base
-        if url.startswith('readonly+'):
-            url = url[len('readonly+'):]
-        if url.startswith('file://'):
-            url = url[len('file://'):]
-        url = url.encode('utf8')
+        if transport.base.startswith('readonly+'):
+            transport = transport._decorated
+        if transport.base.startswith('file://'):
+            path = transport.local_abspath('.').encode('utf-8')
+        else:
+            raise errors.BzrCommandError('cannot use hg on %s transport' % transport)
         ui = mercurial.ui.ui()
-        repository = mercurial.hg.repository(ui, url, create=_create)
+        repository = mercurial.hg.repository(ui, path, create=_create)
         lockfiles = HgLockableFiles(HgLock(repository))
         return HgDir(repository, transport, lockfiles, self)
 
@@ -571,7 +592,7 @@ class HgToSomethingConverter(bzrlib.bzrdir.Converter):
     """A class to upgrade an hg dir to something else."""
 
 
-class InterHgRepository(bzrlib.repository.InterRepository):
+class FromHgRepository(bzrlib.repository.InterRepository):
     """Hg to any repository actions."""
 
     _matching_repo_format = None 
@@ -598,7 +619,9 @@ class InterHgRepository(bzrlib.repository.InterRepository):
         # rev-at-a-time.
         needed = {}
         if revision_id is None:
-            raise NotImplementedError("fetching of everything not yet implemented.")
+            pending = set()
+            for revision_id in self.source._hgrepo.changelog.heads():
+                pending.add(bzrrevid_from_hg(revision_id))
         else:
             # add what can be reached from revision_id
             pending = set([revision_id])
@@ -693,7 +716,7 @@ class InterHgRepository(bzrlib.repository.InterRepository):
         """Be compatible with HgRepositories."""
         return isinstance(source, HgRepository)
 
-bzrlib.repository.InterRepository.register_optimiser(InterHgRepository)
+bzrlib.repository.InterRepository.register_optimiser(FromHgRepository)
 
 def test_suite():
     return TestLoader().loadTestsFromName(__name__)
@@ -795,6 +818,10 @@ class TestPulling(TestCaseWithTransport):
         self.assertNotEqual(None, converted_rev.timestamp)
         self.assertNotEqual(None, converted_rev.timezone)
         self.assertNotEqual(None, converted_rev.committer)
+
+    def test_get_config_nickname(self):
+        # the branch nickname should be hg because the test dir is called hg.
+        self.assertEqual("hg", self.tree.branch.get_config().get_nickname())
 
     def test_has_revision(self):
         self.assertTrue(self.tree.branch.repository.has_revision(self.revidone))

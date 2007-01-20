@@ -100,9 +100,9 @@ class MercurialBranchConfig:
 class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     """Mercurial Repository Format.
 
-    This is currently not aware of different working tree formats,
+    This is currently not aware of different repository formats,
     but simply relies on the installed copy of mercurial to 
-    support the working tree format.
+    support the repository format.
     """
 
     def get_format_description(self):
@@ -322,9 +322,9 @@ class HgRepository(bzrlib.repository.Repository):
 class HgBranchFormat(bzrlib.branch.BranchFormat):
     """Mercurial Branch Format.
 
-    This is currently not aware of different working tree formats,
+    This is currently not aware of different branch formats,
     but simply relies on the installed copy of mercurial to 
-    support the working tree format.
+    support the branch format.
     """
 
     def get_format_description(self):

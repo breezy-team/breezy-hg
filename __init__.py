@@ -453,8 +453,7 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
     @needs_write_lock
     def commit(self, message, *args, **kwargs):
         # TODO: selected file lists etc.
-        files, matchfn, anypats = mercurial.commands.matchpats(self._hgrepo)
-        self._hgrepo.commit([], message, None, None, matchfn, wlock=self._control_files._lock)
+        self._hgrepo.commit([], message, None, None, wlock=self._control_files._lock)
 
 #    def read_working_inventory(self):
 #        """in hg terms, read the manifest."""

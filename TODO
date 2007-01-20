@@ -1,1 +1,4 @@
 - Call out to mercurial for consistency checking?
+- Obtain appropriate repository defaults in Branch.get_parent() and 
+  Branch.get_push_location()
+- Read hgrc in MercurialBranchConfig()

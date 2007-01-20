@@ -39,7 +39,6 @@ import mercurial.ui
 
 import bzrlib.branch
 import bzrlib.bzrdir
-from bzrlib.config import TreeConfig
 from bzrlib.decorators import *
 import bzrlib.errors as errors
 from bzrlib.inventory import Inventory
@@ -90,6 +89,14 @@ class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
         self._lock_count = 0
 
 
+class MercurialBranchConfig:
+    """Hg branch configuration."""
+
+    def __init__(self, branch):
+        # TODO: Read .hgrc
+        self.branch = branch
+
+
 class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     """Mercurial Repository Format.
 
@@ -111,6 +118,7 @@ class HgRepository(bzrlib.repository.Repository):
         self.bzrdir = hgdir
         self.control_files = lockfiles
         self._format = HgRepositoryFormat()
+        self.base = hgdir.root_transport.base
 
     def _check(self, revision_ids):
         # TODO: Call out to mercurial for consistency checking?
@@ -306,7 +314,7 @@ class HgRepository(bzrlib.repository.Repository):
     def is_shared(self):
         """Whether this repository is being shared between multiple branches. 
         
-        Always false for Mercurial as it doesn't support checkouts yet.
+        Always False for Mercurial for now.
         """
         return False
 
@@ -354,13 +362,15 @@ class HgBranch(bzrlib.branch.Branch):
 
     def get_parent(self):
         """Return the URL of the parent branch."""
+        # TODO: Obtain "repository default" 
         return None
 
     def get_physical_lock_status(self):
-        return False
+        return self.control_files.get_physical_lock_status()
 
     def get_push_location(self):
         """Return default push location of this branch."""
+        # TODO: Obtain "repository default"
         return None
 
     def get_config(self):
@@ -394,7 +404,7 @@ class HgBranch(bzrlib.branch.Branch):
         self.control_files.lock_read()
 
     def tree_config(self):
-        return TreeConfig(self)
+        return MercurialBranchConfig(self)
   
     def unlock(self):
         self.control_files.unlock()

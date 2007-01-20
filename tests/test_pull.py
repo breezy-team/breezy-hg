@@ -15,7 +15,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+from bzrlib.inventory import Inventory
+from bzrlib.plugins.hg import HgBzrDirFormat
 from bzrlib.tests import TestCaseWithTransport
+
+import copy
+import os
+import stat
 
 class TestPulling(TestCaseWithTransport):
     """Tests for pulling from hg to bzr."""

@@ -100,7 +100,7 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
 
     def get_format_description(self):
         """See RepositoryFormat.get_format_description()."""
-        return "Mercurial Repository Format"
+        return "Mercurial Repository"
 
 
 class HgRepository(bzrlib.repository.Repository):
@@ -321,11 +321,7 @@ class HgBranchFormat(bzrlib.branch.BranchFormat):
 
     def get_format_description(self):
         """See BranchFormat.get_format_description()."""
-        return "Mercurial Branch Format"
-
-    def get_format_string(self):
-        """See BranchFormat.get_branch_format()."""
-        return "Mercurial Branch Format"
+        return "Mercurial Branch"
 
 
 class HgBranchConfig(object):
@@ -423,7 +419,7 @@ class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
 
     def get_format_description(self):
         """See WorkingTreeFormat.get_format_description()."""
-        return "Mercurial Working Tree Format"
+        return "Mercurial Working Tree"
 
 
 class HgWorkingTree(bzrlib.workingtree.WorkingTree):

@@ -43,11 +43,12 @@ from bzrlib.decorators import *
 import bzrlib.errors as errors
 from bzrlib.inventory import Inventory
 import bzrlib.lockable_files
-from bzrlib.osutils import basename, split_lines, sha_strings
+from bzrlib.osutils import split_lines, sha_strings
 import bzrlib.repository
 from bzrlib.revision import Revision
 from bzrlib.transport.local import LocalTransport
 from bzrlib.tsort import topo_sort
+import bzrlib.urlutils as urlutils
 import bzrlib.workingtree
 
 
@@ -341,7 +342,7 @@ class HgBranchConfig(object):
         self._branch = branch
 
     def get_nickname(self):
-        return basename(self._branch.base)
+        return urlutils.unescape(self._branch.base.split('/')[-2])
 
 
 class HgBranch(bzrlib.branch.Branch):

@@ -89,11 +89,12 @@ class HgLock(object):
 class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
     """Hg specific lockable files abstraction."""
 
-    def __init__(self, lock):
+    def __init__(self, lock, transport):
         self._lock = lock
         self._transaction = None
         self._lock_mode = None
         self._lock_count = 0
+        self._transport = transport
 
 
 class MercurialBranchConfig:
@@ -615,7 +616,7 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
             raise errors.BzrCommandError('cannot use hg on %s transport' % transport)
         ui = mercurial.ui.ui()
         repository = mercurial.hg.repository(ui, path, create=_create)
-        lockfiles = HgLockableFiles(HgLock(repository))
+        lockfiles = HgLockableFiles(HgLock(repository), transport)
         return HgDir(repository, transport, lockfiles, self)
 
     @classmethod

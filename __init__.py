@@ -601,8 +601,10 @@ class HgToSomethingConverter(bzrlib.bzrdir.Converter):
 class FromHgRepository(bzrlib.repository.InterRepository):
     """Hg to any repository actions."""
 
-    _matching_repo_format = None 
-    """The formate to test with - as yet there is no HgRepoFormat."""
+    @classmethod
+    def _get_repo_format_to_test(self):
+        """The formate to test with - as yet there is no HgRepoFormat."""
+        return None
 
     @needs_write_lock
     def copy_content(self, revision_id=None, basis=None):

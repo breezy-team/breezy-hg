@@ -205,6 +205,9 @@ class HgRepository(bzrlib.repository.Repository):
             """ensure that file can be added by adding its parents.
 
             this is horribly inefficient at the moment, proof of concept.
+
+            This is called for every path under each dir, and will update the
+            .revision for it older each time as the file age is determined.
             """
             path = os.path.dirname(file)
             if path == '':
@@ -216,6 +219,7 @@ class HgRepository(bzrlib.repository.Repository):
                 new_best = pick_best_creator_revision(current_best, file_revision_id)
                 if new_best != current_best:
                     # new revision found, push this up
+                    # XXX could hand in our result as a hint?
                     add_dir_for(path, file_revision_id)
                     # and update our chosen one
                     directories[path] = file_revision_id
@@ -245,12 +249,15 @@ class HgRepository(bzrlib.repository.Repository):
             # TODO currently we just pick *a* tail.
             file_tails = []
             current_manifest = manifest
+            # cls - changelogs
             parent_cls = set(self._hgrepo.changelog.parents(hgid))
             good_id = hgid
             done_cls = set()
+            # walk the graph, any node at a time to find the last change point.
             while parent_cls:
                 current_cl = parent_cls.pop()
-                if current_cl != mercurial.node.nullid:
+                # the nullid isn't useful.
+                if current_cl == mercurial.node.nullid:
                     continue
                 if current_cl not in known_manifests:
                     current_manifest_id = self._hgrepo.changelog.read(current_cl)[0]
@@ -260,15 +267,44 @@ class HgRepository(bzrlib.repository.Repository):
                 done_cls.add(current_cl)
                 if current_manifest.get(file, None) != file_revision:
                     continue
-                # same in parent
+                # unchanged in parent, advance to the parent.
                 good_id = current_cl
                 for parent_cl in self._hgrepo.changelog.parents(current_cl):
                     if parent_cl not in done_cls:
                         parent_cls.add(parent_cl)
             modified_revision = bzrrevid_from_hg(good_id)
-#            modified_revision = bzrrevid_from_hg(
-#                self._hgrepo.changelog.index[changelog_index][7])
-            add_dir_for(file, modified_revision)
+            # dont use the following, it doesn't give the right results consistently.
+            # modified_revision = bzrrevid_from_hg(
+            #     self._hgrepo.changelog.index[changelog_index][7])
+            # now walk to find the introducing revision.
+            parent_cl_ids = set([(None, hgid)])
+            good_id = hgid
+            done_cls = set()
+            while parent_cl_ids:
+                current_cl_id_child, current_cl_id = parent_cl_ids.pop()
+                # the nullid isn't useful.
+                if current_cl_id == mercurial.node.nullid:
+                    continue
+                if current_cl_id not in known_manifests:
+                    current_manifest_id = self._hgrepo.changelog.read(current_cl_id)[0]
+                    known_manifests[current_cl_id] = self._hgrepo.manifest.read(
+                        current_manifest_id)
+                current_manifest = known_manifests[current_cl_id]
+                done_cls.add(current_cl_id)
+                if current_manifest.get(file, None) is None:
+                    # file is not in current manifest: its a tail, cut here.
+                    good_id = current_cl_id_child
+                    continue
+                # walk to the parents
+                if (mercurial.node.nullid, mercurial.node.nullid) == self._hgrepo.changelog.parents(current_cl_id):
+                    # we have reached the root:
+                    good_id = current_cl_id
+                    continue
+                for parent_cl in self._hgrepo.changelog.parents(current_cl_id):
+                    if parent_cl not in done_cls:
+                        parent_cl_ids.add((current_cl_id, parent_cl))
+            introduced_at_path_revision = bzrrevid_from_hg(good_id)
+            add_dir_for(file, introduced_at_path_revision)
             entry = result.add_path(file, 'file', file_id=path_id(file))
             entry.text_size = revlog.size(revlog.nodemap[file_revision])
             # its a shame we need to pull the text out. is there a better way?
@@ -777,6 +813,8 @@ class TestPulling(TestCaseWithTransport):
         self.revone_inventory = revone_inventory
         self.revidone = tip
         #====== end revision one
+        # in revisiontwo we add a new file to dir, which should not change
+        # the revision_id on the inventory.
         self.build_tree(['hg/dir/d'])
         self.tree.add(['dir/d'])
         self.tree.commit('bar')
@@ -799,6 +837,19 @@ class TestPulling(TestCaseWithTransport):
         entry.revision = tip
         entry.executable = False
         self.revidthree = tip
+        #====== end revision three
+        # in revision four we change the file dir/c, which should not alter
+        # the last-changed field for 'dir'.
+        self.build_tree_contents([('hg/dir/c', 'new contents')])
+        self.tree.commit('change dir/c')
+        self.revfour_inventory = copy.deepcopy(self.revthree_inventory)
+        tip = self.tree.last_revision()
+        entry = self.revfour_inventory['hg:dir:c']
+        entry.revision = tip
+        entry.text_size = len('new contents')
+        entry.text_sha1 = "7ffa72b76d5d66da37f4b614b7a822c01f23c183"
+        self.revidfour = tip
+        #====== end revision four
 
     def test_inventory_from_manifest(self):
         repo = self.tree.branch.repository
@@ -810,6 +861,9 @@ class TestPulling(TestCaseWithTransport):
         self.assertEqual(left._byid, right._byid)
         left = self.revthree_inventory
         right = repo.get_inventory(self.revidthree)
+        self.assertEqual(left._byid, right._byid)
+        left = self.revfour_inventory
+        right = repo.get_inventory(self.revidfour)
         self.assertEqual(left._byid, right._byid)
 
     def test_initial_revision_from_changelog(self):
@@ -852,7 +906,7 @@ class TestPulling(TestCaseWithTransport):
         bzrtree.pull(self.tree.branch)
         self.assertFileEqual('contents of hg/a\n', 'bzr/a')
         self.assertFileEqual('contents of hg/b\n', 'bzr/b')
-        self.assertFileEqual('contents of hg/dir/c\n', 'bzr/dir/c')
+        self.assertFileEqual('new contents', 'bzr/dir/c')
         
 
 # TODO: test that a last-modified in a merged branch is correctly assigned

@@ -348,7 +348,8 @@ class HgBranchConfig(object):
         self._branch = branch
 
     def get_nickname(self):
-        return basename(self._branch.base)
+        # remove the trailing / and take the basename.
+        return basename(self._branch.base[:-1])
 
 
 class HgBranch(bzrlib.branch.Branch):

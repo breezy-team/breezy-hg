@@ -32,6 +32,7 @@ import os
 import stat
 
 import mercurial.commands
+import mercurial.cmdutil
 import mercurial.hg
 import mercurial.node
 from mercurial.node import hex, bin
@@ -66,7 +67,9 @@ class HgLock(object):
     def __init__(self, hgrepo):
         self._hgrepo = hgrepo
 
-    def lock_write(self):
+    def lock_write(self, token=None):
+        if token is not None:
+            raise errors.TokenLockingNotSupported(self)
         self._lock = self._hgrepo.wlock()
 
     def lock_read(self):
@@ -77,6 +80,10 @@ class HgLock(object):
 
     def unlock(self):
         self._lock.release()
+
+    def validate_token(self, token):
+        if token is not None:
+            raise errors.TokenLockingNotSupported(self)
 
 
 class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
@@ -454,11 +461,14 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
     @needs_write_lock
     def commit(self, message, *args, **kwargs):
         # TODO: selected file lists etc.
-        files, matchfn, anypats = mercurial.commands.matchpats(self._hgrepo)
+        files, matchfn, anypats = mercurial.cmdutil.matchpats(self._hgrepo)
         self._hgrepo.commit([], message, None, None, matchfn, wlock=self._control_files._lock)
 
 #    def read_working_inventory(self):
 #        """in hg terms, read the manifest."""
+
+    def _reset_data(self):
+        """Reset all cached data."""
 
     def unlock(self):
         """Overridden to avoid hashcache usage - hg manages that."""

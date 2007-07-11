@@ -150,7 +150,6 @@ class HgRepository(bzrlib.repository.Repository):
         hgid = hgrevid_from_bzr(revision_id)
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
-        manifest_flags = self._hgrepo.manifest.readflags(log[0])
         all_relevant_revisions = self.get_revision_graph(revision_id)
         ancestry_cache = {}
         result = Inventory()
@@ -269,7 +268,7 @@ class HgRepository(bzrlib.repository.Repository):
             # TODO: perhaps we should use readmeta here to figure out renames ?
             text = revlog.read(file_revision)
             entry.text_sha1 = sha_strings(text)
-            if manifest_flags[file]:
+            if manifest.execf(file):
                 entry.executable = True
             entry.revision = modified_revision
         for dir, dir_revision_id in directories.items():
@@ -349,6 +348,7 @@ class HgBranch(bzrlib.branch.Branch):
     """An adapter to mercurial repositories for bzr Branch objects."""
 
     def __init__(self, hgrepo, hgdir, lockfiles):
+        bzrlib.branch.Branch.__init__(self)
         self._hgrepo = hgrepo
         self.bzrdir = hgdir
         self.control_files = lockfiles

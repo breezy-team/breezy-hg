@@ -31,6 +31,12 @@ import copy
 import os
 import stat
 
+try:
+    from mercurial import demandimport
+    demandimport.enable = lambda: None
+except ImportError:
+    pass
+
 import mercurial.commands
 import mercurial.cmdutil
 import mercurial.hg

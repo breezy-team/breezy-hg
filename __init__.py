@@ -585,7 +585,7 @@ class HgDir(bzrlib.bzrdir.BzrDir):
         """'open' a repository for this dir."""
         return HgRepository(self._hgrepo, self, self._lockfiles)
 
-    def open_workingtree(self, shared=False):
+    def open_workingtree(self, shared=False, recommend_upgrade=False):
         """'open' a workingtree for this dir."""
         return HgWorkingTree(self._hgrepo, self, self._lockfiles)
 

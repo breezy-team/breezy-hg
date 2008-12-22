@@ -48,11 +48,11 @@ import bzrlib.branch
 import bzrlib.bzrdir
 from bzrlib.decorators import *
 import bzrlib.errors as errors
+from bzrlib.foreign import ForeignRevision
 from bzrlib.inventory import Inventory
 import bzrlib.lockable_files
 from bzrlib.osutils import split_lines, sha_strings
 import bzrlib.repository
-from bzrlib.revision import Revision
 from bzrlib.transport.local import LocalTransport
 from bzrlib.tsort import topo_sort
 import bzrlib.urlutils as urlutils
@@ -327,9 +327,10 @@ class HgRepository(bzrlib.repository.Repository):
         return result
 
     def get_revision(self, revision_id):
-        result = Revision(revision_id)
-        hgchange = self._hgrepo.changelog.read(hgrevid_from_bzr(revision_id))
-        hgparents = self._hgrepo.changelog.parents(hgrevid_from_bzr(revision_id))
+        hgrevid = hgrevid_from_bzr(revision_id)
+        result = ForeignRevision(hgrevid, None, revision_id)
+        hgchange = self._hgrepo.changelog.read(hgrevid)
+        hgparents = self._hgrepo.changelog.parents(hgrevid)
         result.parent_ids = []
         if hgparents[0] != mercurial.node.nullid:
             result.parent_ids.append(bzrrevid_from_hg(hgparents[0]))

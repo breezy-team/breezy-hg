@@ -684,7 +684,7 @@ class FromHgRepository(bzrlib.repository.InterRepository):
         self.target.fetch(self.source)
 
     @needs_write_lock
-    def fetch(self, revision_id=None, pb=None):
+    def fetch(self, revision_id=None, pb=None, find_ghosts=False):
         """Fetch revisions. This is a partial implementation."""
         # assumes that self is a bzr compatible tree, and that source is hg
         # pull everything for simplicity.

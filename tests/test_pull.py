@@ -58,6 +58,8 @@ class TestPulling(TestCaseWithTransport):
         self.revone_inventory = revone_inventory
         self.revidone = tip
         #====== end revision one
+        # in revisiontwo we add a new file to dir, which should not change
+        # the revision_id on the inventory.
         self.build_tree(['hg/dir/d'])
         self.tree.add(['dir/d'])
         self.tree.commit('bar')
@@ -80,6 +82,19 @@ class TestPulling(TestCaseWithTransport):
         entry.revision = tip
         entry.executable = False
         self.revidthree = tip
+        #====== end revision three
+        # in revision four we change the file dir/c, which should not alter
+        # the last-changed field for 'dir'.
+        self.build_tree_contents([('hg/dir/c', 'new contents')])
+        self.tree.commit('change dir/c')
+        self.revfour_inventory = copy.deepcopy(self.revthree_inventory)
+        tip = self.tree.last_revision()
+        entry = self.revfour_inventory['hg:dir:c']
+        entry.revision = tip
+        entry.text_size = len('new contents')
+        entry.text_sha1 = "7ffa72b76d5d66da37f4b614b7a822c01f23c183"
+        self.revidfour = tip
+        #====== end revision four
 
     def test_inventory_from_manifest(self):
         repo = self.tree.branch.repository
@@ -91,6 +106,9 @@ class TestPulling(TestCaseWithTransport):
         self.assertEqual(left._byid, right._byid)
         left = self.revthree_inventory
         right = repo.get_inventory(self.revidthree)
+        self.assertEqual(left._byid, right._byid)
+        left = self.revfour_inventory
+        right = repo.get_inventory(self.revidfour)
         self.assertEqual(left._byid, right._byid)
 
     def test_initial_revision_from_changelog(self):
@@ -133,5 +151,5 @@ class TestPulling(TestCaseWithTransport):
         bzrtree.pull(self.tree.branch)
         self.assertFileEqual('contents of hg/a\n', 'bzr/a')
         self.assertFileEqual('contents of hg/b\n', 'bzr/b')
-        self.assertFileEqual('contents of hg/dir/c\n', 'bzr/dir/c')
- 
+        self.assertFileEqual('new contents', 'bzr/dir/c')
+        

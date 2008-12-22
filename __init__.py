@@ -393,12 +393,8 @@ class HgBranchConfig(object):
         self._branch = branch
 
     def get_nickname(self):
-<<<<<<< TREE
-        return urlutils.unescape(self._branch.base.split('/')[-2])
-=======
         # remove the trailing / and take the basename.
         return basename(self._branch.base[:-1])
->>>>>>> MERGE-SOURCE
 
 
 class HgBranch(bzrlib.branch.Branch):
@@ -511,12 +507,8 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
     @needs_write_lock
     def commit(self, message, *args, **kwargs):
         # TODO: selected file lists etc.
-<<<<<<< TREE
-        self._hgrepo.commit([], message, None, None, wlock=self._control_files._lock)
-=======
         files, matchfn, anypats = mercurial.cmdutil.matchpats(self._hgrepo)
         self._hgrepo.commit([], message, None, None, matchfn, wlock=self._control_files._lock)
->>>>>>> MERGE-SOURCE
 
 #    def read_working_inventory(self):
 #        """in hg terms, read the manifest."""
@@ -795,7 +787,6 @@ class FromHgRepository(bzrlib.repository.InterRepository):
 bzrlib.repository.InterRepository.register_optimiser(FromHgRepository)
 
 def test_suite():
-<<<<<<< TREE
     from unittest import TestSuite, TestLoader
     import tests
 
@@ -804,142 +795,7 @@ def test_suite():
     suite.addTest(tests.test_suite())
 
     return suite      
-=======
-    return TestLoader().loadTestsFromName(__name__)
 
-
-class TestPulling(TestCaseWithTransport):
-    """Tests for pulling from hg to bzr."""
-
-    def setUp(self):
-        super(TestPulling, self).setUp()
-        self.build_tree(['hg/', 'hg/a', 'hg/b', 'hg/dir/', 'hg/dir/c'])
-        hgdir = HgBzrDirFormat().initialize('hg')
-        self.tree = hgdir.open_workingtree()
-        mode = os.lstat('hg/b').st_mode
-        os.chmod('hg/b', mode | stat.S_IEXEC)
-        # do not add 'dir' to ensure that we pickup dir/c anyway : if hg
-        # changes it behaviour, we want this test to start failing.
-        self.tree.add(['a', 'b', 'dir/c'])
-        self.tree.commit('foo')
-        revone_inventory = Inventory()
-        tip = self.tree.last_revision()
-        entry = revone_inventory.add_path('a', kind='file', file_id='hg:a')
-        entry.revision = tip
-        entry.text_size = len('contents of hg/a\n')
-        entry.text_sha1 = "72bcea9d6cba6ee7d3241bfa0c5e54506ad81a94"
-        entry = revone_inventory.add_path('b', kind='file', file_id='hg:b')
-        entry.executable = True
-        entry.revision = tip
-        entry.text_size = len('contents of hg/b\n')
-        entry.text_sha1 = "b4d0c22d126cd0afeeeffa62961fb47c0932835a"
-        entry = revone_inventory.add_path('dir', kind='directory',
-            file_id='hg:dir')
-        entry.revision = tip
-        entry = revone_inventory.add_path('dir/c', kind='file',
-            file_id='hg:dir:c')
-        entry.revision = tip
-        entry.text_size = len('contents of hg/dir/c\n')
-        entry.text_sha1 = "958be752affac0fee70471331b96fb3fc1809425"
-        self.revone_inventory = revone_inventory
-        self.revidone = tip
-        #====== end revision one
-        # in revisiontwo we add a new file to dir, which should not change
-        # the revision_id on the inventory.
-        self.build_tree(['hg/dir/d'])
-        self.tree.add(['dir/d'])
-        self.tree.commit('bar')
-        self.revtwo_inventory = copy.deepcopy(revone_inventory)
-        tip = self.tree.last_revision()
-        entry = self.revtwo_inventory.add_path('dir/d', kind='file',
-            file_id='hg:dir:d')
-        entry.revision = tip
-        entry.text_size = len('contents of hg/dir/d\n')
-        entry.text_sha1 = "f48fc342f707bfb4711790e1813c0df4d44e1a23"
-        self.revidtwo = tip
-        #====== end revision two
-        # in revision three, we reset the exec flag on 'b'
-        os.chmod('hg/b', mode)
-        self.tree.commit('reset mode on b')
-        self.revthree_inventory = copy.deepcopy(self.revtwo_inventory)
-        tip = self.tree.last_revision()
-        # should be a new file revision with exec reset
-        entry = self.revthree_inventory['hg:b']
-        entry.revision = tip
-        entry.executable = False
-        self.revidthree = tip
-        #====== end revision three
-        # in revision four we change the file dir/c, which should not alter
-        # the last-changed field for 'dir'.
-        self.build_tree_contents([('hg/dir/c', 'new contents')])
-        self.tree.commit('change dir/c')
-        self.revfour_inventory = copy.deepcopy(self.revthree_inventory)
-        tip = self.tree.last_revision()
-        entry = self.revfour_inventory['hg:dir:c']
-        entry.revision = tip
-        entry.text_size = len('new contents')
-        entry.text_sha1 = "7ffa72b76d5d66da37f4b614b7a822c01f23c183"
-        self.revidfour = tip
-        #====== end revision four
-
-    def test_inventory_from_manifest(self):
-        repo = self.tree.branch.repository
-        left = self.revone_inventory
-        right = repo.get_inventory(self.revidone)
-        self.assertEqual(left._byid, right._byid)
-        left = self.revtwo_inventory
-        right = repo.get_inventory(self.revidtwo)
-        self.assertEqual(left._byid, right._byid)
-        left = self.revthree_inventory
-        right = repo.get_inventory(self.revidthree)
-        self.assertEqual(left._byid, right._byid)
-        left = self.revfour_inventory
-        right = repo.get_inventory(self.revidfour)
-        self.assertEqual(left._byid, right._byid)
-
-    def test_initial_revision_from_changelog(self):
-        converted_rev = self.tree.branch.repository.get_revision(self.revidone)
-        self.assertEqual([], converted_rev.parent_ids)
-        self.assertEqual({}, converted_rev.properties)
-        self.assertEqual('foo', converted_rev.message)
-        self.assertEqual(self.revidone, converted_rev.revision_id)
-        # we dont have a serialised inventory to convert, and the inv sha1 is
-        # of reducing meaning now.
-        self.assertEqual("", converted_rev.inventory_sha1)
-        self.assertNotEqual(None, converted_rev.timestamp)
-        self.assertNotEqual(None, converted_rev.timezone)
-        self.assertNotEqual(None, converted_rev.committer)
-
-    def test_non_initial_revision_from_changelog(self):
-        converted_rev = self.tree.branch.repository.get_revision(self.revidtwo)
-        self.assertEqual([self.revidone], converted_rev.parent_ids)
-        self.assertEqual({}, converted_rev.properties)
-        self.assertEqual('bar', converted_rev.message)
-        self.assertEqual(self.revidtwo, converted_rev.revision_id)
-        # we dont have a serialised inventory to convert, and the inv sha1 is
-        # of reducing meaning now.
-        self.assertEqual("", converted_rev.inventory_sha1)
-        self.assertNotEqual(None, converted_rev.timestamp)
-        self.assertNotEqual(None, converted_rev.timezone)
-        self.assertNotEqual(None, converted_rev.committer)
-
-    def test_get_config_nickname(self):
-        # the branch nickname should be hg because the test dir is called hg.
-        self.assertEqual("hg", self.tree.branch.get_config().get_nickname())
-
-    def test_has_revision(self):
-        self.assertTrue(self.tree.branch.repository.has_revision(self.revidone))
-        self.assertTrue(self.tree.branch.repository.has_revision(self.revidtwo))
-        self.assertFalse(self.tree.branch.repository.has_revision('foo'))
-
-    def test_pull_into_bzr(self):
-        bzrtree = self.make_branch_and_tree('bzr')
-        bzrtree.pull(self.tree.branch)
-        self.assertFileEqual('contents of hg/a\n', 'bzr/a')
-        self.assertFileEqual('contents of hg/b\n', 'bzr/b')
-        self.assertFileEqual('new contents', 'bzr/dir/c')
-        
->>>>>>> MERGE-SOURCE
 
 # TODO: test that a last-modified in a merged branch is correctly assigned
 # TODO: test that we set the per file parents right: that is the rev of the

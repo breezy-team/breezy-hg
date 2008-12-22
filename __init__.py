@@ -133,6 +133,7 @@ class HgRepository(bzrlib.repository.Repository):
         self.control_files = lockfiles
         self._format = HgRepositoryFormat()
         self.base = hgdir.root_transport.base
+        self._fallback_repositories = []
 
     def _check(self, revision_ids):
         # TODO: Call out to mercurial for consistency checking?

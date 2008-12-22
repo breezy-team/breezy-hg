@@ -31,7 +31,14 @@ import copy
 import os
 import stat
 
+try:
+    from mercurial import demandimport
+    demandimport.enable = lambda: None
+except ImportError:
+    pass
+
 import mercurial.commands
+import mercurial.cmdutil
 import mercurial.hg
 import mercurial.node
 from mercurial.node import hex, bin
@@ -66,7 +73,9 @@ class HgLock(object):
     def __init__(self, hgrepo):
         self._hgrepo = hgrepo
 
-    def lock_write(self):
+    def lock_write(self, token=None):
+        if token is not None:
+            raise errors.TokenLockingNotSupported(self)
         self._lock = self._hgrepo.wlock()
 
     def lock_read(self):
@@ -78,15 +87,20 @@ class HgLock(object):
     def unlock(self):
         self._lock.release()
 
+    def validate_token(self, token):
+        if token is not None:
+            raise errors.TokenLockingNotSupported(self)
+
 
 class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
     """Hg specific lockable files abstraction."""
 
-    def __init__(self, lock):
+    def __init__(self, lock, transport):
         self._lock = lock
         self._transaction = None
         self._lock_mode = None
         self._lock_count = 0
+        self._transport = transport
 
 
 class MercurialBranchConfig:
@@ -150,7 +164,6 @@ class HgRepository(bzrlib.repository.Repository):
         hgid = hgrevid_from_bzr(revision_id)
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
-        manifest_flags = self._hgrepo.manifest.read(log[0])
         all_relevant_revisions = self.get_revision_graph(revision_id)
         ancestry_cache = {}
         result = Inventory()
@@ -199,6 +212,9 @@ class HgRepository(bzrlib.repository.Repository):
             """ensure that file can be added by adding its parents.
 
             this is horribly inefficient at the moment, proof of concept.
+
+            This is called for every path under each dir, and will update the
+            .revision for it older each time as the file age is determined.
             """
             path = os.path.dirname(file)
             if path == '':
@@ -210,6 +226,7 @@ class HgRepository(bzrlib.repository.Repository):
                 new_best = pick_best_creator_revision(current_best, file_revision_id)
                 if new_best != current_best:
                     # new revision found, push this up
+                    # XXX could hand in our result as a hint?
                     add_dir_for(path, file_revision_id)
                     # and update our chosen one
                     directories[path] = file_revision_id
@@ -239,12 +256,15 @@ class HgRepository(bzrlib.repository.Repository):
             # TODO currently we just pick *a* tail.
             file_tails = []
             current_manifest = manifest
+            # cls - changelogs
             parent_cls = set(self._hgrepo.changelog.parents(hgid))
             good_id = hgid
             done_cls = set()
+            # walk the graph, any node at a time to find the last change point.
             while parent_cls:
                 current_cl = parent_cls.pop()
-                if current_cl != mercurial.node.nullid:
+                # the nullid isn't useful.
+                if current_cl == mercurial.node.nullid:
                     continue
                 if current_cl not in known_manifests:
                     current_manifest_id = self._hgrepo.changelog.read(current_cl)[0]
@@ -254,22 +274,51 @@ class HgRepository(bzrlib.repository.Repository):
                 done_cls.add(current_cl)
                 if current_manifest.get(file, None) != file_revision:
                     continue
-                # same in parent
+                # unchanged in parent, advance to the parent.
                 good_id = current_cl
                 for parent_cl in self._hgrepo.changelog.parents(current_cl):
                     if parent_cl not in done_cls:
                         parent_cls.add(parent_cl)
             modified_revision = bzrrevid_from_hg(good_id)
-#            modified_revision = bzrrevid_from_hg(
-#                self._hgrepo.changelog.index[changelog_index][7])
-            add_dir_for(file, modified_revision)
+            # dont use the following, it doesn't give the right results consistently.
+            # modified_revision = bzrrevid_from_hg(
+            #     self._hgrepo.changelog.index[changelog_index][7])
+            # now walk to find the introducing revision.
+            parent_cl_ids = set([(None, hgid)])
+            good_id = hgid
+            done_cls = set()
+            while parent_cl_ids:
+                current_cl_id_child, current_cl_id = parent_cl_ids.pop()
+                # the nullid isn't useful.
+                if current_cl_id == mercurial.node.nullid:
+                    continue
+                if current_cl_id not in known_manifests:
+                    current_manifest_id = self._hgrepo.changelog.read(current_cl_id)[0]
+                    known_manifests[current_cl_id] = self._hgrepo.manifest.read(
+                        current_manifest_id)
+                current_manifest = known_manifests[current_cl_id]
+                done_cls.add(current_cl_id)
+                if current_manifest.get(file, None) is None:
+                    # file is not in current manifest: its a tail, cut here.
+                    good_id = current_cl_id_child
+                    continue
+                # walk to the parents
+                if (mercurial.node.nullid, mercurial.node.nullid) == self._hgrepo.changelog.parents(current_cl_id):
+                    # we have reached the root:
+                    good_id = current_cl_id
+                    continue
+                for parent_cl in self._hgrepo.changelog.parents(current_cl_id):
+                    if parent_cl not in done_cls:
+                        parent_cl_ids.add((current_cl_id, parent_cl))
+            introduced_at_path_revision = bzrrevid_from_hg(good_id)
+            add_dir_for(file, introduced_at_path_revision)
             entry = result.add_path(file, 'file', file_id=path_id(file))
             entry.text_size = revlog.size(revlog.nodemap[file_revision])
             # its a shame we need to pull the text out. is there a better way?
             # TODO: perhaps we should use readmeta here to figure out renames ?
             text = revlog.read(file_revision)
             entry.text_sha1 = sha_strings(text)
-            if manifest_flags.execf(file):
+            if manifest.execf(file):
                 entry.executable = True
             entry.revision = modified_revision
         for dir, dir_revision_id in directories.items():
@@ -342,13 +391,19 @@ class HgBranchConfig(object):
         self._branch = branch
 
     def get_nickname(self):
+<<<<<<< TREE
         return urlutils.unescape(self._branch.base.split('/')[-2])
+=======
+        # remove the trailing / and take the basename.
+        return basename(self._branch.base[:-1])
+>>>>>>> MERGE-SOURCE
 
 
 class HgBranch(bzrlib.branch.Branch):
     """An adapter to mercurial repositories for bzr Branch objects."""
 
     def __init__(self, hgrepo, hgdir, lockfiles):
+        bzrlib.branch.Branch.__init__(self)
         self._hgrepo = hgrepo
         self.bzrdir = hgdir
         self.control_files = lockfiles
@@ -454,10 +509,18 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
     @needs_write_lock
     def commit(self, message, *args, **kwargs):
         # TODO: selected file lists etc.
+<<<<<<< TREE
         self._hgrepo.commit([], message, None, None, wlock=self._control_files._lock)
+=======
+        files, matchfn, anypats = mercurial.cmdutil.matchpats(self._hgrepo)
+        self._hgrepo.commit([], message, None, None, matchfn, wlock=self._control_files._lock)
+>>>>>>> MERGE-SOURCE
 
 #    def read_working_inventory(self):
 #        """in hg terms, read the manifest."""
+
+    def _reset_data(self):
+        """Reset all cached data."""
 
     def unlock(self):
         """Overridden to avoid hashcache usage - hg manages that."""
@@ -530,7 +593,7 @@ class HgDir(bzrlib.bzrdir.BzrDir):
         """'open' a repository for this dir."""
         return HgRepository(self._hgrepo, self, self._lockfiles)
 
-    def open_workingtree(self, shared=False):
+    def open_workingtree(self, shared=False, recommend_upgrade=False):
         """'open' a workingtree for this dir."""
         return HgWorkingTree(self._hgrepo, self, self._lockfiles)
 
@@ -567,7 +630,7 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
             raise errors.BzrCommandError('cannot use hg on %s transport' % transport)
         ui = mercurial.ui.ui()
         repository = mercurial.hg.repository(ui, path, create=_create)
-        lockfiles = HgLockableFiles(HgLock(repository))
+        lockfiles = HgLockableFiles(HgLock(repository), transport)
         return HgDir(repository, transport, lockfiles, self)
 
     @classmethod
@@ -600,8 +663,10 @@ class HgToSomethingConverter(bzrlib.bzrdir.Converter):
 class FromHgRepository(bzrlib.repository.InterRepository):
     """Hg to any repository actions."""
 
-    _matching_repo_format = None 
-    """The formate to test with - as yet there is no HgRepoFormat."""
+    @classmethod
+    def _get_repo_format_to_test(self):
+        """The formate to test with - as yet there is no HgRepoFormat."""
+        return None
 
     @staticmethod
     def _get_repo_format_to_test():
@@ -728,6 +793,7 @@ class FromHgRepository(bzrlib.repository.InterRepository):
 bzrlib.repository.InterRepository.register_optimiser(FromHgRepository)
 
 def test_suite():
+<<<<<<< TREE
     from unittest import TestSuite, TestLoader
     import tests
 
@@ -736,6 +802,142 @@ def test_suite():
     suite.addTest(tests.test_suite())
 
     return suite      
+=======
+    return TestLoader().loadTestsFromName(__name__)
+
+
+class TestPulling(TestCaseWithTransport):
+    """Tests for pulling from hg to bzr."""
+
+    def setUp(self):
+        super(TestPulling, self).setUp()
+        self.build_tree(['hg/', 'hg/a', 'hg/b', 'hg/dir/', 'hg/dir/c'])
+        hgdir = HgBzrDirFormat().initialize('hg')
+        self.tree = hgdir.open_workingtree()
+        mode = os.lstat('hg/b').st_mode
+        os.chmod('hg/b', mode | stat.S_IEXEC)
+        # do not add 'dir' to ensure that we pickup dir/c anyway : if hg
+        # changes it behaviour, we want this test to start failing.
+        self.tree.add(['a', 'b', 'dir/c'])
+        self.tree.commit('foo')
+        revone_inventory = Inventory()
+        tip = self.tree.last_revision()
+        entry = revone_inventory.add_path('a', kind='file', file_id='hg:a')
+        entry.revision = tip
+        entry.text_size = len('contents of hg/a\n')
+        entry.text_sha1 = "72bcea9d6cba6ee7d3241bfa0c5e54506ad81a94"
+        entry = revone_inventory.add_path('b', kind='file', file_id='hg:b')
+        entry.executable = True
+        entry.revision = tip
+        entry.text_size = len('contents of hg/b\n')
+        entry.text_sha1 = "b4d0c22d126cd0afeeeffa62961fb47c0932835a"
+        entry = revone_inventory.add_path('dir', kind='directory',
+            file_id='hg:dir')
+        entry.revision = tip
+        entry = revone_inventory.add_path('dir/c', kind='file',
+            file_id='hg:dir:c')
+        entry.revision = tip
+        entry.text_size = len('contents of hg/dir/c\n')
+        entry.text_sha1 = "958be752affac0fee70471331b96fb3fc1809425"
+        self.revone_inventory = revone_inventory
+        self.revidone = tip
+        #====== end revision one
+        # in revisiontwo we add a new file to dir, which should not change
+        # the revision_id on the inventory.
+        self.build_tree(['hg/dir/d'])
+        self.tree.add(['dir/d'])
+        self.tree.commit('bar')
+        self.revtwo_inventory = copy.deepcopy(revone_inventory)
+        tip = self.tree.last_revision()
+        entry = self.revtwo_inventory.add_path('dir/d', kind='file',
+            file_id='hg:dir:d')
+        entry.revision = tip
+        entry.text_size = len('contents of hg/dir/d\n')
+        entry.text_sha1 = "f48fc342f707bfb4711790e1813c0df4d44e1a23"
+        self.revidtwo = tip
+        #====== end revision two
+        # in revision three, we reset the exec flag on 'b'
+        os.chmod('hg/b', mode)
+        self.tree.commit('reset mode on b')
+        self.revthree_inventory = copy.deepcopy(self.revtwo_inventory)
+        tip = self.tree.last_revision()
+        # should be a new file revision with exec reset
+        entry = self.revthree_inventory['hg:b']
+        entry.revision = tip
+        entry.executable = False
+        self.revidthree = tip
+        #====== end revision three
+        # in revision four we change the file dir/c, which should not alter
+        # the last-changed field for 'dir'.
+        self.build_tree_contents([('hg/dir/c', 'new contents')])
+        self.tree.commit('change dir/c')
+        self.revfour_inventory = copy.deepcopy(self.revthree_inventory)
+        tip = self.tree.last_revision()
+        entry = self.revfour_inventory['hg:dir:c']
+        entry.revision = tip
+        entry.text_size = len('new contents')
+        entry.text_sha1 = "7ffa72b76d5d66da37f4b614b7a822c01f23c183"
+        self.revidfour = tip
+        #====== end revision four
+
+    def test_inventory_from_manifest(self):
+        repo = self.tree.branch.repository
+        left = self.revone_inventory
+        right = repo.get_inventory(self.revidone)
+        self.assertEqual(left._byid, right._byid)
+        left = self.revtwo_inventory
+        right = repo.get_inventory(self.revidtwo)
+        self.assertEqual(left._byid, right._byid)
+        left = self.revthree_inventory
+        right = repo.get_inventory(self.revidthree)
+        self.assertEqual(left._byid, right._byid)
+        left = self.revfour_inventory
+        right = repo.get_inventory(self.revidfour)
+        self.assertEqual(left._byid, right._byid)
+
+    def test_initial_revision_from_changelog(self):
+        converted_rev = self.tree.branch.repository.get_revision(self.revidone)
+        self.assertEqual([], converted_rev.parent_ids)
+        self.assertEqual({}, converted_rev.properties)
+        self.assertEqual('foo', converted_rev.message)
+        self.assertEqual(self.revidone, converted_rev.revision_id)
+        # we dont have a serialised inventory to convert, and the inv sha1 is
+        # of reducing meaning now.
+        self.assertEqual("", converted_rev.inventory_sha1)
+        self.assertNotEqual(None, converted_rev.timestamp)
+        self.assertNotEqual(None, converted_rev.timezone)
+        self.assertNotEqual(None, converted_rev.committer)
+
+    def test_non_initial_revision_from_changelog(self):
+        converted_rev = self.tree.branch.repository.get_revision(self.revidtwo)
+        self.assertEqual([self.revidone], converted_rev.parent_ids)
+        self.assertEqual({}, converted_rev.properties)
+        self.assertEqual('bar', converted_rev.message)
+        self.assertEqual(self.revidtwo, converted_rev.revision_id)
+        # we dont have a serialised inventory to convert, and the inv sha1 is
+        # of reducing meaning now.
+        self.assertEqual("", converted_rev.inventory_sha1)
+        self.assertNotEqual(None, converted_rev.timestamp)
+        self.assertNotEqual(None, converted_rev.timezone)
+        self.assertNotEqual(None, converted_rev.committer)
+
+    def test_get_config_nickname(self):
+        # the branch nickname should be hg because the test dir is called hg.
+        self.assertEqual("hg", self.tree.branch.get_config().get_nickname())
+
+    def test_has_revision(self):
+        self.assertTrue(self.tree.branch.repository.has_revision(self.revidone))
+        self.assertTrue(self.tree.branch.repository.has_revision(self.revidtwo))
+        self.assertFalse(self.tree.branch.repository.has_revision('foo'))
+
+    def test_pull_into_bzr(self):
+        bzrtree = self.make_branch_and_tree('bzr')
+        bzrtree.pull(self.tree.branch)
+        self.assertFileEqual('contents of hg/a\n', 'bzr/a')
+        self.assertFileEqual('contents of hg/b\n', 'bzr/b')
+        self.assertFileEqual('new contents', 'bzr/dir/c')
+        
+>>>>>>> MERGE-SOURCE
 
 # TODO: test that a last-modified in a merged branch is correctly assigned
 # TODO: test that we set the per file parents right: that is the rev of the

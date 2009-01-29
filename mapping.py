@@ -18,6 +18,8 @@
 
 from bzrlib import errors, foreign
 
+from mercurial.node import hex, bin
+
 class ExperimentalHgMapping(foreign.VcsMapping):
     """Class that maps between Bazaar and Mercurial semantics."""
     experimental = True
@@ -28,20 +30,13 @@ class ExperimentalHgMapping(foreign.VcsMapping):
 
     @classmethod
     def revision_id_foreign_to_bzr(cls, revision_id):
-        hexsha = "%s:" % cls.revid_prefix
-        for c in revision_id:
-            hexsha += "%02x" % ord(c)
-        return hexsha
+        return "%s:%s" % (cls.revid_prefix, hex(revision_id))
 
     @classmethod
     def revision_id_bzr_to_foreign(cls, revision_id):
         if not revision_id.startswith("%s:" % cls.revid_prefix):
             raise errors.InvalidRevisionId(revision_id, cls)
-        hex = revision_id[len(cls.revid_prefix) + 1:]
-        bin = ''
-        for i in range(0, len(hex), 2):
-            bin += chr(int(hex[i:i+2], 16))
-        return bin, cls()
+        return bin(revision_id[len(cls.revid_prefix)+1:]), cls()
 
 
 class HgMappingRegistry(foreign.VcsMappingRegistry):

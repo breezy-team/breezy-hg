@@ -53,12 +53,16 @@ from bzrlib.inventory import Inventory
 import bzrlib.lockable_files
 from bzrlib.osutils import split_lines, sha_strings
 import bzrlib.repository
+from bzrlib.revision import NULL_REVISION
 from bzrlib.transport.local import LocalTransport
 from bzrlib.tsort import topo_sort
 import bzrlib.urlutils as urlutils
 import bzrlib.workingtree
 
 from bzrlib.plugins.hg.mapping import default_mapping, mapping_registry
+from bzrlib.plugins.hg.foreign import (
+    versionedfiles,
+    )
 from bzrlib.foreign import foreign_vcs_registry
 
 foreign_vcs_registry.register_lazy("hg", 
@@ -134,6 +138,19 @@ class HgRepository(bzrlib.repository.Repository):
         self._format = HgRepositoryFormat()
         self.base = hgdir.root_transport.base
         self._fallback_repositories = []
+        self.texts = None
+        self.signatures = versionedfiles.VirtualSignatureTexts(self)
+        self.revisions = versionedfiles.VirtualRevisionTexts(self)
+
+    def get_parent_map(self, revids):
+        ret = {}
+        for revid in revids:
+            if revid == NULL_REVISION:
+                ret[revid] = ()
+            else:
+                hg_ref, mapping = mapping_registry.revision_id_bzr_to_foreign(revid)
+                ret[revid] = tuple([mapping.revision_id_foreign_to_bzr(r) for r in self._hgrepo.changelog.parents(hg_ref)])
+        return ret
 
     def _check(self, revision_ids):
         # TODO: Call out to mercurial for consistency checking?
@@ -397,7 +414,10 @@ class HgBranchConfig(object):
 
     def get_nickname(self):
         # remove the trailing / and take the basename.
-        return basename(self._branch.base[:-1])
+        return os.path.basename(self._branch.base[:-1])
+
+    def has_explicit_nickname(self):
+        return True
 
     def log_format(self):
         """What log format should be used"""

@@ -58,7 +58,7 @@ from bzrlib.tsort import topo_sort
 import bzrlib.urlutils as urlutils
 import bzrlib.workingtree
 
-from bzrlib.plugins.hg.mapping import default_mapping
+from bzrlib.plugins.hg.mapping import default_mapping, mapping_registry
 from bzrlib.foreign import foreign_vcs_registry
 
 foreign_vcs_registry.register_lazy("hg", 
@@ -102,12 +102,13 @@ class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
         self._transport = transport
 
 
-class MercurialBranchConfig:
+class MercurialBranchConfig(object):
     """Hg branch configuration."""
 
     def __init__(self, branch):
         # TODO: Read .hgrc
         self.branch = branch
+
 
 
 class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
@@ -138,6 +139,9 @@ class HgRepository(bzrlib.repository.Repository):
         # TODO: Call out to mercurial for consistency checking?
         return bzrlib.branch.BranchCheckResult(self)
 
+    def get_mapping(self):
+        return default_mapping # for now
+
     def get_inventory(self, revision_id):
         """Synthesize a bzr inventory from an hg manifest...
 
@@ -161,7 +165,7 @@ class HgRepository(bzrlib.repository.Repository):
         """
         # TODO: this deserves either _ methods on HgRepository, or a method
         # object. Its too big!
-        hgid = default_mapping.revision_id_foreign_to_bzr(revision_id)
+        hgid = self.get_mapping().revision_id_foreign_to_bzr(revision_id)
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
         all_relevant_revisions = self.get_revision_graph(revision_id)
@@ -279,7 +283,7 @@ class HgRepository(bzrlib.repository.Repository):
                 for parent_cl in self._hgrepo.changelog.parents(current_cl):
                     if parent_cl not in done_cls:
                         parent_cls.add(parent_cl)
-            modified_revision = default_mapping.revision_id_foreign_to_bzr(good_id)
+            modified_revision = self.get_mapping().revision_id_foreign_to_bzr(good_id)
             # dont use the following, it doesn't give the right results consistently.
             # modified_revision = bzrrevid_from_hg(
             #     self._hgrepo.changelog.index[changelog_index][7])
@@ -310,7 +314,7 @@ class HgRepository(bzrlib.repository.Repository):
                 for parent_cl in self._hgrepo.changelog.parents(current_cl_id):
                     if parent_cl not in done_cls:
                         parent_cl_ids.add((current_cl_id, parent_cl))
-            introduced_at_path_revision = default_mapping.revision_id_foreign_to_bzr(good_id)
+            introduced_at_path_revision = self.get_mapping().revision_id_foreign_to_bzr(good_id)
             add_dir_for(file, introduced_at_path_revision)
             entry = result.add_path(file, 'file', file_id=path_id(file))
             entry.text_size = revlog.size(revlog.nodemap[file_revision])
@@ -327,7 +331,7 @@ class HgRepository(bzrlib.repository.Repository):
         return result
 
     def get_revision(self, revision_id):
-        hgrevid = default_mapping.revision_id_bzr_to_foreign(revision_id)
+        hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
         result = ForeignRevision(hgrevid, None, revision_id)
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)
@@ -359,7 +363,7 @@ class HgRepository(bzrlib.repository.Repository):
             return result
     
     def has_revision(self, revision_id):
-        return default_mapping.revision_id_bzr_to_foreign(revision_id) in self._hgrepo.changelog.nodemap
+        return mapping_registry.revision_id_bzr_to_foreign(revision_id)[0] in self._hgrepo.changelog.nodemap
 
     def is_shared(self):
         """Whether this repository is being shared between multiple branches. 
@@ -395,6 +399,10 @@ class HgBranchConfig(object):
         # remove the trailing / and take the basename.
         return basename(self._branch.base[:-1])
 
+    def log_format(self):
+        """What log format should be used"""
+        return "long"
+
 
 class HgBranch(bzrlib.branch.Branch):
     """An adapter to mercurial repositories for bzr Branch objects."""
@@ -405,6 +413,7 @@ class HgBranch(bzrlib.branch.Branch):
         self.bzrdir = hgdir
         self.control_files = lockfiles
         self.repository = HgRepository(hgrepo, hgdir, lockfiles)
+        self.mapping = self.repository.get_mapping()
         self.base = hgdir.root_transport.base
         self._format = HgBranchFormat()
 
@@ -438,11 +447,11 @@ class HgBranch(bzrlib.branch.Branch):
     
     @needs_read_lock
     def revision_history(self):
-        tip = default_mapping.revision_id_bzr_to_foreign(self.last_revision())
+        tip, mapping = mapping_registry.revision_id_bzr_to_foreign(self.last_revision())
         revs = []
         next_rev = tip
         while next_rev != mercurial.node.nullid:
-            revs.append(default_mapping.revision_id_foreign_to_bzr(next_rev))
+            revs.append(mapping.revision_id_foreign_to_bzr(next_rev))
             next_rev = self._hgrepo.changelog.parents(next_rev)[0]
         revs.reverse()
         return revs
@@ -450,7 +459,7 @@ class HgBranch(bzrlib.branch.Branch):
     @needs_read_lock
     def last_revision(self):
         # perhaps should escape this ?
-        return default_mapping.revision_id_foreign_to_bzr(self._hgrepo.changelog.tip())
+        return self.mapping.revision_id_foreign_to_bzr(self._hgrepo.changelog.tip())
 
     def lock_read(self):
         self.control_files.lock_read()
@@ -688,7 +697,7 @@ class FromHgRepository(bzrlib.repository.InterRepository):
         if revision_id is None:
             pending = set()
             for revision_id in self.source._hgrepo.changelog.heads():
-                pending.add(default_mapping.revision_id_foreign_to_bzr(revision_id))
+                pending.add(self.get_mapping().revision_id_foreign_to_bzr(revision_id))
         else:
             # add what can be reached from revision_id
             pending = set([revision_id])
@@ -726,7 +735,7 @@ class FromHgRepository(bzrlib.repository.InterRepository):
                 revision = needed[revision_id]
                 inventory = self.source.get_inventory(revision_id)
                 inventories[revision_id] = inventory
-                hgrevid = default_mapping.revision_id_bzr_to_foreign(revision_id)
+                hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
                 log = self.source._hgrepo.changelog.read(hgrevid)
                 manifest = self.source._hgrepo.manifest.read(log[0])
                 for fileid in inventory:

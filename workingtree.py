@@ -15,6 +15,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import bzrlib.workingtree
+from bzrlib.decorators import needs_write_lock
 
 import mercurial.cmdutil
 
@@ -34,11 +35,11 @@ class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
 class HgWorkingTree(bzrlib.workingtree.WorkingTree):
     """An adapter to mercurial repositories for bzr WorkingTree obejcts."""
 
-    def __init__(self, hgrepo, hgdir, lockfiles):
+    def __init__(self, hgrepo, hgbranch, hgdir, lockfiles):
         self._hgrepo = hgrepo
         self.bzrdir = hgdir
         self._control_files = lockfiles
-        self._branch = HgBranch(hgrepo, hgdir, lockfiles)
+        self._branch = hgbranch
         self._format = HgWorkingTreeFormat()
 
     @needs_write_lock

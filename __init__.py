@@ -27,38 +27,23 @@ The key translations needed are:
  * we convert manifests to inventories on the fly.
 """
 
-import copy
-import os
-import stat
-
-try:
-    from mercurial import demandimport
-    demandimport.enable = lambda: None
-except ImportError:
-    pass
-
 import mercurial.node
-import mercurial.ui
 
-import bzrlib.branch
 import bzrlib.bzrdir
-from bzrlib.decorators import *
 import bzrlib.errors as errors
-from bzrlib.foreign import ForeignRevision
-from bzrlib.inventory import Inventory
-import bzrlib.lockable_files
-from bzrlib.osutils import split_lines, sha_strings
-import bzrlib.repository
-from bzrlib.transport.local import LocalTransport
-from bzrlib.tsort import topo_sort
-import bzrlib.urlutils as urlutils
-import bzrlib.workingtree
-
-from bzrlib.plugins.hg.mapping import default_mapping, mapping_registry
 from bzrlib.foreign import foreign_vcs_registry
+import bzrlib.lockable_files
+
+def lazy_load_mercurial():
+    try:
+        from mercurial import demandimport
+        demandimport.enable = lambda: None
+    except ImportError:
+        pass
 
 foreign_vcs_registry.register_lazy("hg", 
     "bzrlib.plugins.hg.mapping", "foreign_hg", "Mercurial")
+
 
 class HgLock(object):
     """A lock that thunks through to Hg."""
@@ -122,6 +107,7 @@ class HgDir(bzrlib.bzrdir.BzrDir):
 
     def create_branch(self):
         """'crate' a branch for this dir."""
+        from bzrlib.plugins.hg.branch import HgBranch
         return HgBranch(self._hgrepo, self, self._lockfiles)
 
     def create_repository(self, shared=False):
@@ -129,10 +115,12 @@ class HgDir(bzrlib.bzrdir.BzrDir):
         if shared:
             # dont know enough about hg yet to do 'shared repositories' in it.
             raise errors.IncompatibleFormat(self._format, self._format)
+        from bzrlib.plugins.hg.repository import HgRepository
         return HgRepository(self._hgrepo, self, self._lockfiles)
 
     def create_workingtree(self, shared=False):
         """'create' a workingtree for this dir."""
+        from bzrlib.plugins.hg.workingtree import HgWorkingTree
         return HgWorkingTree(self._hgrepo, self, self._lockfiles)
 
     def get_branch_transport(self, branch_format):
@@ -153,15 +141,22 @@ class HgDir(bzrlib.bzrdir.BzrDir):
 
     def open_branch(self, ignored=None):
         """'crate' a branch for this dir."""
+        from bzrlib.plugins.hg.branch import HgBranch
         return HgBranch(self._hgrepo, self, self._lockfiles)
 
     def open_repository(self, shared=False):
         """'open' a repository for this dir."""
+        from bzrlib.plugins.hg.repository import HgRepository
         return HgRepository(self._hgrepo, self, self._lockfiles)
 
     def open_workingtree(self, shared=False, recommend_upgrade=False):
         """'open' a workingtree for this dir."""
-        return HgWorkingTree(self._hgrepo, self, self._lockfiles)
+        from bzrlib.plugins.hg.workingtree import HgWorkingTree
+        return HgWorkingTree(self._hgrepo, self.open_branch(), self, self._lockfiles)
+
+
+class HgToSomethingConverter(bzrlib.bzrdir.Converter):
+    """A class to upgrade an hg dir to something else."""
 
 
 class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
@@ -194,6 +189,8 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
             path = transport.local_abspath('.').encode('utf-8')
         else:
             raise errors.BzrCommandError('cannot use hg on %s transport' % transport)
+        lazy_load_mercurial()
+        import mercurial.ui
         ui = mercurial.ui.ui()
         import mercurial.hg
         repository = mercurial.hg.repository(ui, path, create=_create)
@@ -222,142 +219,6 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
 
 bzrlib.bzrdir.BzrDirFormat.register_control_format(HgBzrDirFormat)
 
-
-class HgToSomethingConverter(bzrlib.bzrdir.Converter):
-    """A class to upgrade an hg dir to something else."""
-
-
-class FromHgRepository(bzrlib.repository.InterRepository):
-    """Hg to any repository actions."""
-
-    @classmethod
-    def _get_repo_format_to_test(self):
-        """The formate to test with - as yet there is no HgRepoFormat."""
-        return None
-
-    @staticmethod
-    def _get_repo_format_to_test():
-        return None
-
-    @needs_write_lock
-    def copy_content(self, revision_id=None, basis=None):
-        """See InterRepository.copy_content. Partial implementation of that.
-
-        To date the revision_id and basis parameters are not supported.
-        """
-        assert revision_id is None
-        assert basis is None
-        self.target.fetch(self.source)
-
-    @needs_write_lock
-    def fetch(self, revision_id=None, pb=None, find_ghosts=False):
-        """Fetch revisions. This is a partial implementation."""
-        # assumes that self is a bzr compatible tree, and that source is hg
-        # pull everything for simplicity.
-        # TODO: make this somewhat faster - calculate the specific needed
-        # file versions and then pull all of those per file, followed by
-        # inserting the inventories and revisions, rather than doing 
-        # rev-at-a-time.
-        needed = {}
-        if revision_id is None:
-            pending = set()
-            for revision_id in self.source._hgrepo.changelog.heads():
-                pending.add(self.get_mapping().revision_id_foreign_to_bzr(revision_id))
-        else:
-            # add what can be reached from revision_id
-            pending = set([revision_id])
-        # plan it.
-        # we build a graph of the revisions we need, and a
-        # full graph which we use for topo-sorting (we need a partial-
-        # topo-sorter done to avoid this. TODO: a partial_topo_sort.)
-        # so needed is the revisions we need, and needed_graph is the entire
-        # graph, using 'local' sources for establishing the graph where
-        # possible. TODO: also, use the bzr knit graph facility to seed the
-        # graph once we encounter revisions we know about.
-        needed_graph = {}
-        while len(pending) > 0:
-            node = pending.pop()
-            if self.target.has_revision(node):
-                parent_ids = self.target.get_revision(node).parent_ids
-            else:
-                needed[node] = self.source.get_revision(node)
-                parent_ids = needed[node].parent_ids
-            needed_graph[node] = parent_ids
-            for revision_id in parent_ids:
-                if revision_id not in needed_graph:
-                    pending.add(revision_id)
-        target_repo = self.target
-        target_transaction = self.target.get_transaction()
-        order = topo_sort(needed_graph.items())
-        # order is now too aggressive: filter to just what we need:
-        order = [rev_id for rev_id in order if rev_id in needed]
-        total = len(order)
-        inventories = {}
-        pb = bzrlib.ui.ui_factory.nested_progress_bar()
-        try:
-            for index, revision_id in enumerate(order):
-                pb.update('fetching revisions', index, total)
-                revision = needed[revision_id]
-                inventory = self.source.get_inventory(revision_id)
-                inventories[revision_id] = inventory
-                hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
-                log = self.source._hgrepo.changelog.read(hgrevid)
-                manifest = self.source._hgrepo.manifest.read(log[0])
-                for fileid in inventory:
-                    if fileid == bzrlib.inventory.ROOT_ID:
-                        continue
-                    entry = inventory[fileid]
-                    if inventory[fileid].revision == revision_id:
-                        # changed in this revision
-                        entry = inventory[fileid]
-                        # changing the parents-to-insert-as algorithm here will
-                        # cause pulls from hg to change the per-file graph.
-                        # BEWARE of doing that.
-                        previous_inventories = []
-                        for parent in revision.parent_ids:
-                            try:
-                                previous_inventories.append(inventories[parent])
-                            except KeyError:
-                                # if its not in the cache, its in target already
-                                inventories[parent] = self.target.get_inventory(parent)
-                                previous_inventories.append(inventories[parent])
-                        file_heads = entry.find_previous_heads(
-                            previous_inventories,
-                            target_repo.weave_store,
-                            target_transaction
-                            )
-
-                        weave = target_repo.weave_store.get_weave_or_empty(
-                                    fileid, target_transaction)
-
-                        if entry.kind == 'directory':
-                            # a bit of an abstraction variation, but we dont have a
-                            # real tree for entry to read from, and it would be 
-                            # mostly dead weight to have a stub tree here.
-                            weave.add_lines(revision_id, file_heads, [])
-                        else:
-                            # extract text and insert it.
-                            path = inventory.id2path(fileid)
-                            revlog = self.source._hgrepo.file(path)
-                            filerev = manifest[path]
-                            # TODO: perhaps we should use readmeta here to figure out renames ?
-                            text = revlog.read(filerev)
-                            lines = split_lines(text)
-                            weave.add_lines(revision_id, file_heads, 
-                                            split_lines(text))
-                self.target.add_inventory(revision_id, inventory, 
-                                          revision.parent_ids)
-                self.target.add_revision(revision_id, revision)
-        finally:
-            pb.finished()
-        return total, 0
-
-    @staticmethod
-    def is_compatible(source, target):
-        """Be compatible with HgRepositories."""
-        return isinstance(source, HgRepository)
-
-bzrlib.repository.InterRepository.register_optimiser(FromHgRepository)
 
 def test_suite():
     from unittest import TestSuite, TestLoader

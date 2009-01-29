@@ -15,8 +15,14 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 import bzrlib.branch
+from bzrlib.decorators import needs_read_lock
 
+from bzrlib.plugins.hg.mapping import mapping_registry
 from bzrlib.plugins.hg.repository import HgRepository
+
+import mercurial.node
+
+import os
 
 
 class MercurialBranchConfig(object):

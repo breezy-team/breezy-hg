@@ -69,9 +69,7 @@ class HgRepository(ForeignRepository):
                 hg_ref, mapping = mapping_registry.revision_id_bzr_to_foreign(revid)
                 parents = []
                 for r in self._hgrepo.changelog.parents(hg_ref):
-                    if r == "\0" * 20:
-                        parents.append(NULL_REVISION)
-                    else:
+                    if r != "\0" * 20:
                         parents.append(mapping.revision_id_foreign_to_bzr(r))
                 ret[revid] = tuple(parents)
 

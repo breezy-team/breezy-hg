@@ -41,6 +41,9 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     support the repository format.
     """
 
+    def is_supported(self):
+        return True
+
     def get_format_description(self):
         """See RepositoryFormat.get_format_description()."""
         return "Mercurial Repository"
@@ -59,6 +62,11 @@ class HgRepository(ForeignRepository):
         self.texts = None
         self.signatures = versionedfiles.VirtualSignatureTexts(self)
         self.revisions = versionedfiles.VirtualRevisionTexts(self)
+        self.inventories = versionedfiles.VirtualInventoryTexts(self)
+
+    def _warn_if_deprecated(self):
+        # This class isn't deprecated
+        pass
 
     def get_parent_map(self, revids):
         ret = {}
@@ -105,7 +113,7 @@ class HgRepository(ForeignRepository):
         """
         # TODO: this deserves either _ methods on HgRepository, or a method
         # object. Its too big!
-        hgid = self.get_mapping().revision_id_foreign_to_bzr(revision_id)
+        hgid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
         all_relevant_revisions = self.get_revision_graph(revision_id)
@@ -223,7 +231,7 @@ class HgRepository(ForeignRepository):
                 for parent_cl in self._hgrepo.changelog.parents(current_cl):
                     if parent_cl not in done_cls:
                         parent_cls.add(parent_cl)
-            modified_revision = self.get_mapping().revision_id_foreign_to_bzr(good_id)
+            modified_revision = mapping.revision_id_foreign_to_bzr(good_id)
             # dont use the following, it doesn't give the right results consistently.
             # modified_revision = bzrrevid_from_hg(
             #     self._hgrepo.changelog.index[changelog_index][7])
@@ -254,7 +262,7 @@ class HgRepository(ForeignRepository):
                 for parent_cl in self._hgrepo.changelog.parents(current_cl_id):
                     if parent_cl not in done_cls:
                         parent_cl_ids.add((current_cl_id, parent_cl))
-            introduced_at_path_revision = self.get_mapping().revision_id_foreign_to_bzr(good_id)
+            introduced_at_path_revision = mapping.revision_id_foreign_to_bzr(good_id)
             add_dir_for(file, introduced_at_path_revision)
             entry = result.add_path(file, 'file', file_id=path_id(file))
             entry.text_size = revlog.size(revlog.nodemap[file_revision])

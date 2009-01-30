@@ -202,8 +202,8 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         # little ugly, but works
         format = klass() 
         # try a manual probe first, its a little faster perhaps ?
-        if transport.has('.hg'):
-            return format
+        if not transport.has('.hg'):
+            raise errors.NotBranchError(path=transport.base)
         # delegate to the main opening code. This pays a double rtt cost at the
         # moment, so perhaps we want probe_transport to return the opened thing
         # rather than an openener ? or we could return a curried thing with the

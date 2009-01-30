@@ -15,7 +15,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 from bzrlib.decorators import needs_write_lock
-from bzrlib.foreign import ForeignRevision
+from bzrlib.foreign import ForeignRevision, ForeignRepository
 from bzrlib.inventory import Inventory
 from bzrlib.osutils import sha_strings, split_lines
 import bzrlib.repository
@@ -29,6 +29,8 @@ from bzrlib.plugins.hg.mapping import (
     default_mapping,
     mapping_registry,
     )
+
+import mercurial.node
 
 
 class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
@@ -44,14 +46,14 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
         return "Mercurial Repository"
 
 
-class HgRepository(bzrlib.repository.Repository):
+class HgRepository(ForeignRepository):
     """An adapter to mercurial repositories for bzr."""
 
+    _serializer = None
+
     def __init__(self, hgrepo, hgdir, lockfiles):
+        ForeignRepository.__init__(self, HgRepositoryFormat(), hgdir, lockfiles)
         self._hgrepo = hgrepo
-        self.bzrdir = hgdir
-        self.control_files = lockfiles
-        self._format = HgRepositoryFormat()
         self.base = hgdir.root_transport.base
         self._fallback_repositories = []
         self.texts = None
@@ -65,7 +67,14 @@ class HgRepository(bzrlib.repository.Repository):
                 ret[revid] = ()
             else:
                 hg_ref, mapping = mapping_registry.revision_id_bzr_to_foreign(revid)
-                ret[revid] = tuple([mapping.revision_id_foreign_to_bzr(r) for r in self._hgrepo.changelog.parents(hg_ref)])
+                parents = []
+                for r in self._hgrepo.changelog.parents(hg_ref):
+                    if r == "\0" * 20:
+                        parents.append(NULL_REVISION)
+                    else:
+                        parents.append(mapping.revision_id_foreign_to_bzr(r))
+                ret[revid] = tuple(parents)
+
         return ret
 
     def _check(self, revision_ids):
@@ -263,9 +272,12 @@ class HgRepository(bzrlib.repository.Repository):
             result[dirid].revision = dir_revision_id
         return result
 
+    def get_revisions(self, revids):
+        return [self.get_revision(r) for r in revids]
+
     def get_revision(self, revision_id):
         hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
-        result = ForeignRevision(hgrevid, None, revision_id)
+        result = ForeignRevision(hgrevid, mapping, revision_id)
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)
         result.parent_ids = []

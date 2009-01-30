@@ -63,7 +63,7 @@ class ForeignHg(foreign.ForeignVcs):
 
     @classmethod
     def show_foreign_revid(cls, foreign_revid):
-        return { "hg commit": foreign_revid }
+        return { "hg commit": hex(foreign_revid) }
 
 
 foreign_hg = ForeignHg()

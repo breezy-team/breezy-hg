@@ -283,11 +283,11 @@ class HgRepository(ForeignRepository):
             result.parent_ids.append(mapping.revision_id_foreign_to_bzr(hgparents[0]))
         if hgparents[1] != mercurial.node.nullid:
             result.parent_ids.append(mapping.revision_id_foreign_to_bzr(hgparents[1]))
-        result.message = hgchange[4]
+        result.message = hgchange[4].decode("utf-8")
         result.inventory_sha1 = ""
         result.timezone = -hgchange[2][1]
         result.timestamp = hgchange[2][0]
-        result.committer = hgchange[1]
+        result.committer = hgchange[1].decode("utf-8")
         return result
 
     def get_revision_graph(self, revision_id=None):

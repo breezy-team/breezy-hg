@@ -1,4 +1,4 @@
-# Copyright (C) 2008 Jelmer Vernooij <jelmer@samba.org>
+# Copyright (C) 2008-2009 Jelmer Vernooij <jelmer@samba.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,19 +16,16 @@
 
 """Foreign branch utilities."""
 
-from bzrlib.branch import Branch
-from bzrlib.commands import Command, Option
-from bzrlib.repository import Repository
-from bzrlib.revision import Revision
-from bzrlib.lazy_import import lazy_import
-lazy_import(globals(), """
 from bzrlib import (
     errors,
-    log,
-    osutils,
-    registry,
     )
-""")
+from bzrlib.branch import (
+    Branch,
+    )
+from bzrlib.commands import (
+    Command,
+    Option,
+    )
 
 
 class ForeignBranch(Branch):
@@ -42,12 +39,13 @@ class ForeignBranch(Branch):
         """Pull deltas from another branch.
 
         :note: This does not, like pull, retain the revision ids from 
-        the source branch and will, rather than adding bzr-specific metadata,
-        push only those semantics of the revision that can be natively 
-        represented in this branch.
+            the source branch and will, rather than adding bzr-specific 
+            metadata, push only those semantics of the revision that can be 
+            natively represented in this branch.
 
         :param source: Source branch
         :param stop_revision: Revision to pull, defaults to last revision.
+        :return: Revision id map and file id map
         """
         raise NotImplementedError(self.dpull)
 
@@ -67,73 +65,77 @@ class FakeControlFiles(object):
         pass
 
 
-class cmd_dpush(Command):
-    """Push diffs into a foreign version control system without any 
-    Bazaar-specific metadata.
+class cmd_foreign_mapping_upgrade(Command):
+    """Upgrade revisions mapped from a foreign version control system.
+    
+    This will change the identity of revisions whose parents 
+    were mapped from revisions in the other version control system.
 
-    This will afterwards rebase the local Bazaar branch on the remote
-    branch unless the --no-rebase option is used, in which case 
-    the two branches will be out of sync. 
+    You are recommended to run "bzr check" in the local repository 
+    after running this command.
     """
-    takes_args = ['location?']
-    takes_options = ['remember', Option('directory',
-            help='Branch to push from, '
-                 'rather than the one containing the working directory.',
-            short_name='d',
-            type=unicode,
-            ),
-            Option('no-rebase', help="Don't rebase after push")]
+    aliases = ['svn-upgrade']
+    takes_args = ['from_repository?']
+    takes_options = ['verbose', 
+            Option("idmap-file", help="Write map with old and new revision ids.", type=str)]
 
-    def run(self, location=None, remember=False, directory=None, 
-            no_rebase=False):
-        from bzrlib import urlutils
-        from bzrlib.bzrdir import BzrDir
-        from bzrlib.errors import BzrCommandError, NoWorkingTree
+    def run(self, from_repository=None, verbose=False, idmap_file=None):
+        from upgrade import upgrade_branch, upgrade_workingtree
+        from bzrlib.branch import Branch
+        from bzrlib.errors import NoWorkingTree, BzrCommandError
+        from bzrlib.repository import Repository
         from bzrlib.trace import info
         from bzrlib.workingtree import WorkingTree
-
-        if directory is None:
-            directory = "."
         try:
-            source_wt = WorkingTree.open_containing(directory)[0]
-            source_branch = source_wt.branch
+            wt_to = WorkingTree.open(".")
+            branch_to = wt_to.branch
         except NoWorkingTree:
-            source_branch = Branch.open_containing(directory)[0]
-            source_wt = None
-        stored_loc = source_branch.get_push_location()
-        if location is None:
+            wt_to = None
+            branch_to = Branch.open(".")
+
+        stored_loc = branch_to.get_parent()
+        if from_repository is None:
             if stored_loc is None:
-                raise BzrCommandError("No push location known or specified.")
+                raise BzrCommandError("No pull location known or"
+                                             " specified.")
             else:
+                import bzrlib.urlutils as urlutils
                 display_url = urlutils.unescape_for_display(stored_loc,
                         self.outf.encoding)
                 self.outf.write("Using saved location: %s\n" % display_url)
-                location = stored_loc
+                from_repository = Branch.open(stored_loc).repository
+        else:
+            from_repository = Repository.open(from_repository)
 
-        bzrdir = BzrDir.open(location)
-        target_branch = bzrdir.open_branch()
-        target_branch.lock_write()
-        try:
-            if not isinstance(target_branch, ForeignBranch):
-                info("target branch is not a foreign branch, using regular push.")
-                target_branch.pull(source_branch)
-                no_rebase = True
-            else:
-                revid_map = target_branch.dpull(source_branch)
-            # We successfully created the target, remember it
-            if source_branch.get_push_location() is None or remember:
-                source_branch.set_push_location(target_branch.base)
-            if not no_rebase:
-                _, old_last_revid = source_branch.last_revision_info()
-                new_last_revid = revid_map[old_last_revid]
-                if source_wt is not None:
-                    source_wt.pull(target_branch, overwrite=True, 
-                                   stop_revision=new_last_revid)
-                else:
-                    source_branch.pull(target_branch, overwrite=True, 
-                                       stop_revision=new_last_revid)
-        finally:
-            target_branch.unlock()
+        vcs = getattr(from_repository, "vcs", None)
+        if vcs is None:
+            raise BzrCommandError("Repository at %s is not a foreign repository.a" % from_repository.base)
+
+        new_mapping = from_repository.get_mapping()
+
+        if wt_to is not None:
+            renames = upgrade_workingtree(wt_to, from_repository, 
+                                          new_mapping=new_mapping,
+                                          allow_changes=True, verbose=verbose)
+        else:
+            renames = upgrade_branch(branch_to, from_repository, 
+                                     new_mapping=new_mapping,
+                                     allow_changes=True, verbose=verbose)
+
+        if renames == {}:
+            info("Nothing to do.")
+
+        if idmap_file is not None:
+            f = open(idmap_file, 'w')
+            try:
+                for oldid, newid in renames.iteritems():
+                    f.write("%s\t%s\n" % (oldid, newid))
+            finally:
+                f.close()
+
+        if wt_to is not None:
+            wt_to.set_last_revision(branch_to.last_revision())
+
 
 def test_suite():
     from unittest import TestSuite

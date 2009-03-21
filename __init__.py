@@ -158,6 +158,12 @@ class HgDir(bzrlib.bzrdir.BzrDir):
         from bzrlib.plugins.hg.workingtree import HgWorkingTree
         return HgWorkingTree(self._hgrepo, self.open_branch(), self, self._lockfiles)
 
+    def cloning_metadir(self, stacked=False):
+        try:
+            return bzrlib.bzrdir.format_registry.make_bzrdir("default-rich-root")
+        except KeyError:
+            return bzrlib.bzrdir.format_registry.make_bzrdir("1.9-rich-root")
+
 
 class HgToSomethingConverter(bzrlib.bzrdir.Converter):
     """A class to upgrade an hg dir to something else."""

@@ -15,10 +15,12 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+<<<<<<< TREE
 from bzrlib.decorators import (
     needs_write_lock,
     )
 from bzrlib.foreign import (
+    ForeignRepository,
     ForeignRevision,
     )
 from bzrlib.inventory import (
@@ -44,6 +46,8 @@ from bzrlib.plugins.hg.mapping import (
     mapping_registry,
     )
 
+import mercurial.node
+
 
 class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     """Mercurial Repository Format.
@@ -53,24 +57,32 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     support the repository format.
     """
 
+    def is_supported(self):
+        return True
+
     def get_format_description(self):
         """See RepositoryFormat.get_format_description()."""
         return "Mercurial Repository"
 
 
-class HgRepository(bzrlib.repository.Repository):
+class HgRepository(ForeignRepository):
     """An adapter to mercurial repositories for bzr."""
 
+    _serializer = None
+
     def __init__(self, hgrepo, hgdir, lockfiles):
+        ForeignRepository.__init__(self, HgRepositoryFormat(), hgdir, lockfiles)
         self._hgrepo = hgrepo
-        self.bzrdir = hgdir
-        self.control_files = lockfiles
-        self._format = HgRepositoryFormat()
         self.base = hgdir.root_transport.base
         self._fallback_repositories = []
         self.texts = None
         self.signatures = versionedfiles.VirtualSignatureTexts(self)
         self.revisions = versionedfiles.VirtualRevisionTexts(self)
+        self.inventories = versionedfiles.VirtualInventoryTexts(self)
+
+    def _warn_if_deprecated(self):
+        # This class isn't deprecated
+        pass
 
     def get_parent_map(self, revids):
         ret = {}
@@ -79,7 +91,12 @@ class HgRepository(bzrlib.repository.Repository):
                 ret[revid] = ()
             else:
                 hg_ref, mapping = mapping_registry.revision_id_bzr_to_foreign(revid)
-                ret[revid] = tuple([mapping.revision_id_foreign_to_bzr(r) for r in self._hgrepo.changelog.parents(hg_ref)])
+                parents = []
+                for r in self._hgrepo.changelog.parents(hg_ref):
+                    if r != "\0" * 20:
+                        parents.append(mapping.revision_id_foreign_to_bzr(r))
+                ret[revid] = tuple(parents)
+
         return ret
 
     def _check(self, revision_ids):
@@ -112,7 +129,7 @@ class HgRepository(bzrlib.repository.Repository):
         """
         # TODO: this deserves either _ methods on HgRepository, or a method
         # object. Its too big!
-        hgid = self.get_mapping().revision_id_foreign_to_bzr(revision_id)
+        hgid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
         all_relevant_revisions = self.get_revision_graph(revision_id)
@@ -230,7 +247,7 @@ class HgRepository(bzrlib.repository.Repository):
                 for parent_cl in self._hgrepo.changelog.parents(current_cl):
                     if parent_cl not in done_cls:
                         parent_cls.add(parent_cl)
-            modified_revision = self.get_mapping().revision_id_foreign_to_bzr(good_id)
+            modified_revision = mapping.revision_id_foreign_to_bzr(good_id)
             # dont use the following, it doesn't give the right results consistently.
             # modified_revision = bzrrevid_from_hg(
             #     self._hgrepo.changelog.index[changelog_index][7])
@@ -261,7 +278,7 @@ class HgRepository(bzrlib.repository.Repository):
                 for parent_cl in self._hgrepo.changelog.parents(current_cl_id):
                     if parent_cl not in done_cls:
                         parent_cl_ids.add((current_cl_id, parent_cl))
-            introduced_at_path_revision = self.get_mapping().revision_id_foreign_to_bzr(good_id)
+            introduced_at_path_revision = mapping.revision_id_foreign_to_bzr(good_id)
             add_dir_for(file, introduced_at_path_revision)
             entry = result.add_path(file, 'file', file_id=path_id(file))
             entry.text_size = revlog.size(revlog.nodemap[file_revision])
@@ -277,9 +294,12 @@ class HgRepository(bzrlib.repository.Repository):
             result[dirid].revision = dir_revision_id
         return result
 
+    def get_revisions(self, revids):
+        return [self.get_revision(r) for r in revids]
+
     def get_revision(self, revision_id):
         hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
-        result = ForeignRevision(hgrevid, None, revision_id)
+        result = ForeignRevision(hgrevid, mapping, revision_id)
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)
         result.parent_ids = []
@@ -287,11 +307,11 @@ class HgRepository(bzrlib.repository.Repository):
             result.parent_ids.append(mapping.revision_id_foreign_to_bzr(hgparents[0]))
         if hgparents[1] != mercurial.node.nullid:
             result.parent_ids.append(mapping.revision_id_foreign_to_bzr(hgparents[1]))
-        result.message = hgchange[4]
+        result.message = hgchange[4].decode("utf-8")
         result.inventory_sha1 = ""
         result.timezone = -hgchange[2][1]
         result.timestamp = hgchange[2][0]
-        result.committer = hgchange[1]
+        result.committer = hgchange[1].decode("utf-8")
         return result
 
     def get_revision_graph(self, revision_id=None):

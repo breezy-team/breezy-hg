@@ -28,16 +28,17 @@ The key translations needed are:
  * we convert manifests to inventories on the fly.
 """
 
+import bzrlib.bzrdir
 from bzrlib import (
     errors,
     )
-import bzrlib.bzrdir
 from bzrlib.foreign import (
     foreign_vcs_registry,
     )
 import bzrlib.lockable_files
 
 def lazy_load_mercurial():
+    import mercurial
     try:
         from mercurial import demandimport
         demandimport.enable = lambda: None
@@ -206,8 +207,8 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         # little ugly, but works
         format = klass() 
         # try a manual probe first, its a little faster perhaps ?
-        if transport.has('.hg'):
-            return format
+        if not transport.has('.hg'):
+            raise errors.NotBranchError(path=transport.base)
         # delegate to the main opening code. This pays a double rtt cost at the
         # moment, so perhaps we want probe_transport to return the opened thing
         # rather than an openener ? or we could return a curried thing with the

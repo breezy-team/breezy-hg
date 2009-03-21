@@ -28,6 +28,12 @@ The key translations needed are:
  * we convert manifests to inventories on the fly.
 """
 
+import bzrlib
+import bzrlib.api
+
+COMPATIBLE_BZR_VERSIONS = [(1, 13, 0)]
+bzrlib.api.require_any_api(bzrlib, COMPATIBLE_BZR_VERSIONS)
+
 import bzrlib.bzrdir
 from bzrlib import (
     errors,

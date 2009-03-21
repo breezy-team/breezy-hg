@@ -1,4 +1,5 @@
 # Copyright (C) 2005, 2006 Canonical Ltd
+# Copyright (C) 2008-2009 Jelmer Vernooij <jelmer@samba.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,18 +15,23 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+import mercurial.node
+import os
+
 import bzrlib.branch
-from bzrlib.decorators import needs_read_lock
+from bzrlib.decorators import (
+    needs_read_lock,
+    )
 
 from bzrlib.plugins.hg.foreign import (
     ForeignBranch,
     )
-from bzrlib.plugins.hg.mapping import mapping_registry
-from bzrlib.plugins.hg.repository import HgRepository
-
-import mercurial.node
-
-import os
+from bzrlib.plugins.hg.mapping import (
+    mapping_registry,
+    )
+from bzrlib.plugins.hg.repository import (
+    HgRepository,
+    )
 
 
 class MercurialBranchConfig(object):

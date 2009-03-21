@@ -1,4 +1,5 @@
 # Copyright (C) 2005, 2006 Canonical Ltd
+# Copyright (C) 2008 Jelmer Vernooij <jelmer@samba.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,9 +28,13 @@ The key translations needed are:
  * we convert manifests to inventories on the fly.
 """
 
+from bzrlib import (
+    errors,
+    )
 import bzrlib.bzrdir
-import bzrlib.errors as errors
-from bzrlib.foreign import foreign_vcs_registry
+from bzrlib.foreign import (
+    foreign_vcs_registry,
+    )
 import bzrlib.lockable_files
 
 def lazy_load_mercurial():

@@ -1,4 +1,5 @@
 # Copyright (C) 2005, 2006 Canonical Ltd
+# Copyright (C) 2008 Jelmer Vernooij <jelmer@samba.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,13 +15,26 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-from bzrlib.decorators import needs_write_lock
-from bzrlib.foreign import ForeignRevision
-from bzrlib.inventory import Inventory
-from bzrlib.osutils import sha_strings, split_lines
+from bzrlib.decorators import (
+    needs_write_lock,
+    )
+from bzrlib.foreign import (
+    ForeignRevision,
+    )
+from bzrlib.inventory import (
+    Inventory,
+    )
+from bzrlib.osutils import (
+    sha_strings,
+    split_lines,
+    )
 import bzrlib.repository
-from bzrlib.revision import NULL_REVISION
-from bzrlib.tsort import topo_sort
+from bzrlib.revision import (
+    NULL_REVISION,
+    )
+from bzrlib.tsort import (
+    topo_sort,
+    )
 
 from bzrlib.plugins.hg.foreign import (
     versionedfiles,

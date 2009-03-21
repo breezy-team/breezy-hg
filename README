@@ -3,4 +3,4 @@ Mercurial in Bazaar. It supports reading a sufficient amount of
 data for "bzr viz" to work against Mercurial branches.
 
 The plugin requires Mercurial 0.9.3 and a recent version of 
-Bazaar (tested with 0.13 and 0.14).
+Bazaar (tested with 1.13)

@@ -17,6 +17,9 @@
 import bzrlib.branch
 from bzrlib.decorators import needs_read_lock
 
+from bzrlib.plugins.hg.foreign import (
+    ForeignBranch,
+    )
 from bzrlib.plugins.hg.mapping import mapping_registry
 from bzrlib.plugins.hg.repository import HgRepository
 
@@ -67,18 +70,17 @@ class HgBranchConfig(object):
         return "long"
 
 
-class HgBranch(bzrlib.branch.Branch):
+class HgBranch(ForeignBranch):
     """An adapter to mercurial repositories for bzr Branch objects."""
 
     def __init__(self, hgrepo, hgdir, lockfiles):
-        bzrlib.branch.Branch.__init__(self)
+        self._format = HgBranchFormat()
+        self.repository = HgRepository(hgrepo, hgdir, lockfiles)
+        ForeignBranch.__init__(self, self.repository.get_mapping())
         self._hgrepo = hgrepo
         self.bzrdir = hgdir
         self.control_files = lockfiles
-        self.repository = HgRepository(hgrepo, hgdir, lockfiles)
-        self.mapping = self.repository.get_mapping()
         self.base = hgdir.root_transport.base
-        self._format = HgBranchFormat()
 
     def _check(self):
         # TODO: Call out to mercurial for consistency checking?

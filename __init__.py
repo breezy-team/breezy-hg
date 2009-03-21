@@ -27,8 +27,6 @@ The key translations needed are:
  * we convert manifests to inventories on the fly.
 """
 
-import mercurial.node
-
 import bzrlib.bzrdir
 import bzrlib.errors as errors
 from bzrlib.foreign import foreign_vcs_registry

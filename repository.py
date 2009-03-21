@@ -15,7 +15,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-<<<<<<< TREE
 from bzrlib.decorators import (
     needs_write_lock,
     )
@@ -363,7 +362,8 @@ class FromHgRepository(bzrlib.repository.InterRepository):
         self.target.fetch(self.source)
 
     @needs_write_lock
-    def fetch(self, revision_id=None, pb=None, find_ghosts=False):
+    def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
+              fetch_spec=None):
         """Fetch revisions. This is a partial implementation."""
         # assumes that self is a bzr compatible tree, and that source is hg
         # pull everything for simplicity.
@@ -372,13 +372,15 @@ class FromHgRepository(bzrlib.repository.InterRepository):
         # inserting the inventories and revisions, rather than doing 
         # rev-at-a-time.
         needed = {}
-        if revision_id is None:
+        if revision_id is not None:
+            # add what can be reached from revision_id
+            pending = set([revision_id])
+        elif fetch_spec is not None:
+            pending = set(fetch_spec.heads)
+        else:
             pending = set()
             for revision_id in self.source._hgrepo.changelog.heads():
                 pending.add(self.source.get_mapping().revision_id_foreign_to_bzr(revision_id))
-        else:
-            # add what can be reached from revision_id
-            pending = set([revision_id])
         # plan it.
         # we build a graph of the revisions we need, and a
         # full graph which we use for topo-sorting (we need a partial-

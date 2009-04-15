@@ -43,6 +43,8 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self._control_files = lockfiles
         self._branch = hgbranch
         self._format = HgWorkingTreeFormat()
+        self._transport = hgdir.get_workingtree_transport(None)
+        self.views = self._make_views()
 
     @needs_write_lock
     def add(self, files, ids=None):

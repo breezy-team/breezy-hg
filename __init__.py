@@ -43,6 +43,8 @@ from bzrlib.foreign import (
     )
 import bzrlib.lockable_files
 
+LockWarner = getattr(bzrlib.lockable_files, "_LockWarner", None)
+
 def lazy_load_mercurial():
     import mercurial
     try:
@@ -87,8 +89,12 @@ class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
         self._lock = lock
         self._transaction = None
         self._lock_mode = None
-        self._lock_count = 0
         self._transport = transport
+        if LockWarner is None:
+            # Bzr 1.13
+            self._lock_count = 0
+        else:
+            self._lock_warner = LockWarner(repr(self))
 
 
 class HgDir(bzrlib.bzrdir.BzrDir):
@@ -218,19 +224,9 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         """Our format is present if the transport ends in '.not/'."""
         # little ugly, but works
         format = klass() 
-        # try a manual probe first, its a little faster perhaps ?
         if not transport.has('.hg'):
             raise errors.NotBranchError(path=transport.base)
-        # delegate to the main opening code. This pays a double rtt cost at the
-        # moment, so perhaps we want probe_transport to return the opened thing
-        # rather than an openener ? or we could return a curried thing with the
-        # dir to open already instantiated ? Needs more thought.
-        try:
-            format.open(transport)
-            return format
-        except Exception, e:
-            raise errors.NotBranchError(path=transport.base)
-        raise errors.NotBranchError(path=transport.base)
+        return format
 
 
 bzrlib.bzrdir.BzrDirFormat.register_control_format(HgBzrDirFormat)

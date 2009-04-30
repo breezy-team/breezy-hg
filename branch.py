@@ -22,10 +22,10 @@ import bzrlib.branch
 from bzrlib.decorators import (
     needs_read_lock,
     )
-
-from bzrlib.plugins.hg.foreign import (
+from bzrlib.foreign import (
     ForeignBranch,
     )
+
 from bzrlib.plugins.hg.mapping import (
     mapping_registry,
     )

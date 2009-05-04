@@ -34,14 +34,6 @@ from bzrlib.plugins.hg.repository import (
     )
 
 
-class MercurialBranchConfig(object):
-    """Hg branch configuration."""
-
-    def __init__(self, branch):
-        # TODO: Read .hgrc
-        self.branch = branch
-
-
 class HgBranchFormat(bzrlib.branch.BranchFormat):
     """Mercurial Branch Format.
 
@@ -70,6 +62,9 @@ class HgBranchConfig(object):
 
     def has_explicit_nickname(self):
         return True
+
+    def get_user_option(self, name):
+        return None
 
     def log_format(self):
         """What log format should be used"""
@@ -135,9 +130,9 @@ class HgBranch(ForeignBranch):
     def lock_read(self):
         self.control_files.lock_read()
 
-    def tree_config(self):
-        return MercurialBranchConfig(self)
-  
+    def is_locked(self):
+        return self.control_files.is_locked()
+
     def unlock(self):
         self.control_files.unlock()
 

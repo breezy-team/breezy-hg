@@ -37,9 +37,6 @@ from bzrlib.tsort import (
     topo_sort,
     )
 
-from bzrlib.plugins.hg.foreign import (
-    versionedfiles,
-    )
 from bzrlib.plugins.hg.mapping import (
     default_mapping,
     mapping_registry,
@@ -74,10 +71,11 @@ class HgRepository(ForeignRepository):
         self._hgrepo = hgrepo
         self.base = hgdir.root_transport.base
         self._fallback_repositories = []
+        self._serializer = None
         self.texts = None
-        self.signatures = versionedfiles.VirtualSignatureTexts(self)
-        self.revisions = versionedfiles.VirtualRevisionTexts(self)
-        self.inventories = versionedfiles.VirtualInventoryTexts(self)
+        self.signatures = None
+        self.revisions = None
+        self.inventories = None
 
     def _warn_if_deprecated(self):
         # This class isn't deprecated

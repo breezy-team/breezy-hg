@@ -15,6 +15,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+import os
+
 from bzrlib.decorators import (
     needs_write_lock,
     )
@@ -209,7 +211,6 @@ class HgRepository(ForeignRepository):
         """manifests addressed by changelog."""
         for file, file_revision in manifest.items():
             revlog = self._hgrepo.file(file)
-            changelog_index = revlog.linkrev(file_revision)
 
             # find when the file was modified. 
             # start with the manifest nodeid
@@ -283,7 +284,8 @@ class HgRepository(ForeignRepository):
             # TODO: perhaps we should use readmeta here to figure out renames ?
             text = revlog.read(file_revision)
             entry.text_sha1 = sha_strings(text)
-            if manifest.execf(file):
+            # FIXME: Which flags indicate executability?
+            if manifest.flags(file):
                 entry.executable = True
             entry.revision = modified_revision
         for dir, dir_revision_id in directories.items():

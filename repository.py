@@ -347,10 +347,6 @@ class FromHgRepository(bzrlib.repository.InterRepository):
         """The formate to test with - as yet there is no HgRepoFormat."""
         return None
 
-    @staticmethod
-    def _get_repo_format_to_test():
-        return None
-
     @needs_write_lock
     def copy_content(self, revision_id=None, basis=None):
         """See InterRepository.copy_content. Partial implementation of that.

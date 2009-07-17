@@ -31,8 +31,11 @@ The key translations needed are:
 import bzrlib
 import bzrlib.api
 
-COMPATIBLE_BZR_VERSIONS = [(1, 13, 0), (1, 14, 0), (1, 15, 0), (1, 16, 0), (1, 17, 0)]
-bzrlib.api.require_any_api(bzrlib, COMPATIBLE_BZR_VERSIONS)
+from setup import (
+    bzr_compatible_versions,
+    )
+
+bzrlib.api.require_any_api(bzrlib, bzr_compatible_versions)
 
 import bzrlib.bzrdir
 from bzrlib import (

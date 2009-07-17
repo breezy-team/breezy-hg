@@ -141,6 +141,5 @@ class HgBranch(ForeignBranch):
 
     def clone(self, to_bzrdir, revision_id=None):
         # hg repositories can only clone into hg repos.
-        assert isinstance(to_bzrdir, HgDir)
         # and have nothing to do as we follow the hg model.
         return to_bzrdir.open_branch()

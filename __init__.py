@@ -33,6 +33,7 @@ import bzrlib.api
 
 from info import (
     bzr_compatible_versions,
+    bzr_plugin_version as version_info,
     )
 
 bzrlib.api.require_any_api(bzrlib, bzr_compatible_versions)

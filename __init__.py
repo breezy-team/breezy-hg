@@ -31,7 +31,7 @@ The key translations needed are:
 import bzrlib
 import bzrlib.api
 
-from setup import (
+from info import (
     bzr_compatible_versions,
     )
 

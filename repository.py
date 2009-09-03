@@ -410,18 +410,23 @@ class FromHgRepository(bzrlib.repository.InterRepository):
             for revision_id in parent_ids:
                 if revision_id not in needed_graph:
                     pending.add(revision_id)
-        target_repo = self.target
-        target_transaction = self.target.get_transaction()
         order = topo_sort(needed_graph.items())
         # order is now too aggressive: filter to just what we need:
         order = [rev_id for rev_id in order if rev_id in needed]
+        self.target.start_write_group()
+        try:
+            self._fetch_hg_revs(order, needed)
+        finally:
+            self.target.commit_write_group()
+
+    def _fetch_hg_revs(self, order, revisions):
         total = len(order)
         inventories = {}
         pb = bzrlib.ui.ui_factory.nested_progress_bar()
         try:
             for index, revision_id in enumerate(order):
                 pb.update('fetching revisions', index, total)
-                revision = needed[revision_id]
+                revision = revisions[revision_id]
                 inventory = self.source.get_inventory(revision_id)
                 inventories[revision_id] = inventory
                 hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
@@ -472,6 +477,8 @@ class FromHgRepository(bzrlib.repository.InterRepository):
                                         tuple([(fileid, revid) for revid in file_heads]),
                                         None, text)]
                         self.target.texts.insert_record_stream(records)
+                inventory.revision_id = revision_id
+                inventory.root.revision = revision_id # Yuck. FIXME
                 self.target.add_inventory(revision_id, inventory, 
                                           revision.parent_ids)
                 self.target.add_revision(revision_id, revision)

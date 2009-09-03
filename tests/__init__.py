@@ -23,7 +23,7 @@ def test_suite():
 
     suite = TestSuite()
 
-    testmod_names = ['test_pull']
+    testmod_names = ['test_mapping', 'test_pull']
             
     suite.addTest(loader.loadTestsFromModuleNames(["%s.%s" % (__name__, i) for i in testmod_names]))
 

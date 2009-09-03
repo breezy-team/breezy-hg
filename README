@@ -2,5 +2,5 @@ This plugin provides limited support for fetching revisions from
 Mercurial in Bazaar. It supports reading a sufficient amount of 
 data for "bzr viz" to work against Mercurial branches.
 
-The plugin requires Mercurial 0.9.3 and a recent version of 
-Bazaar (tested with 1.13)
+This plugin requires recent versions of Bazaar and Mercurial to be 
+installed to work.

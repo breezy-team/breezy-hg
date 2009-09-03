@@ -45,6 +45,11 @@ class ExperimentalHgMapping(foreign.VcsMapping):
             raise errors.InvalidRevisionId(revision_id, cls)
         return bin(revision_id[len(cls.revid_prefix)+1:]), cls()
 
+    @classmethod
+    def generate_file_id(self, path):
+        """Create a synthetic file_id for an hg file."""
+        return "hg:" + path.replace('/', ':')
+
 
 class HgMappingRegistry(foreign.VcsMappingRegistry):
 

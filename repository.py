@@ -63,6 +63,169 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
         return "Mercurial Repository"
 
 
+def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
+                          mapping):
+    ancestry_cache = {}
+    result = Inventory()
+    # each directory is a key - i.e. 'foo'
+    # the value is the current chosen revision value for it.
+    # we walk up the hierarchy - when a dir changes .revision, its parent
+    # must also change if the new value is older than the parents one.
+    directories = {}
+    def get_ancestry(some_revision_id):
+        try:
+            return ancestry_cache[some_revision_id]
+        except KeyError:
+            pass
+        ancestry = set()
+        # add what can be reached from some_revision_id
+        # TODO: must factor this trivial iteration in bzrlib.graph cleanly.
+        pending = set([some_revision_id])
+        while len(pending) > 0:
+            node = pending.pop()
+            ancestry.add(node)
+            for parent_id in all_relevant_revisions[node]:
+                if parent_id not in ancestry:
+                    pending.add(parent_id)
+        ancestry_cache[some_revision_id] = ancestry
+        return ancestry
+    def pick_best_creator_revision(revision_a, revision_b):
+        """Picks the best creator revision from a and b.
+
+        If a is an ancestor of b, a wins, and vice verca.
+        If neither is an ancestor of the other, the lowest value wins.
+        """
+        # TODO make this much faster - use a local cache of the ancestry
+        # sets.
+        if revision_a in get_ancestry(revision_b):
+            return revision_a
+        elif revision_b in get_ancestry(revision_a):
+            return revision_b
+        elif revision_a < revision_b:
+            return revision_a
+        else:
+            return revision_b
+    def add_dir_for(file, file_revision_id):
+        """ensure that file can be added by adding its parents.
+
+        this is horribly inefficient at the moment, proof of concept.
+
+        This is called for every path under each dir, and will update the
+        .revision for it older each time as the file age is determined.
+        """
+        path = os.path.dirname(file)
+        if path == '':
+            # special case the root node.
+            return
+        if result.has_filename(path):
+            # check for a new revision
+            current_best = directories[path]
+            new_best = pick_best_creator_revision(current_best, file_revision_id)
+            if new_best != current_best:
+                # new revision found, push this up
+                # XXX could hand in our result as a hint?
+                add_dir_for(path, file_revision_id)
+                # and update our chosen one
+                directories[path] = file_revision_id
+            return
+        # the dir is not present. Add its parent too:
+        add_dir_for(path, file_revision_id)
+        # add the dir to the directory summary for creation detection
+        directories[path] = file_revision_id
+        # and put it in the inventory. The revision value is assigned later.
+        entry = result.add_path(path, 'directory', 
+            file_id=mapping.generate_file_id(path))
+    # this can and should be tuned, but for now its just fine - its a 
+    # proof of concept. add_path is part of the things to tune, as is
+    # the dirname() calls.
+    known_manifests = {}
+    """manifests addressed by changelog."""
+    for file, file_revision in manifest.items():
+        revlog = hgrepo.file(file)
+
+        # find when the file was modified. 
+        # start with the manifest nodeid
+        current_log = log
+        # we should find all the tails, and then when there are > 2 heads
+        # record a new revision id at the join. We can detect this by
+        # walking out from each head and assigning ids to them, when two
+        # parents have the same manifest assign a new id.
+        # TODO currently we just pick *a* tail.
+        file_tails = []
+        current_manifest = manifest
+        # cls - changelogs
+        parent_cls = set(hgrepo.changelog.parents(hgid))
+        good_id = hgid
+        done_cls = set()
+        # walk the graph, any node at a time to find the last change point.
+        while parent_cls:
+            current_cl = parent_cls.pop()
+            # the nullid isn't useful.
+            if current_cl == mercurial.node.nullid:
+                continue
+            if current_cl not in known_manifests:
+                current_manifest_id = hgrepo.changelog.read(current_cl)[0]
+                known_manifests[current_cl] = hgrepo.manifest.read(
+                    current_manifest_id)
+            current_manifest = known_manifests[current_cl]
+            done_cls.add(current_cl)
+            if current_manifest.get(file, None) != file_revision:
+                continue
+            # unchanged in parent, advance to the parent.
+            good_id = current_cl
+            for parent_cl in hgrepo.changelog.parents(current_cl):
+                if parent_cl not in done_cls:
+                    parent_cls.add(parent_cl)
+        modified_revision = mapping.revision_id_foreign_to_bzr(good_id)
+        # dont use the following, it doesn't give the right results consistently.
+        # modified_revision = bzrrevid_from_hg(
+        #     self._hgrepo.changelog.index[changelog_index][7])
+        # now walk to find the introducing revision.
+        parent_cl_ids = set([(None, hgid)])
+        good_id = hgid
+        done_cls = set()
+        while parent_cl_ids:
+            current_cl_id_child, current_cl_id = parent_cl_ids.pop()
+            # the nullid isn't useful.
+            if current_cl_id == mercurial.node.nullid:
+                continue
+            if current_cl_id not in known_manifests:
+                current_manifest_id = hgrepo.changelog.read(current_cl_id)[0]
+                known_manifests[current_cl_id] = hgrepo.manifest.read(
+                    current_manifest_id)
+            current_manifest = known_manifests[current_cl_id]
+            done_cls.add(current_cl_id)
+            if current_manifest.get(file, None) is None:
+                # file is not in current manifest: its a tail, cut here.
+                good_id = current_cl_id_child
+                continue
+            # walk to the parents
+            if (mercurial.node.nullid, mercurial.node.nullid) == hgrepo.changelog.parents(current_cl_id):
+                # we have reached the root:
+                good_id = current_cl_id
+                continue
+            for parent_cl in hgrepo.changelog.parents(current_cl_id):
+                if parent_cl not in done_cls:
+                    parent_cl_ids.add((current_cl_id, parent_cl))
+        introduced_at_path_revision = mapping.revision_id_foreign_to_bzr(good_id)
+        add_dir_for(file, introduced_at_path_revision)
+        entry = result.add_path(file, 'file',
+            file_id=mapping.generate_file_id(file))
+        entry.text_size = revlog.size(revlog.nodemap[file_revision])
+        # its a shame we need to pull the text out. is there a better way?
+        # TODO: perhaps we should use readmeta here to figure out renames ?
+        text = revlog.read(file_revision)
+        entry.text_sha1 = sha_strings(text)
+        # FIXME: Which flags indicate executability?
+        if manifest.flags(file):
+            entry.executable = True
+        entry.revision = modified_revision
+    for dir, dir_revision_id in directories.items():
+        dirid = mapping.generate_file_id(dir)
+        result[dirid].revision = dir_revision_id
+    return result
+
+
 class HgRepository(ForeignRepository):
     """An adapter to mercurial repositories for bzr."""
 
@@ -126,172 +289,12 @@ class HgRepository(ForeignRepository):
             * add an entry for the file, of type file, executable if needed,
               and an id of 'hg:path' with / replaced by :.
         """
-        # TODO: this deserves either _ methods on HgRepository, or a method
-        # object. Its too big!
         hgid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
         all_relevant_revisions = self.get_revision_graph(revision_id)
-        ancestry_cache = {}
-        result = Inventory()
-        # each directory is a key - i.e. 'foo'
-        # the value is the current chosen revision value for it.
-        # we walk up the hierarchy - when a dir changes .revision, its parent
-        # must also change if the new value is older than the parents one.
-        directories = {}
-        def get_ancestry(some_revision_id):
-            try:
-                return ancestry_cache[some_revision_id]
-            except KeyError:
-                pass
-            ancestry = set()
-            # add what can be reached from some_revision_id
-            # TODO: must factor this trivial iteration in bzrlib.graph cleanly.
-            pending = set([some_revision_id])
-            while len(pending) > 0:
-                node = pending.pop()
-                ancestry.add(node)
-                for parent_id in all_relevant_revisions[node]:
-                    if parent_id not in ancestry:
-                        pending.add(parent_id)
-            ancestry_cache[some_revision_id] = ancestry
-            return ancestry
-        def path_id(path):
-            """Create a synthetic file_id for an hg file."""
-            return "hg:" + path.replace('/', ':')
-        def pick_best_creator_revision(revision_a, revision_b):
-            """Picks the best creator revision from a and b.
-
-            If a is an ancestor of b, a wins, and vice verca.
-            If neither is an ancestor of the other, the lowest value wins.
-            """
-            # TODO make this much faster - use a local cache of the ancestry
-            # sets.
-            if revision_a in get_ancestry(revision_b):
-                return revision_a
-            elif revision_b in get_ancestry(revision_a):
-                return revision_b
-            elif revision_a < revision_b:
-                return revision_a
-            else:
-                return revision_b
-        def add_dir_for(file, file_revision_id):
-            """ensure that file can be added by adding its parents.
-
-            this is horribly inefficient at the moment, proof of concept.
-
-            This is called for every path under each dir, and will update the
-            .revision for it older each time as the file age is determined.
-            """
-            path = os.path.dirname(file)
-            if path == '':
-                # special case the root node.
-                return
-            if result.has_filename(path):
-                # check for a new revision
-                current_best = directories[path]
-                new_best = pick_best_creator_revision(current_best, file_revision_id)
-                if new_best != current_best:
-                    # new revision found, push this up
-                    # XXX could hand in our result as a hint?
-                    add_dir_for(path, file_revision_id)
-                    # and update our chosen one
-                    directories[path] = file_revision_id
-                return
-            # the dir is not present. Add its parent too:
-            add_dir_for(path, file_revision_id)
-            # add the dir to the directory summary for creation detection
-            directories[path] = file_revision_id
-            # and put it in the inventory. The revision value is assigned later.
-            entry = result.add_path(path, 'directory', file_id=path_id(path))
-        # this can and should be tuned, but for now its just fine - its a 
-        # proof of concept. add_path is part of the things to tune, as is
-        # the dirname() calls.
-        known_manifests = {}
-        """manifests addressed by changelog."""
-        for file, file_revision in manifest.items():
-            revlog = self._hgrepo.file(file)
-
-            # find when the file was modified. 
-            # start with the manifest nodeid
-            current_log = log
-            # we should find all the tails, and then when there are > 2 heads
-            # record a new revision id at the join. We can detect this by
-            # walking out from each head and assigning ids to them, when two
-            # parents have the same manifest assign a new id.
-            # TODO currently we just pick *a* tail.
-            file_tails = []
-            current_manifest = manifest
-            # cls - changelogs
-            parent_cls = set(self._hgrepo.changelog.parents(hgid))
-            good_id = hgid
-            done_cls = set()
-            # walk the graph, any node at a time to find the last change point.
-            while parent_cls:
-                current_cl = parent_cls.pop()
-                # the nullid isn't useful.
-                if current_cl == mercurial.node.nullid:
-                    continue
-                if current_cl not in known_manifests:
-                    current_manifest_id = self._hgrepo.changelog.read(current_cl)[0]
-                    known_manifests[current_cl] = self._hgrepo.manifest.read(
-                        current_manifest_id)
-                current_manifest = known_manifests[current_cl]
-                done_cls.add(current_cl)
-                if current_manifest.get(file, None) != file_revision:
-                    continue
-                # unchanged in parent, advance to the parent.
-                good_id = current_cl
-                for parent_cl in self._hgrepo.changelog.parents(current_cl):
-                    if parent_cl not in done_cls:
-                        parent_cls.add(parent_cl)
-            modified_revision = mapping.revision_id_foreign_to_bzr(good_id)
-            # dont use the following, it doesn't give the right results consistently.
-            # modified_revision = bzrrevid_from_hg(
-            #     self._hgrepo.changelog.index[changelog_index][7])
-            # now walk to find the introducing revision.
-            parent_cl_ids = set([(None, hgid)])
-            good_id = hgid
-            done_cls = set()
-            while parent_cl_ids:
-                current_cl_id_child, current_cl_id = parent_cl_ids.pop()
-                # the nullid isn't useful.
-                if current_cl_id == mercurial.node.nullid:
-                    continue
-                if current_cl_id not in known_manifests:
-                    current_manifest_id = self._hgrepo.changelog.read(current_cl_id)[0]
-                    known_manifests[current_cl_id] = self._hgrepo.manifest.read(
-                        current_manifest_id)
-                current_manifest = known_manifests[current_cl_id]
-                done_cls.add(current_cl_id)
-                if current_manifest.get(file, None) is None:
-                    # file is not in current manifest: its a tail, cut here.
-                    good_id = current_cl_id_child
-                    continue
-                # walk to the parents
-                if (mercurial.node.nullid, mercurial.node.nullid) == self._hgrepo.changelog.parents(current_cl_id):
-                    # we have reached the root:
-                    good_id = current_cl_id
-                    continue
-                for parent_cl in self._hgrepo.changelog.parents(current_cl_id):
-                    if parent_cl not in done_cls:
-                        parent_cl_ids.add((current_cl_id, parent_cl))
-            introduced_at_path_revision = mapping.revision_id_foreign_to_bzr(good_id)
-            add_dir_for(file, introduced_at_path_revision)
-            entry = result.add_path(file, 'file', file_id=path_id(file))
-            entry.text_size = revlog.size(revlog.nodemap[file_revision])
-            # its a shame we need to pull the text out. is there a better way?
-            # TODO: perhaps we should use readmeta here to figure out renames ?
-            text = revlog.read(file_revision)
-            entry.text_sha1 = sha_strings(text)
-            # FIXME: Which flags indicate executability?
-            if manifest.flags(file):
-                entry.executable = True
-            entry.revision = modified_revision
-        for dir, dir_revision_id in directories.items():
-            dirid = path_id(dir)
-            result[dirid].revision = dir_revision_id
-        return result
+        return manifest_to_inventory(self._hgrepo, hgid, log, manifest,
+            all_relevant_revisions, mapping)
 
     def get_revisions(self, revids):
         return [self.get_revision(r) for r in revids]
@@ -468,6 +471,5 @@ class FromHgRepository(bzrlib.repository.InterRepository):
         """Be compatible with HgRepositories."""
         return isinstance(source, HgRepository)
 
+
 bzrlib.repository.InterRepository.register_optimiser(FromHgRepository)
-
-

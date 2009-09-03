@@ -224,10 +224,9 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         else:
             raise errors.BzrCommandError('cannot use hg on %s transport' % transport)
         lazy_load_mercurial()
-        import mercurial.ui
-        ui = mercurial.ui.ui()
         import mercurial.hg
-        repository = mercurial.hg.repository(ui, path, create=_create)
+        from bzrlib.plugins.hg.ui import ui
+        repository = mercurial.hg.repository(ui(), path, create=_create)
         lockfiles = HgLockableFiles(HgLock(repository), transport)
         return HgDir(repository, transport, lockfiles, self)
 

@@ -20,7 +20,9 @@ from bzrlib import (
     trace,
     )
 
-class ui(object):
+import mercurial.ui
+
+class ui(mercurial.ui.ui):
 
     def debug(self, *msg):
         trace.mutter("hg: ", msg)

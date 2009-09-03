@@ -17,6 +17,9 @@
 
 import os
 
+from bzrlib import (
+    errors,
+    )
 from bzrlib.decorators import (
     needs_write_lock,
     )
@@ -37,6 +40,10 @@ from bzrlib.revision import (
     )
 from bzrlib.tsort import (
     topo_sort,
+    )
+from bzrlib.versionedfile import (
+    ChunkedContentFactory,
+    FulltextContentFactory,
     )
 
 from bzrlib.plugins.hg.mapping import (
@@ -332,7 +339,10 @@ class HgRepository(ForeignRepository):
             return result
     
     def has_revision(self, revision_id):
-        return mapping_registry.revision_id_bzr_to_foreign(revision_id)[0] in self._hgrepo.changelog.nodemap
+        try:
+            return mapping_registry.revision_id_bzr_to_foreign(revision_id)[0] in self._hgrepo.changelog.nodemap
+        except errors.InvalidRevisionId:
+            return False
 
     def is_shared(self):
         """Whether this repository is being shared between multiple branches. 
@@ -435,20 +445,19 @@ class FromHgRepository(bzrlib.repository.InterRepository):
                                 # if its not in the cache, its in target already
                                 inventories[parent] = self.target.get_inventory(parent)
                                 previous_inventories.append(inventories[parent])
-                        file_heads = entry.find_previous_heads(
-                            previous_inventories,
-                            target_repo.weave_store,
-                            target_transaction
-                            )
-
-                        weave = target_repo.weave_store.get_weave_or_empty(
-                                    fileid, target_transaction)
+                        file_heads = entry.parent_candidates(
+                            previous_inventories)
 
                         if entry.kind == 'directory':
                             # a bit of an abstraction variation, but we dont have a
                             # real tree for entry to read from, and it would be 
                             # mostly dead weight to have a stub tree here.
-                            weave.add_lines(revision_id, file_heads, [])
+                            records = [
+                                ChunkedContentFactory(
+                                    (fileid, revision_id),
+                                    tuple([(fileid, revid) for revid in file_heads]),
+                                    None,
+                                    [])]
                         else:
                             # extract text and insert it.
                             path = inventory.id2path(fileid)
@@ -457,8 +466,12 @@ class FromHgRepository(bzrlib.repository.InterRepository):
                             # TODO: perhaps we should use readmeta here to figure out renames ?
                             text = revlog.read(filerev)
                             lines = split_lines(text)
-                            weave.add_lines(revision_id, file_heads, 
-                                            split_lines(text))
+                            records = [
+                                    FulltextContentFactory(
+                                        (fileid, revision_id),
+                                        tuple([(fileid, revid) for revid in file_heads]),
+                                        None, text)]
+                        self.target.texts.insert_record_stream(records)
                 self.target.add_inventory(revision_id, inventory, 
                                           revision.parent_ids)
                 self.target.add_revision(revision_id, revision)

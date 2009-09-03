@@ -161,7 +161,7 @@ class FromHgRepository(InterRepository):
                                         None, text)]
                         self.target.texts.insert_record_stream(records)
                 inventory.revision_id = revision_id
-                #inventory.root.revision = revision_id # Yuck. FIXME
+                inventory.root.revision = revision_id # Yuck. FIXME
                 self.target.add_inventory(revision_id, inventory, 
                                           revision.parent_ids)
                 self.target.add_revision(revision_id, revision)

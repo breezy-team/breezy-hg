@@ -17,6 +17,7 @@
 """Implementation of the Mercurial UI interface that translates to Bazaar calls."""
 
 from bzrlib import (
+    config,
     trace,
     )
 
@@ -25,6 +26,13 @@ import mercurial.ui
 class ui(mercurial.ui.ui):
 
     def debug(self, *msg):
-        trace.mutter("hg: ", msg)
+        trace.mutter(("hg: ", ) + msg)
 
+    def warn(self, *msg):
+        trace.mutter(("hg: ",) + msg)
 
+    def note(self, *msg):
+        pass
+
+    def username(self):
+        return config.GlobalConfig().username()

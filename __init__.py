@@ -235,9 +235,9 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         """Our format is present if the transport ends in '.not/'."""
         # little ugly, but works
         format = klass() 
-        if not transport.has('.hg'):
-            raise errors.NotBranchError(path=transport.base)
-        return format
+        if transport.has('.hg'):
+            return format
+        raise errors.NotBranchError(path=transport.base)
 
 
 bzrlib.bzrdir.BzrDirFormat.register_control_format(HgBzrDirFormat)

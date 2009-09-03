@@ -300,7 +300,10 @@ class HgRepository(ForeignRepository):
         return [self.get_revision(r) for r in revids]
 
     def get_revision(self, revision_id):
-        hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
+        try:
+            hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
+        except errors.InvalidRevisionId:
+            raise errors.NoSuchRevision(revision_id)
         result = ForeignRevision(hgrevid, mapping, revision_id)
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)

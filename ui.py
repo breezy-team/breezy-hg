@@ -26,10 +26,12 @@ import mercurial.ui
 class ui(mercurial.ui.ui):
 
     def debug(self, *msg):
-        trace.mutter(("hg: ", ) + msg)
+        for x in msg:
+            trace.mutter("hg: %s" % x)
 
     def warn(self, *msg):
-        trace.mutter(("hg: ",) + msg)
+        for x in msg:
+            trace.warn("hg: %s" % x)
 
     def note(self, *msg):
         pass

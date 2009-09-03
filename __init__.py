@@ -222,7 +222,7 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         if transport.base.startswith('file://'):
             path = transport.local_abspath('.').encode('utf-8')
         else:
-            raise errors.BzrCommandError('cannot use hg on %s transport' % transport)
+            path = transport.base
         lazy_load_mercurial()
         import mercurial.hg
         from bzrlib.plugins.hg.ui import ui
@@ -235,9 +235,13 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         """Our format is present if the transport ends in '.not/'."""
         # little ugly, but works
         format = klass() 
-        if transport.has('.hg'):
-            return format
-        raise errors.NotBranchError(path=transport.base)
+        from bzrlib.transport.local import LocalTransport
+        from mercurial import error as hg_errors
+        try:
+            format.open(transport)
+        except hg_errors.RepoError:
+            raise errors.NotBranchError(path=transport.base)
+        return format
 
 
 bzrlib.bzrdir.BzrDirFormat.register_control_format(HgBzrDirFormat)

@@ -14,8 +14,15 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+from bzrlib import (
+    errors,
+    )
+from bzrlib.inventory import (
+    Inventory,
+    )
 import bzrlib.workingtree
 from bzrlib.decorators import (
+    needs_read_lock,
     needs_write_lock,
     )
 
@@ -38,6 +45,7 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
     """An adapter to mercurial repositories for bzr WorkingTree obejcts."""
 
     def __init__(self, hgrepo, hgbranch, hgdir, lockfiles):
+        self._inventory = Inventory()
         self._hgrepo = hgrepo
         self.bzrdir = hgdir
         self._control_files = lockfiles
@@ -70,6 +78,3 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             return self._control_files.unlock()
         finally:
             self.branch.unlock()
-
-
-

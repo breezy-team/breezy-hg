@@ -54,16 +54,12 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             files = [files]
         # hg does not canonicalise paths : make them absolute
         paths = [(file).encode('utf8') for file in files]
-        self._hgrepo.add(paths, wlock=self._control_files._lock)
+        self._hgrepo.add(paths)
 
     @needs_write_lock
     def commit(self, message, *args, **kwargs):
         # TODO: selected file lists etc.
-        files, matchfn, anypats = mercurial.cmdutil.matchpats(self._hgrepo)
-        self._hgrepo.commit([], message, None, None, matchfn, wlock=self._control_files._lock)
-
-#    def read_working_inventory(self):
-#        """in hg terms, read the manifest."""
+        self._hgrepo.commit(message)
 
     def _reset_data(self):
         """Reset all cached data."""

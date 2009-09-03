@@ -69,6 +69,32 @@ foreign_vcs_registry.register_lazy("hg",
     "bzrlib.plugins.hg.mapping", "foreign_hg", "Mercurial")
 
 
+class HgDummyLock(object):
+    """Lock that doesn't actually lock."""
+
+    def __init__(self, hgrepo):
+        self._hgrepo = hgrepo
+
+    def lock_write(self, token=None):
+        if token is not None:
+            raise errors.TokenLockingNotSupported(self)
+        self._lock = self._hgrepo.wlock()
+
+    def lock_read(self):
+        self._lock = None
+
+    def peek(self):
+        raise NotImplementedError(self.peek)
+
+    def unlock(self):
+        if self._lock is not None:
+            self._lock.release()
+
+    def validate_token(self, token):
+        if token is not None:
+            raise errors.TokenLockingNotSupported(self)
+
+
 class HgLock(object):
     """A lock that thunks through to Hg."""
 
@@ -221,13 +247,15 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
             transport = transport._decorated
         if transport.base.startswith('file://'):
             path = transport.local_abspath('.').encode('utf-8')
+            lock_class = HgLock
         else:
             path = transport.base
+            lock_class = HgDummyLock
         lazy_load_mercurial()
         import mercurial.hg
         from bzrlib.plugins.hg.ui import ui
         repository = mercurial.hg.repository(ui(), path, create=_create)
-        lockfiles = HgLockableFiles(HgLock(repository), transport)
+        lockfiles = HgLockableFiles(lock_class(repository), transport)
         return HgDir(repository, transport, lockfiles, self)
 
     @classmethod

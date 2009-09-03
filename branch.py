@@ -124,8 +124,8 @@ class HgBranch(ForeignBranch):
 
     @needs_read_lock
     def last_revision(self):
-        # perhaps should escape this ?
-        return self.mapping.revision_id_foreign_to_bzr(self._hgrepo.changelog.tip())
+        heads = self._hgrepo.heads()
+        return self.mapping.revision_id_foreign_to_bzr(heads[0])
 
     def lock_read(self):
         self.control_files.lock_read()

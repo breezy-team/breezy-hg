@@ -42,6 +42,7 @@ bzrlib.api.require_any_api(bzrlib, bzr_compatible_versions)
 import bzrlib.bzrdir
 from bzrlib import (
     errors,
+    trace,
     )
 from bzrlib.foreign import (
     foreign_vcs_registry,
@@ -59,9 +60,9 @@ def lazy_load_mercurial():
         pass
     from mercurial.__version__ import version as hg_version
     if hg_version not in hg_compatible_versions:
-        raise DependencyNotPresent("mercurial",
+        raise errors.DependencyNotPresent("mercurial",
             'bzr-hg: Mercurial version %s not supported.' % hg_version)
-    mutter("bzr-hg: using Mercurial %s" % hg_version)
+    trace.mutter("bzr-hg: using Mercurial %s" % hg_version)
 
 
 foreign_vcs_registry.register_lazy("hg", 

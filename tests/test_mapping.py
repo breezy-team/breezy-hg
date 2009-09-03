@@ -22,6 +22,9 @@ from mercurial.node import (
 from bzrlib.plugins.hg.mapping import (
     ExperimentalHgMapping,
     )
+from bzrlib import (
+    errors,
+    )
 from bzrlib.tests import (
     TestCase,
     )
@@ -43,7 +46,7 @@ class HgMappingTests(TestCase):
 
     def test_revid_bzr_to_foreign_invalid(self):
         self.assertRaises(errors.InvalidRevisionId, 
-                self.mapping.revision_id_bzr_to_foreign("foo:bar"))
+                self.mapping.revision_id_bzr_to_foreign, "foo:bar")
 
     def test_generate_file_id(self):
         self.assertEquals("hg:foo:bar",

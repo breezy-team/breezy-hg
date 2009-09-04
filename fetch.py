@@ -39,9 +39,13 @@ from bzrlib.plugins.hg.mapping import (
 class FromHgRepository(InterRepository):
     """Hg to any repository actions."""
 
+    def __init__(self, source, target):
+        super(FromHgRepository, self).__init__(source, target)
+        self._inventories = {}
+
     @classmethod
     def _get_repo_format_to_test(self):
-        """The formate to test with - as yet there is no HgRepoFormat."""
+        """The format to test with - as yet there is no HgRepoFormat."""
         return None
 
     @needs_write_lock
@@ -103,68 +107,74 @@ class FromHgRepository(InterRepository):
         finally:
             self.target.commit_write_group()
 
+    def _get_inventories(self, revision_ids):
+        ret = []
+        for revid in revision_ids:
+            try:
+                ret.append(self._inventories[revid])
+            except KeyError:
+                # if its not in the cache, its in target already
+                self._inventories[revid] = self.target.get_inventory(revid)
+                ret.append(self._inventories[revid])
+        return ret
+
+    def _fetch_hg_rev(self, revision):
+        inventory = self.source.get_inventory(revision.revision_id)
+        self._inventories[revision.revision_id] = inventory
+        hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision.revision_id)
+        log = self.source._hgrepo.changelog.read(hgrevid)
+        manifest = self.source._hgrepo.manifest.read(log[0])
+        for fileid in inventory:
+            #if fileid == bzrlib.inventory.ROOT_ID:
+            #    continue
+            entry = inventory[fileid]
+            if inventory[fileid].revision == revision.revision_id:
+                # changed in this revision
+                entry = inventory[fileid]
+                # changing the parents-to-insert-as algorithm here will
+                # cause pulls from hg to change the per-file graph.
+                # BEWARE of doing that.
+                previous_inventories = self._get_inventories(
+                    revision.parent_ids)
+                file_heads = entry.parent_candidates(
+                    previous_inventories)
+
+                if entry.kind == 'directory':
+                    # a bit of an abstraction variation, but we dont have a
+                    # real tree for entry to read from, and it would be 
+                    # mostly dead weight to have a stub tree here.
+                    records = [
+                        ChunkedContentFactory(
+                            (fileid, revision.revision_id),
+                            tuple([(fileid, revid) for revid in file_heads]),
+                            None,
+                            [])]
+                else:
+                    # extract text and insert it.
+                    path = inventory.id2path(fileid)
+                    revlog = self.source._hgrepo.file(path)
+                    filerev = manifest[path]
+                    # TODO: perhaps we should use readmeta here to figure out renames ?
+                    text = revlog.read(filerev)
+                    records = [
+                            FulltextContentFactory(
+                                (fileid, revision.revision_id),
+                                tuple([(fileid, revid) for revid in file_heads]),
+                                None, text)]
+                self.target.texts.insert_record_stream(records)
+        inventory.revision_id = revision.revision_id
+        inventory.root.revision = revision.revision_id # Yuck. FIXME
+        self.target.add_inventory(revision.revision_id, inventory, 
+                                  revision.parent_ids)
+        self.target.add_revision(revision.revision_id, revision)
+
     def _fetch_hg_revs(self, order, revisions):
         total = len(order)
-        inventories = {}
         pb = ui.ui_factory.nested_progress_bar()
         try:
             for index, revision_id in enumerate(order):
                 pb.update('fetching revisions', index, total)
-                revision = revisions[revision_id]
-                inventory = self.source.get_inventory(revision_id)
-                inventories[revision_id] = inventory
-                hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
-                log = self.source._hgrepo.changelog.read(hgrevid)
-                manifest = self.source._hgrepo.manifest.read(log[0])
-                for fileid in inventory:
-                    #if fileid == bzrlib.inventory.ROOT_ID:
-                    #    continue
-                    entry = inventory[fileid]
-                    if inventory[fileid].revision == revision_id:
-                        # changed in this revision
-                        entry = inventory[fileid]
-                        # changing the parents-to-insert-as algorithm here will
-                        # cause pulls from hg to change the per-file graph.
-                        # BEWARE of doing that.
-                        previous_inventories = []
-                        for parent in revision.parent_ids:
-                            try:
-                                previous_inventories.append(inventories[parent])
-                            except KeyError:
-                                # if its not in the cache, its in target already
-                                inventories[parent] = self.target.get_inventory(parent)
-                                previous_inventories.append(inventories[parent])
-                        file_heads = entry.parent_candidates(
-                            previous_inventories)
-
-                        if entry.kind == 'directory':
-                            # a bit of an abstraction variation, but we dont have a
-                            # real tree for entry to read from, and it would be 
-                            # mostly dead weight to have a stub tree here.
-                            records = [
-                                ChunkedContentFactory(
-                                    (fileid, revision_id),
-                                    tuple([(fileid, revid) for revid in file_heads]),
-                                    None,
-                                    [])]
-                        else:
-                            # extract text and insert it.
-                            path = inventory.id2path(fileid)
-                            revlog = self.source._hgrepo.file(path)
-                            filerev = manifest[path]
-                            # TODO: perhaps we should use readmeta here to figure out renames ?
-                            text = revlog.read(filerev)
-                            records = [
-                                    FulltextContentFactory(
-                                        (fileid, revision_id),
-                                        tuple([(fileid, revid) for revid in file_heads]),
-                                        None, text)]
-                        self.target.texts.insert_record_stream(records)
-                inventory.revision_id = revision_id
-                inventory.root.revision = revision_id # Yuck. FIXME
-                self.target.add_inventory(revision_id, inventory, 
-                                          revision.parent_ids)
-                self.target.add_revision(revision_id, revision)
+                self._fetch_hg_rev(revisions[revision_id])
         finally:
             pb.finished()
         return total, 0

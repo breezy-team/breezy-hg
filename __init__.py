@@ -169,8 +169,7 @@ class HgDir(bzrlib.bzrdir.BzrDir):
         if shared:
             # dont know enough about hg yet to do 'shared repositories' in it.
             raise errors.IncompatibleFormat(self._format, self._format)
-        from bzrlib.plugins.hg.repository import HgRepository
-        return HgRepository(self._hgrepo, self, self._lockfiles)
+        return self.open_repository()
 
     def create_workingtree(self, shared=False):
         """'create' a workingtree for this dir."""
@@ -200,8 +199,15 @@ class HgDir(bzrlib.bzrdir.BzrDir):
 
     def open_repository(self, shared=False):
         """'open' a repository for this dir."""
-        from bzrlib.plugins.hg.repository import HgRepository
-        return HgRepository(self._hgrepo, self, self._lockfiles)
+        from bzrlib.plugins.hg.repository import (
+            HgLocalRepository,
+            HgRemoteRepository,
+            )
+        if self._hgrepo.local():
+            repo_klass = HgLocalRepository
+        else:
+            repo_klass = HgRemoteRepository
+        return repo_klass(self._hgrepo, self, self._lockfiles)
 
     def open_workingtree(self, shared=False, recommend_upgrade=False):
         """'open' a workingtree for this dir."""

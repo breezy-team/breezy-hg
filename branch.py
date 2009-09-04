@@ -76,7 +76,7 @@ class HgBranch(ForeignBranch):
 
     def __init__(self, hgrepo, hgdir, lockfiles):
         self._format = HgBranchFormat()
-        self.repository = HgRepository(hgrepo, hgdir, lockfiles)
+        self.repository = hgdir.open_repository()
         ForeignBranch.__init__(self, self.repository.get_mapping())
         self._hgrepo = hgrepo
         self.bzrdir = hgdir

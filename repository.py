@@ -46,6 +46,9 @@ from bzrlib.plugins.hg.mapping import (
 
 import mercurial.node
 
+class MercurialSmartRemoteNotSupported(errors.BzrError):
+    _fmt = "This operation is not supported by the Mercurial smart server protocol."
+
 
 class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     """Mercurial Repository Format.
@@ -256,20 +259,6 @@ class HgRepository(ForeignRepository):
         # This class isn't deprecated
         pass
 
-    def get_parent_map(self, revids):
-        ret = {}
-        for revid in revids:
-            if revid == NULL_REVISION:
-                ret[revid] = ()
-            else:
-                hg_ref, mapping = mapping_registry.revision_id_bzr_to_foreign(revid)
-                parents = []
-                for r in self._hgrepo.changelog.parents(hg_ref):
-                    if r != mercurial.node.nullid:
-                        parents.append(mapping.revision_id_foreign_to_bzr(r))
-                ret[revid] = tuple(parents)
-        return ret
-
     def _check(self, revision_ids):
         # TODO: Call out to mercurial for consistency checking?
         return bzrlib.branch.BranchCheckResult(self)
@@ -305,6 +294,45 @@ class HgRepository(ForeignRepository):
         return manifest_to_inventory(self._hgrepo, hgid, log, manifest,
             all_relevant_revisions, mapping)
 
+    def get_revision_graph(self, revision_id=None):
+        if revision_id is None:
+            raise NotImplementedError("get_revision_graph with no parents not implemented yet.")
+        else:
+            # add what can be reached from revision_id
+            result = {}
+            pending = set([revision_id])
+            while len(pending) > 0:
+                node = pending.pop()
+                result[node] = self.get_revision(node).parent_ids
+                for revision_id in result[node]:
+                    if revision_id not in result:
+                        pending.add(revision_id)
+            return result
+    
+    def is_shared(self):
+        """Whether this repository is being shared between multiple branches. 
+        
+        Always False for Mercurial for now.
+        """
+        return False
+
+
+class HgLocalRepository(HgRepository):
+
+    def get_parent_map(self, revids):
+        ret = {}
+        for revid in revids:
+            if revid == NULL_REVISION:
+                ret[revid] = ()
+            else:
+                hg_ref, mapping = mapping_registry.revision_id_bzr_to_foreign(revid)
+                parents = []
+                for r in self._hgrepo.changelog.parents(hg_ref):
+                    if r != mercurial.node.nullid:
+                        parents.append(mapping.revision_id_foreign_to_bzr(r))
+                ret[revid] = tuple(parents)
+        return ret
+
     def get_revisions(self, revids):
         return [self.get_revision(r) for r in revids]
 
@@ -328,33 +356,26 @@ class HgRepository(ForeignRepository):
         result.committer = hgchange[1].decode("utf-8")
         return result
 
-    def get_revision_graph(self, revision_id=None):
-        if revision_id is None:
-            raise NotImplementedError("get_revision_graph with no parents not implemented yet.")
-        else:
-            # add what can be reached from revision_id
-            result = {}
-            pending = set([revision_id])
-            while len(pending) > 0:
-                node = pending.pop()
-                result[node] = self.get_revision(node).parent_ids
-                for revision_id in result[node]:
-                    if revision_id not in result:
-                        pending.add(revision_id)
-            return result
-    
     def has_revision(self, revision_id):
         try:
             return mapping_registry.revision_id_bzr_to_foreign(revision_id)[0] in self._hgrepo.changelog.nodemap
         except errors.InvalidRevisionId:
             return False
 
-    def is_shared(self):
-        """Whether this repository is being shared between multiple branches. 
-        
-        Always False for Mercurial for now.
-        """
-        return False
+
+class HgRemoteRepository(HgRepository):
+
+    def get_parent_map(self, revids):
+        raise MercurialSmartRemoteNotSupported()
+
+    def get_revisions(self, revision_ids):
+        raise MercurialSmartRemoteNotSupported()
+
+    def get_revision(self, revision_id):
+        raise MercurialSmartRemoteNotSupported()
+
+    def has_revision(self, revision_id):
+        raise MercurialSmartRemoteNotSupported()
 
 
 from bzrlib.plugins.hg.fetch import FromHgRepository

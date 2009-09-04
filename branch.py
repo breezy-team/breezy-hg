@@ -113,19 +113,15 @@ class HgBranch(ForeignBranch):
     
     @needs_read_lock
     def revision_history(self):
-        tip, mapping = mapping_registry.revision_id_bzr_to_foreign(self.last_revision())
-        revs = []
-        next_rev = tip
-        while next_rev != mercurial.node.nullid:
-            revs.append(mapping.revision_id_foreign_to_bzr(next_rev))
-            next_rev = self._hgrepo.changelog.parents(next_rev)[0]
+        revs = list(self.repository.iter_reverse_revision_history(self.last_revision()))
         revs.reverse()
         return revs
 
     @needs_read_lock
     def last_revision(self):
-        heads = self._hgrepo.heads()
-        return self.mapping.revision_id_foreign_to_bzr(heads[0])
+        # FIXME: Check for "lookup" capability?
+        tip = self._hgrepo.lookup("tip")
+        return self.mapping.revision_id_foreign_to_bzr(tip)
 
     def lock_read(self):
         self.control_files.lock_read()

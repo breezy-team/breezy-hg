@@ -65,6 +65,16 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
 
 def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
                           mapping):
+    """Convert a Mercurial manifest to a Bazaar inventory.
+
+    :param hgrepo: A local Mercurial repository
+    :param hgid: HG ID of the relevant revision
+    :param log: Log object of the relevant revision
+    :param manifest: The manifest
+    :param all_relevant_revisions: Graph will relevant revisions
+    :param mapping: Mapping to use
+    :return: Inventory object
+    """
     ancestry_cache = {}
     result = Inventory()
     # each directory is a key - i.e. 'foo'
@@ -255,10 +265,9 @@ class HgRepository(ForeignRepository):
                 hg_ref, mapping = mapping_registry.revision_id_bzr_to_foreign(revid)
                 parents = []
                 for r in self._hgrepo.changelog.parents(hg_ref):
-                    if r != "\0" * 20:
+                    if r != mercurial.node.nullid:
                         parents.append(mapping.revision_id_foreign_to_bzr(r))
                 ret[revid] = tuple(parents)
-
         return ret
 
     def _check(self, revision_ids):

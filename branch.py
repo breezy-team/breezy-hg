@@ -69,10 +69,17 @@ class HgBranchConfig(object):
 
     def __init__(self, branch):
         self._branch = branch
+        self._ui = branch.repository._hgrepo.ui
 
     def get_nickname(self):
         # remove the trailing / and take the basename.
         return os.path.basename(self._branch.base[:-1])
+
+    def get_parent(self):
+        return self._ui.config("paths", "default")
+
+    def set_parent(self, url):
+        self._ui.setconfig("paths", "default", url)
 
     def has_explicit_nickname(self):
         return True
@@ -104,7 +111,7 @@ class HgBranch(ForeignBranch):
     def get_parent(self):
         """Return the URL of the parent branch."""
         # TODO: Obtain "repository default" 
-        return None
+        return self.get_config().get_parent()
 
     def get_physical_lock_status(self):
         return self.control_files.get_physical_lock_status()
@@ -155,8 +162,7 @@ class HgBranch(ForeignBranch):
         raise errors.UnstackableBranchFormat(self._format, self.base)
 
     def _set_parent_location(self, parent_url):
-        # FIXME
-        pass
+        self.get_config().set_parent(parent_url)
 
 
 class InterHgBranch(InterBranch):

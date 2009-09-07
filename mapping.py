@@ -52,6 +52,7 @@ class ExperimentalHgMapping(foreign.VcsMapping):
 
 
 class HgMappingRegistry(foreign.VcsMappingRegistry):
+    """Registry of all Bazaar <-> Mercurial mappings."""
 
     def revision_id_bzr_to_foreign(self, bzr_revid):
         if not bzr_revid.startswith("hg-"):

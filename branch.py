@@ -18,12 +18,20 @@
 import mercurial.node
 import os
 
-import bzrlib.branch
+from bzrlib.branch import (
+    BranchCheckResult,
+    BranchFormat,
+    PullResult,
+    InterBranch,
+    )
 from bzrlib.decorators import (
     needs_read_lock,
     )
 from bzrlib.foreign import (
     ForeignBranch,
+    )
+from bzrlib.repository import (
+    InterRepository,
     )
 
 from bzrlib.plugins.hg.mapping import (
@@ -34,7 +42,7 @@ from bzrlib.plugins.hg.repository import (
     )
 
 
-class HgBranchFormat(bzrlib.branch.BranchFormat):
+class HgBranchFormat(BranchFormat):
     """Mercurial Branch Format.
 
     This is currently not aware of different branch formats,
@@ -85,7 +93,7 @@ class HgBranch(ForeignBranch):
 
     def _check(self):
         # TODO: Call out to mercurial for consistency checking?
-        return bzrlib.branch.BranchCheckResult(self)
+        return BranchCheckResult(self)
 
     def get_parent(self):
         """Return the URL of the parent branch."""
@@ -132,9 +140,6 @@ class HgBranch(ForeignBranch):
     def unlock(self):
         self.control_files.unlock()
 
-    def copy_content_into(self, destination, revision_id=None):
-        pass
-
     def clone(self, to_bzrdir, revision_id=None):
         # hg repositories can only clone into hg repos.
         # and have nothing to do as we follow the hg model.
@@ -143,3 +148,41 @@ class HgBranch(ForeignBranch):
     def _set_parent_location(self, parent_url):
         # FIXME
         pass
+
+
+class InterHgBranch(InterBranch):
+    """InterBranch for two native Mercurial branches."""
+
+    @staticmethod
+    def is_compatible(source, target):
+        return (isinstance(source, HgBranch) and isinstance(target, HgBranch))
+
+    def pull(self, overwrite=False, stop_revision=None, 
+             possible_transports=None, local=False):
+        result = PullResult()
+        result.source_branch = self.source
+        result.target_branch = self.target
+        result.old_revid = self.target.last_revision()
+        # TODO: Just use Mercurial API here directly rather than going via 
+        # InterRepository ?
+        inter = InterRepository.get(self.source.repository, 
+                                    self.target.repository)
+        inter.fetch(revision_id=stop_revision)
+        result.new_revid = self.target.last_revision()
+        return result
+
+    def push(self, overwrite=False, stop_revision=None):
+        result = BranchPushResult()
+        result.source_branch = self.source
+        result.target_branch = self.target
+        result.old_revid = self.target.last_revision()
+        # TODO: Just use Mercurial API here directly rather than going via 
+        # InterRepository ?
+        inter = InterRepository.get(self.source.repository, 
+                                    self.target.repository)
+        inter.fetch(revision_id=stop_revision)
+        result.new_revid = self.target.last_revision()
+        return result
+
+
+InterBranch.register_optimiser(InterHgBranch)

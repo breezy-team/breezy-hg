@@ -39,10 +39,6 @@ from bzrlib.plugins.hg.mapping import (
 class FromHgRepository(InterRepository):
     """Hg to any repository actions."""
 
-    def __init__(self, source, target):
-        super(FromHgRepository, self).__init__(source, target)
-        self._inventories = {}
-
     @classmethod
     def _get_repo_format_to_test(self):
         """The format to test with - as yet there is no HgRepoFormat."""
@@ -61,6 +57,10 @@ class FromHgRepository(InterRepository):
 
 class FromLocalHgRepository(FromHgRepository):
     """Local Hg repository to any repository actions."""
+
+    def __init__(self, source, target):
+        FromHgRepository.__init__(self, source, target)
+        self._inventories = {}
 
     @needs_write_lock
     def fetch(self, revision_id=None, pb=None, find_ghosts=False, 

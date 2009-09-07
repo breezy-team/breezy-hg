@@ -196,11 +196,26 @@ class FromLocalHgRepository(FromHgRepository):
 class FromRemoteHgRepository(FromHgRepository):
     """Remote Hg repository to any repository actions."""
 
+    def addchangegroup(self, cg):
+        """Import a Mercurial changegroup into the target repository."""
+        raise NotImplementedError(self.addchangegroup)
+
+    def heads(self, fetch_spec, revision_id):
+        if fetch_spec is not None:
+            mapping = self.source.get_mapping()
+            return [mapping.revision_id_bzr_to_foreign(head) for head in fetch_spec.heads]
+        if revision_id is not None:
+            mapping = self.source.get_mapping()
+            return mapping.revision_id_bzr_to_foreign(revision_id)
+        return self.source._hgrepo.heads()
+
     @needs_write_lock
     def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
               fetch_spec=None):
         """Fetch revisions. This is a partial implementation."""
-        raise NotImplementedError(self.fetch)
+        heads = self.heads(revision_id, fetch_spec)
+        import pdb; pdb.set_trace()
+        self.addchangegroup(cg)
 
     @staticmethod
     def is_compatible(source, target):

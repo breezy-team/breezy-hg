@@ -177,13 +177,13 @@ class InterHgBranch(InterBranch):
         result = PullResult()
         result.source_branch = self.source
         result.target_branch = self.target
-        result.old_revid = self.target.last_revision()
+        result.old_revno, result.old_revid = self.target.last_revision_info()
         # TODO: Just use Mercurial API here directly rather than going via 
         # InterRepository ?
         inter = InterRepository.get(self.source.repository, 
                                     self.target.repository)
         inter.fetch(revision_id=stop_revision)
-        result.new_revid = self.target.last_revision()
+        result.new_revno, result.new_revid = self.target.last_revision_info()
         return result
 
     def push(self, overwrite=False, stop_revision=None):
@@ -201,3 +201,38 @@ class InterHgBranch(InterBranch):
 
 
 InterBranch.register_optimiser(InterHgBranch)
+
+
+class FromHgBranch(InterBranch):
+    """InterBranch pulling from a Mercurial branch."""
+
+    @staticmethod
+    def is_compatible(source, target):
+        return (isinstance(source, HgBranch) and 
+                not isinstance(target, HgBranch))
+
+    def pull(self, overwrite=False, stop_revision=None, 
+             possible_transports=None, local=False):
+        result = PullResult()
+        result.source_branch = self.source
+        result.target_branch = self.target
+        result.old_revno, result.old_revid = self.target.last_revision_info()
+        inter = InterRepository.get(self.source.repository, 
+                                    self.target.repository)
+        inter.fetch(revision_id=stop_revision)
+        result.new_revno, result.new_revid = self.target.last_revision_info()
+        return result
+
+    def push(self, overwrite=False, stop_revision=None):
+        result = BranchPushResult()
+        result.source_branch = self.source
+        result.target_branch = self.target
+        result.old_revid = self.target.last_revision()
+        inter = InterRepository.get(self.source.repository, 
+                                    self.target.repository)
+        inter.fetch(revision_id=stop_revision)
+        result.new_revid = self.target.last_revision()
+        return result
+
+
+InterBranch.register_optimiser(FromHgBranch)

@@ -378,5 +378,6 @@ class HgRemoteRepository(HgRepository):
         raise MercurialSmartRemoteNotSupported()
 
 
-from bzrlib.plugins.hg.fetch import FromHgRepository
-bzrlib.repository.InterRepository.register_optimiser(FromHgRepository)
+from bzrlib.plugins.hg.fetch import FromLocalHgRepository, FromRemoteHgRepository
+bzrlib.repository.InterRepository.register_optimiser(FromLocalHgRepository)
+bzrlib.repository.InterRepository.register_optimiser(FromRemoteHgRepository)

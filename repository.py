@@ -383,6 +383,6 @@ from bzrlib.plugins.hg.fetch import (
     FromRemoteHgRepository,
     InterHgRepository,
     )
+bzrlib.repository.InterRepository.register_optimiser(InterHgRepository)
 bzrlib.repository.InterRepository.register_optimiser(FromLocalHgRepository)
 bzrlib.repository.InterRepository.register_optimiser(FromRemoteHgRepository)
-bzrlib.repository.InterRepository.register_optimiser(InterHgRepository)

@@ -186,8 +186,9 @@ class FromLocalHgRepository(FromHgRepository):
     @staticmethod
     def is_compatible(source, target):
         """Be compatible with HgLocalRepositories."""
-        from bzrlib.plugins.hg.repository import HgLocalRepository
-        return isinstance(source, HgLocalRepository)
+        from bzrlib.plugins.hg.repository import HgLocalRepository, HgRepository
+        return (isinstance(source, HgLocalRepository) and 
+                not isinstance(target, HgRepository))
 
 
 class FromRemoteHgRepository(FromHgRepository):
@@ -202,8 +203,9 @@ class FromRemoteHgRepository(FromHgRepository):
     @staticmethod
     def is_compatible(source, target):
         """Be compatible with HgRemoteRepositories."""
-        from bzrlib.plugins.hg.repository import HgRemoteRepository
-        return isinstance(source, HgRemoteRepository)
+        from bzrlib.plugins.hg.repository import HgRemoteRepository, HgRepository
+        return (isinstance(source, HgRemoteRepository) and
+                not isinstance(target, HgRepository))
 
 
 class InterHgRepository(FromHgRepository):
@@ -212,7 +214,14 @@ class InterHgRepository(FromHgRepository):
     def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
               fetch_spec=None):
         """Fetch revisions. This is a partial implementation."""
-        raise NotImplementedError(self.fetch)
+        if revision_id is not None:
+            raise NotImplementedError("revision_id argument not yet supported")
+        if fetch_spec is not None:
+            raise NotImplementedError("fetch_spec argument not yet supported")
+        if self.target._hgrepo.local():
+            self.target._hgrepo.pull(self.source._hgrepo)
+        else:
+            self.source._hgrepo.push(self.target._hgrepo)
 
     @staticmethod
     def is_compatible(source, target):

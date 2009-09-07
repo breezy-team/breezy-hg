@@ -273,7 +273,10 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         from mercurial import error as hg_errors
         try:
             format.open(transport)
-        except hg_errors.RepoError:
+        except hg_errors.RepoError, e:
+            raise errors.NotBranchError(path=transport.base)
+        except hg_errors.Abort, e:
+            trace.mutter('not a hg branch: %s', e)
             raise errors.NotBranchError(path=transport.base)
         return format
 

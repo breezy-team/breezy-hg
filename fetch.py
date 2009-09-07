@@ -204,3 +204,19 @@ class FromRemoteHgRepository(FromHgRepository):
         """Be compatible with HgRemoteRepositories."""
         from bzrlib.plugins.hg.repository import HgRemoteRepository
         return isinstance(source, HgRemoteRepository)
+
+
+class InterHgRepository(FromHgRepository):
+
+    @needs_write_lock
+    def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
+              fetch_spec=None):
+        """Fetch revisions. This is a partial implementation."""
+        raise NotImplementedError(self.fetch)
+
+    @staticmethod
+    def is_compatible(source, target):
+        """Be compatible with HgRemoteRepositories."""
+        from bzrlib.plugins.hg.repository import HgRepository
+        return (isinstance(source, HgRepository) and 
+                isinstance(target, HgRepository))

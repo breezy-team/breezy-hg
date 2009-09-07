@@ -34,7 +34,12 @@ class ui(mercurial.ui.ui):
             trace.warn("hg: %s" % x)
 
     def note(self, *msg):
-        pass
+        for x in msg:
+            trace.mutter("hg: %s" % x)
+
+    def status(self, *msg):
+        for x in msg:
+            trace.mutter("hg: %s" % x)
 
     def username(self):
         return config.GlobalConfig().username()

@@ -68,7 +68,6 @@ def lazy_load_mercurial():
 foreign_vcs_registry.register_lazy("hg", 
     "bzrlib.plugins.hg.mapping", "foreign_hg", "Mercurial")
 
-
 class HgDummyLock(object):
     """Lock that doesn't actually lock."""
 
@@ -282,6 +281,10 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
 
 
 bzrlib.bzrdir.BzrDirFormat.register_control_format(HgBzrDirFormat)
+
+bzrlib.bzrdir.format_registry.register("mercurial",
+    HgBzrDirFormat,
+    "Mercurial Repository. ", native=False, hidden=True)
 
 
 def test_suite():

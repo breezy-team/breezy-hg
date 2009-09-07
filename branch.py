@@ -20,6 +20,9 @@
 import mercurial.node
 import os
 
+from bzrlib import (
+    errors,
+    )
 from bzrlib.branch import (
     BranchCheckResult,
     BranchFormat,
@@ -147,6 +150,9 @@ class HgBranch(ForeignBranch):
         # hg repositories can only clone into hg repos.
         # and have nothing to do as we follow the hg model.
         return to_bzrdir.open_branch()
+
+    def get_stacked_on_url(self):
+        raise errors.UnstackableBranchFormat(self._format, self.base)
 
     def _set_parent_location(self, parent_url):
         # FIXME

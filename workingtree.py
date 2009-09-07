@@ -54,7 +54,7 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self._branch = hgbranch
         self._format = HgWorkingTreeFormat()
         self._transport = hgdir.get_workingtree_transport(None)
-        self.basedir = self._transport.base
+        self.basedir = hgdir.root_transport.local_abspath(".")
         self.views = self._make_views()
 
     @needs_write_lock

@@ -82,7 +82,7 @@ class HgBranchConfig(object):
         self._ui.setconfig("paths", "default", url)
 
     def has_explicit_nickname(self):
-        return True
+        return False
 
     def get_user_option(self, name):
         return None

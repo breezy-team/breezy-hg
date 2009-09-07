@@ -139,3 +139,7 @@ class HgBranch(ForeignBranch):
         # hg repositories can only clone into hg repos.
         # and have nothing to do as we follow the hg model.
         return to_bzrdir.open_branch()
+
+    def _set_parent_location(self, parent_url):
+        # FIXME
+        pass

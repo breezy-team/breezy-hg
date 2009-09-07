@@ -45,6 +45,9 @@ from bzrlib.plugins.hg.mapping import (
     default_mapping,
     mapping_registry,
     )
+from bzrlib.plugins.hg.versionedfiles import (
+    RevlogVersionedFiles,
+    )
 
 import mercurial.node
 
@@ -254,7 +257,11 @@ class HgRepository(ForeignRepository):
         self._serializer = None
         self.texts = None
         self.signatures = None
-        self.revisions = None
+        if self._hgrepo.local():
+            self.revisions = RevlogVersionedFiles(self._hgrepo.changelog, 
+                                                  self.get_mapping())
+        else:
+            self.revisions = None
         self.inventories = None
 
     def _warn_if_deprecated(self):

@@ -17,6 +17,8 @@
 
 """Inter-repository operations involving Mercurial repositories."""
 
+import mercurial.node
+
 from bzrlib import (
     ui,
     )
@@ -45,6 +47,15 @@ class FromHgRepository(InterRepository):
     def _get_repo_format_to_test(self):
         """The format to test with - as yet there is no HgRepoFormat."""
         return None
+
+    def heads(self, fetch_spec, revision_id):
+        if fetch_spec is not None:
+            mapping = self.source.get_mapping()
+            return [mapping.revision_id_bzr_to_foreign(head) for head in fetch_spec.heads]
+        if revision_id is not None:
+            mapping = self.source.get_mapping()
+            return mapping.revision_id_bzr_to_foreign(revision_id)
+        return self.source._hgrepo.heads()
 
     @needs_write_lock
     def copy_content(self, revision_id=None, basis=None):
@@ -75,15 +86,8 @@ class FromLocalHgRepository(FromHgRepository):
         # inserting the inventories and revisions, rather than doing 
         # rev-at-a-time.
         needed = {}
-        if revision_id is not None:
-            # add what can be reached from revision_id
-            pending = set([revision_id])
-        elif fetch_spec is not None:
-            pending = set(fetch_spec.heads)
-        else:
-            pending = set()
-            for revision_id in self.source._hgrepo.changelog.heads():
-                pending.add(self.source.get_mapping().revision_id_foreign_to_bzr(revision_id))
+        mapping = self.source.get_mapping()
+        pending = set([mapping.revision_id_foreign_to_bzr(revision_id) for revision_id in self.heads(fetch_spec, revision_id)])
         # plan it.
         # we build a graph of the revisions we need, and a
         # full graph which we use for topo-sorting (we need a partial-
@@ -200,21 +204,36 @@ class FromRemoteHgRepository(FromHgRepository):
         """Import a Mercurial changegroup into the target repository."""
         raise NotImplementedError(self.addchangegroup)
 
-    def heads(self, fetch_spec, revision_id):
-        if fetch_spec is not None:
-            mapping = self.source.get_mapping()
-            return [mapping.revision_id_bzr_to_foreign(head) for head in fetch_spec.heads]
-        if revision_id is not None:
-            mapping = self.source.get_mapping()
-            return mapping.revision_id_bzr_to_foreign(revision_id)
-        return self.source._hgrepo.heads()
+    def has_hgids(self, ids):
+        mapping = self.source.get_mapping()
+        revids = set([mapping.revision_id_foreign_to_bzr(h) for h in ids])
+        return set([mapping.revision_id_bzr_to_foreign(revid) for revid in self.target.has_revisions(revids)])
+
+    def get_target_heads(self):
+        # FIXME: This should be more efficient
+        all_revs = self.target.all_revision_ids()
+        parent_map = self.target.get_parent_map(all_revs)
+        all_parents = set()
+        map(all_parents.update, parent_map.itervalues())
+        mapping = self.source.get_mapping()
+        return set([mapping.revision_id_bzr_to_foreign(revid)[0] for revid in set(all_revs) - all_parents])
+
+    def findmissing(self, heads):
+        unknowns = set(heads) - self.has_hgids(heads)
+        if not unknowns:
+            return []
+        # FIXME:
+        return []
 
     @needs_write_lock
     def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
               fetch_spec=None):
         """Fetch revisions. This is a partial implementation."""
         heads = self.heads(revision_id, fetch_spec)
-        import pdb; pdb.set_trace()
+        missing = self.findmissing(heads)
+        if not missing:
+            return
+        cg = self.source._hgrepo.changegroup(missing, 'pull')
         self.addchangegroup(cg)
 
     @staticmethod

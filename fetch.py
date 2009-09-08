@@ -15,15 +15,21 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+# Some of this code was based on code from Mercurial:
+#
 # InterHgRepository.findmissing is based on 
-# mercurial.localrepo.localrepository.findcommonincoming:
+#       mercurial.localrepo.localrepository.findcommonincoming
+# parse_changeset is based on
+#       mercurial.changelog.changelog.read
 #
 # Copyright 2005-2007 Matt Mackall <mpm@selenic.com>
 # Published under the GNU GPLv2 or later
 
 """Inter-repository operations involving Mercurial repositories."""
 
+from collections import defaultdict
 import mercurial.node
+import struct
 
 from bzrlib import (
     errors,
@@ -48,6 +54,34 @@ from bzrlib.plugins.hg.mapping import (
     mapping_registry,
     )
 
+
+def parse_changeset(text):
+    """Parse a Mercurial changeset."""
+    last = text.index("\n\n")
+    desc = mercurial.encoding.tolocal(text[last + 2:])
+    l = text[:last].split('\n')
+    manifest = mercurial.node.bin(l[0])
+    user = mercurial.encoding.tolocal(l[1])
+
+    extra_data = l[2].split(' ', 2)
+    if len(extra_data) != 3:
+        time = float(extra_data.pop(0))
+        try:
+            # various tools did silly things with the time zone field.
+            timezone = int(extra_data[0])
+        except:
+            timezone = 0
+        extra = {}
+    else:
+        time, timezone, extra = extra_data
+        time, timezone = float(time), int(timezone)
+        extra = decodeextra(extra)
+    if not extra.get('branch'):
+        extra['branch'] = 'default'
+    files = l[3:]
+    return (manifest, user, (time, timezone), files, desc, extra)
+
+
 class FromHgRepository(InterRepository):
     """Hg to any repository actions."""
 
@@ -56,19 +90,48 @@ class FromHgRepository(InterRepository):
         """The format to test with - as yet there is no HgRepoFormat."""
         return None
 
-    def _unpack_chunk_iter(self, chunk):
-        raise NotImplementedError(self._unpack_chunk_iter)
+    def _unpack_chunk_iter(self, chunks, mapping, lookup_key=None):
+        if lookup_key is None:
+            lookup_key = lambda x: x
+        base = None
+        for chunk in chunks:
+            node, p1, p2, cs = struct.unpack("20s20s20s20s", chunk[:80])
+            if base is None:
+                base = p1
+            delta = buffer(chunk, 80)
+            del chunk
+            # FIXME: version is the text revision, not the changelog revision 
+            # in which this text changed!
+            key = lookup_key(node)
+            parents = [
+                lookup_key(p) for p in (p1, p2) if p != mercurial.node.nullid]
+            trace.mutter("yielding %r", key)
+            yield FulltextContentFactory(key, parents, None, str(delta))
 
     def addchangegroup(self, cg, mapping):
         """Import a Mercurial changegroup into the target repository."""
         # Changeset
         chunkiter = mercurial.changegroup.chunkiter(cg)
-        # FIXME: read changesets chunks, insert
-        self._unpack_chunk_iter(chunkiter)
+        # Map mapping manifest ids to bzr revision ids
+        manifest_map = defaultdict(set)
+        for record in self._unpack_chunk_iter(chunkiter, mapping,
+            mapping.revision_id_foreign_to_bzr):
+            (manifest, user, (time, timezone), files, desc, extra) = \
+                parse_changeset(record.get_bytes_as('fulltext'))
+            rev = mapping.import_revision(record.key, 
+                record.parents, manifest, user,
+                (time, timezone), files, desc, extra)
+            manifest_map[manifest].add(record.key)
+            self.target.add_revision(rev.revision_id, rev)
         # Manifest
         chunkiter = mercurial.changegroup.chunkiter(cg)
-        # FIXME: read manifest chunks, insert
-        self._unpack_chunk_iter(chunkiter)
+        filetext_map = {}
+        for record in self._unpack_chunk_iter(chunkiter, mapping):
+            manifest = mercurial.manifest.manifestdict()
+            mercurial.parsers.parse_manifest(manifest, None, 
+                record.get_bytes_as("lines"))
+            # FIXME: Create inventory delta from manifest
+            # FIXME: Insert inventory delta for every recorded related revision
         # Texts
         while 1:
             f = mercurial.changegroup.getchunk(cg)
@@ -77,7 +140,8 @@ class FromHgRepository(InterRepository):
             fileid = mapping.generate_file_id(f)
             chunkiter = mercurial.changegroup.chunkiter(cg)
             self.target.texts.insert_record_stream(
-                self._unpack_chunk_iter(chunkiter))
+                self._unpack_chunk_iter(chunkiter, mapping, 
+                    filetext_map[fileid].__getitem__))
 
     def get_target_heads(self):
         """Determine the heads in the target repository."""
@@ -339,7 +403,11 @@ class FromRemoteHgRepository(FromHgRepository):
             return
         cg = self.source._hgrepo.changegroup(missing, 'pull')
         mapping = self.source.get_mapping()
-        self.addchangegroup(cg, mapping)
+        self.target.start_write_group()
+        try:
+            self.addchangegroup(cg, mapping)
+        finally:
+            self.target.commit_write_group()
 
     @staticmethod
     def is_compatible(source, target):

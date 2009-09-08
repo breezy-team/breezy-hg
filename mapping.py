@@ -26,6 +26,9 @@ from bzrlib import (
     errors,
     foreign,
     )
+from bzrlib.revision import (
+    Revision,
+    )
 
 class ExperimentalHgMapping(foreign.VcsMapping):
     """Class that maps between Bazaar and Mercurial semantics."""
@@ -55,6 +58,16 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         """Parse a file id."""
         # FIXME
         return fileid[len("hg:"):].replace(':', '/')
+
+    def import_revision(self, revid, parents, manifest, user, (time, timezone),
+                        files, desc, extra):
+        ret = Revision(revid)
+        ret.parent_ids = parents
+        ret.committer = user
+        ret.timestamp = time
+        ret.timezone = timezone
+        ret.properties = extra
+        return ret
 
 
 class HgMappingRegistry(foreign.VcsMappingRegistry):

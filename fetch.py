@@ -100,13 +100,15 @@ class FromHgRepository(InterRepository):
                 base = p1
             delta = buffer(chunk, 80)
             del chunk
-            # FIXME: version is the text revision, not the changelog revision 
-            # in which this text changed!
             key = lookup_key(node)
+            record = FulltextContentFactory(key, parents, None, str(delta))
+            record.hgkey = node
+            record.hgparents = (p1, p2)
             parents = [
-                lookup_key(p) for p in (p1, p2) if p != mercurial.node.nullid]
+                lookup_key(p) for p in record.hgparents if p != mercurial.node.nullid]
             trace.mutter("yielding %r", key)
-            yield FulltextContentFactory(key, parents, None, str(delta))
+            yield record
+            base = node
 
     def addchangegroup(self, cg, mapping):
         """Import a Mercurial changegroup into the target repository."""
@@ -118,9 +120,8 @@ class FromHgRepository(InterRepository):
             mapping.revision_id_foreign_to_bzr):
             (manifest, user, (time, timezone), files, desc, extra) = \
                 parse_changeset(record.get_bytes_as('fulltext'))
-            rev = mapping.import_revision(record.key, 
-                record.parents, manifest, user,
-                (time, timezone), files, desc, extra)
+            rev = mapping.import_revision(record.key, record.hgkey, record.hgparents, user,
+                (time, timezone), desc, extra)
             manifest_map[manifest].add(record.key)
             self.target.add_revision(rev.revision_id, rev)
         # Manifest
@@ -279,6 +280,7 @@ class FromLocalHgRepository(FromHgRepository):
         # inserting the inventories and revisions, rather than doing 
         # rev-at-a-time.
         needed = {}
+        mapping = self.source.get_mapping()
         pending = set([mapping.revision_id_foreign_to_bzr(revid) for revid in self.heads(fetch_spec, revision_id)])
         # plan it.
         # we build a graph of the revisions we need, and a

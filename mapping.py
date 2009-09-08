@@ -17,6 +17,7 @@
 
 """Mappings."""
 
+import mercurial
 from mercurial.node import (
     hex,
     bin,
@@ -25,9 +26,6 @@ from mercurial.node import (
 from bzrlib import (
     errors,
     foreign,
-    )
-from bzrlib.revision import (
-    Revision,
     )
 
 class ExperimentalHgMapping(foreign.VcsMapping):
@@ -59,15 +57,21 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         # FIXME
         return fileid[len("hg:"):].replace(':', '/')
 
-    def import_revision(self, revid, parents, manifest, user, (time, timezone),
-                        files, desc, extra):
-        ret = Revision(revid)
-        ret.parent_ids = parents
-        ret.committer = user
-        ret.timestamp = time
-        ret.timezone = timezone
-        ret.properties = extra
-        return ret
+    def import_revision(self, revid, hgrevid, hgparents, user, (time, timezone),
+                        desc, extra):
+        result = foreign.ForeignRevision(hgrevid, self, revid)
+        result.parent_ids = []
+        if hgparents[0] != mercurial.node.nullid:
+            result.parent_ids.append(self.revision_id_foreign_to_bzr(hgparents[0]))
+        if hgparents[1] != mercurial.node.nullid:
+            result.parent_ids.append(self.revision_id_foreign_to_bzr(hgparents[1]))
+        result.message = desc.decode("utf-8")
+        result.inventory_sha1 = ""
+        result.timezone = -timezone
+        result.timestamp = time
+        result.committer = user.decode("utf-8")
+        result.properties = extra
+        return result
 
 
 class HgMappingRegistry(foreign.VcsMappingRegistry):

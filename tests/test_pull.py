@@ -114,7 +114,7 @@ class TestPulling(TestCaseWithTransport):
     def test_initial_revision_from_changelog(self):
         converted_rev = self.tree.branch.repository.get_revision(self.revidone)
         self.assertEqual([], converted_rev.parent_ids)
-        self.assertEqual({}, converted_rev.properties)
+        self.assertEqual({"branch": "default"}, converted_rev.properties)
         self.assertEqual('foo', converted_rev.message)
         self.assertEqual(self.revidone, converted_rev.revision_id)
         # we dont have a serialised inventory to convert, and the inv sha1 is
@@ -127,7 +127,7 @@ class TestPulling(TestCaseWithTransport):
     def test_non_initial_revision_from_changelog(self):
         converted_rev = self.tree.branch.repository.get_revision(self.revidtwo)
         self.assertEqual([self.revidone], converted_rev.parent_ids)
-        self.assertEqual({}, converted_rev.properties)
+        self.assertEqual({"branch": "default"}, converted_rev.properties)
         self.assertEqual('bar', converted_rev.message)
         self.assertEqual(self.revidtwo, converted_rev.revision_id)
         # we dont have a serialised inventory to convert, and the inv sha1 is

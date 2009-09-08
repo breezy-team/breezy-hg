@@ -355,20 +355,9 @@ class HgLocalRepository(HgRepository):
             hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
         except errors.InvalidRevisionId:
             raise errors.NoSuchRevision(revision_id)
-        result = ForeignRevision(hgrevid, mapping, revision_id)
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)
-        result.parent_ids = []
-        if hgparents[0] != mercurial.node.nullid:
-            result.parent_ids.append(mapping.revision_id_foreign_to_bzr(hgparents[0]))
-        if hgparents[1] != mercurial.node.nullid:
-            result.parent_ids.append(mapping.revision_id_foreign_to_bzr(hgparents[1]))
-        result.message = hgchange[4].decode("utf-8")
-        result.inventory_sha1 = ""
-        result.timezone = -hgchange[2][1]
-        result.timestamp = hgchange[2][0]
-        result.committer = hgchange[1].decode("utf-8")
-        return result
+        return mapping.import_revision(revision_id, hgrevid, hgparents, hgchange[1], hgchange[2], hgchange[4], hgchange[5])
 
     def has_revision(self, revision_id):
         try:

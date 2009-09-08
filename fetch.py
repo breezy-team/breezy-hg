@@ -49,9 +49,28 @@ class FromHgRepository(InterRepository):
         """The format to test with - as yet there is no HgRepoFormat."""
         return None
 
-    def addchangegroup(self, cg):
+    def _unpack_chunk_iter(self, chunk):
+        raise NotImplementedError(self._unpack_chunk_iter)
+
+    def addchangegroup(self, cg, mapping):
         """Import a Mercurial changegroup into the target repository."""
-        raise NotImplementedError(self.addchangegroup)
+        # Changeset
+        chunkiter = changegroup.chunkiter(cg)
+        # FIXME: read changesets chunks, insert
+        self._unpack_chunk_iter(chunkiter)
+        # Manifest
+        chunkiter = changegroup.chunkiter(cg)
+        # FIXME: read manifest chunks, insert
+        self._unpack_chunk_iter(chunkiter)
+        # Texts
+        while 1:
+            f = changegroup.getchunk(cg)
+            if not f:
+                break
+            fileid = mapping.generate_file_id(f)
+            chunkiter = changegroup.chunkiter(cg)
+            self.target.texts.insert_record_stream(
+                self._unpack_chunk_iter(chunkiter))
 
     def get_target_heads(self):
         """Determine the heads in the target repository."""
@@ -76,7 +95,7 @@ class FromHgRepository(InterRepository):
     def has_hgids(self, ids):
         """Check whether the specified Mercurial ids are present."""
         mapping = self.source.get_mapping()
-        revids = set([mapping.revision_id_foreign_to_bzr(h) for h in ids])
+        revids = set([mapping.revision_id_foreign_to_bzr(h) for h, mapping in ids])
         return set([
             mapping.revision_id_bzr_to_foreign(revid) 
             for revid in self.target.has_revisions(revids)])
@@ -86,7 +105,7 @@ class FromHgRepository(InterRepository):
         unknowns = set(heads) - self.has_hgids(heads)
         if not unknowns:
             return []
-        # FIXME:
+        # FIXME
         return []
 
     @needs_write_lock
@@ -234,12 +253,13 @@ class FromRemoteHgRepository(FromHgRepository):
     def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
               fetch_spec=None):
         """Fetch revisions. This is a partial implementation."""
-        heads = self.heads(revision_id, fetch_spec)
+        heads = self.heads(fetch_spec, revision_id)
         missing = self.findmissing(heads)
         if not missing:
             return
         cg = self.source._hgrepo.changegroup(missing, 'pull')
-        self.addchangegroup(cg)
+        mapping = self.source.get_mapping()
+        self.addchangegroup(cg, mapping)
 
     @staticmethod
     def is_compatible(source, target):

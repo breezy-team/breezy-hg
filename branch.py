@@ -164,6 +164,12 @@ class HgBranch(ForeignBranch):
     def _set_parent_location(self, parent_url):
         self.get_config().set_parent(parent_url)
 
+    def _synchronize_history(self, destination, revision_id):
+        source_revision_id = self.last_revision()
+        if revision_id is None:
+            revision_id = source_revision_id
+        destination.generate_revision_history(revision_id)
+
 
 class InterHgBranch(InterBranch):
     """InterBranch for two native Mercurial branches."""

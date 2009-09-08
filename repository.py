@@ -46,6 +46,7 @@ from bzrlib.plugins.hg.mapping import (
     mapping_registry,
     )
 from bzrlib.plugins.hg.versionedfiles import (
+    RevlogVersionedFile,
     RevlogVersionedFiles,
     )
 
@@ -255,14 +256,18 @@ class HgRepository(ForeignRepository):
         self.base = hgdir.root_transport.base
         self._fallback_repositories = []
         self._serializer = None
-        self.texts = None
         self.signatures = None
         if self._hgrepo.local():
-            self.revisions = RevlogVersionedFiles(self._hgrepo.changelog, 
-                                                  self.get_mapping())
+            self.revisions = RevlogVersionedFile(self._hgrepo.changelog, 
+                                                 self.get_mapping())
+            self.inventories = RevlogVersionedFile(self._hgrepo.manifest,
+                                                   self.get_mapping())
+            self.texts = RevlogVersionedFiles(self._hgrepo.file,
+                                              self.get_mapping())
         else:
             self.revisions = None
-        self.inventories = None
+            self.inventories = None
+            self.texts = None
 
     def _warn_if_deprecated(self):
         # This class isn't deprecated

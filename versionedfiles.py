@@ -16,15 +16,24 @@
 
 
 from bzrlib.versionedfile import (
+    FulltextContentFactory,
+    VersionedFile,
     VersionedFiles,
     )
 
 
-class RevlogVersionedFiles(VersionedFiles):
+class RevlogVersionedFile(VersionedFile):
+    """Basic VersionedFile interface implementation that wraps a revlog."""
 
     def __init__(self, revlog, mapping):
         self._revlog = revlog
         self._mapping = mapping
+
+    def get_record_stream(self, nodes, order, include_delta_closure):
+        for (key, ) in nodes:
+            hgid, mapping = self._mapping.revision_id_bzr_to_foreign(key)
+            node = self._revlog.rev(hgid)
+            yield FulltextContentFactory(key, None, None, self._revlog.read(node))
 
     def keys(self):
         return list(self.iterkeys())
@@ -35,3 +44,25 @@ class RevlogVersionedFiles(VersionedFiles):
 
     def __len__(self):
         return len(self._revlog)
+
+
+class RevlogVersionedFiles(VersionedFiles):
+    """Basic VersionedFile interface implementation that wraps a revlog."""
+
+    def __init__(self, opener, mapping):
+        self._opener = opener
+        self._mapping = mapping
+
+    def _get_revlog(self, fileid):
+        path = self._mapping.parse_file_id(fileid)
+        return self._opener(path)
+
+    def get_record_stream(self, nodes, ordered, include_delta_closure):
+        # FIXME: Sort by fileid ?
+        for (fileid, revision) in nodes:
+            revlog = self._get_revlog(fileid)
+            vf = RevlogVersionedFile(revlog, self._mapping)
+            for x in vf.get_record_stream([(revision, )], ordered, include_delta_closure):
+                yield x
+
+

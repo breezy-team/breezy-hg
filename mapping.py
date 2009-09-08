@@ -50,6 +50,12 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         """Create a synthetic file_id for an hg file."""
         return "hg:" + path.replace('/', ':')
 
+    @classmethod
+    def parse_file_id(self, fileid):
+        """Parse a file id."""
+        # FIXME
+        return fileid[len("hg:"):].replace(':', '/')
+
 
 class HgMappingRegistry(foreign.VcsMappingRegistry):
     """Registry of all Bazaar <-> Mercurial mappings."""

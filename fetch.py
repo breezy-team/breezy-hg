@@ -116,8 +116,7 @@ class FromLocalHgRepository(FromHgRepository):
         # inserting the inventories and revisions, rather than doing 
         # rev-at-a-time.
         needed = {}
-        mapping = self.source.get_mapping()
-        pending = set([mapping.revision_id_foreign_to_bzr(revision_id) for revision_id in self.heads(fetch_spec, revision_id)])
+        pending = set([mapping.revision_id_foreign_to_bzr(revid) for revid, mapping in self.heads(fetch_spec, revision_id)])
         # plan it.
         # we build a graph of the revisions we need, and a
         # full graph which we use for topo-sorting (we need a partial-

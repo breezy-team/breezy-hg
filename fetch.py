@@ -20,6 +20,7 @@
 import mercurial.node
 
 from bzrlib import (
+    errors,
     ui,
     )
 from bzrlib.decorators import (
@@ -49,6 +50,7 @@ class FromHgRepository(InterRepository):
         return None
 
     def heads(self, fetch_spec, revision_id):
+        """Determine the Mercurial heads to fetch."""
         if fetch_spec is not None:
             mapping = self.source.get_mapping()
             return [mapping.revision_id_bzr_to_foreign(head) for head in fetch_spec.heads]
@@ -56,6 +58,20 @@ class FromHgRepository(InterRepository):
             mapping = self.source.get_mapping()
             return mapping.revision_id_bzr_to_foreign(revision_id)
         return self.source._hgrepo.heads()
+
+    def has_hgids(self, ids):
+        mapping = self.source.get_mapping()
+        revids = set([mapping.revision_id_foreign_to_bzr(h) for h in ids])
+        return set([
+            mapping.revision_id_bzr_to_foreign(revid) 
+            for revid in self.target.has_revisions(revids)])
+
+    def findmissing(self, heads):
+        unknowns = set(heads) - self.has_hgids(heads)
+        if not unknowns:
+            return []
+        # FIXME:
+        return []
 
     @needs_write_lock
     def copy_content(self, revision_id=None, basis=None):
@@ -79,8 +95,6 @@ class FromLocalHgRepository(FromHgRepository):
     def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
               fetch_spec=None):
         """Fetch revisions. This is a partial implementation."""
-        # assumes that self is a bzr compatible tree, and that source is hg
-        # pull everything for simplicity.
         # TODO: make this somewhat faster - calculate the specific needed
         # file versions and then pull all of those per file, followed by
         # inserting the inventories and revisions, rather than doing 
@@ -99,11 +113,12 @@ class FromLocalHgRepository(FromHgRepository):
         needed_graph = {}
         while len(pending) > 0:
             node = pending.pop()
-            if self.target.has_revision(node):
-                parent_ids = self.target.get_revision(node).parent_ids
-            else:
-                needed[node] = self.source.get_revision(node)
-                parent_ids = needed[node].parent_ids
+            try:
+                rev = self.target.get_revision(node)
+            except errors.NoSuchRevision:
+                rev = self.source.get_revision(node)
+                needed[node] = rev
+            parent_ids = rev.parent_ids
             needed_graph[node] = parent_ids
             for revision_id in parent_ids:
                 if revision_id not in needed_graph:
@@ -204,11 +219,6 @@ class FromRemoteHgRepository(FromHgRepository):
         """Import a Mercurial changegroup into the target repository."""
         raise NotImplementedError(self.addchangegroup)
 
-    def has_hgids(self, ids):
-        mapping = self.source.get_mapping()
-        revids = set([mapping.revision_id_foreign_to_bzr(h) for h in ids])
-        return set([mapping.revision_id_bzr_to_foreign(revid) for revid in self.target.has_revisions(revids)])
-
     def get_target_heads(self):
         # FIXME: This should be more efficient
         all_revs = self.target.all_revision_ids()
@@ -217,13 +227,6 @@ class FromRemoteHgRepository(FromHgRepository):
         map(all_parents.update, parent_map.itervalues())
         mapping = self.source.get_mapping()
         return set([mapping.revision_id_bzr_to_foreign(revid)[0] for revid in set(all_revs) - all_parents])
-
-    def findmissing(self, heads):
-        unknowns = set(heads) - self.has_hgids(heads)
-        if not unknowns:
-            return []
-        # FIXME:
-        return []
 
     @needs_write_lock
     def fetch(self, revision_id=None, pb=None, find_ghosts=False, 

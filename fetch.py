@@ -15,12 +15,19 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+# InterHgRepository.findmissing is based on 
+# mercurial.localrepo.localrepository.findcommonincoming:
+#
+# Copyright 2005-2007 Matt Mackall <mpm@selenic.com>
+# Published under the GNU GPLv2 or later
+
 """Inter-repository operations involving Mercurial repositories."""
 
 import mercurial.node
 
 from bzrlib import (
     errors,
+    trace,
     ui,
     )
 from bzrlib.decorators import (
@@ -55,20 +62,20 @@ class FromHgRepository(InterRepository):
     def addchangegroup(self, cg, mapping):
         """Import a Mercurial changegroup into the target repository."""
         # Changeset
-        chunkiter = changegroup.chunkiter(cg)
+        chunkiter = mercurial.changegroup.chunkiter(cg)
         # FIXME: read changesets chunks, insert
         self._unpack_chunk_iter(chunkiter)
         # Manifest
-        chunkiter = changegroup.chunkiter(cg)
+        chunkiter = mercurial.changegroup.chunkiter(cg)
         # FIXME: read manifest chunks, insert
         self._unpack_chunk_iter(chunkiter)
         # Texts
         while 1:
-            f = changegroup.getchunk(cg)
+            f = mercurial.changegroup.getchunk(cg)
             if not f:
                 break
             fileid = mapping.generate_file_id(f)
-            chunkiter = changegroup.chunkiter(cg)
+            chunkiter = mercurial.changegroup.chunkiter(cg)
             self.target.texts.insert_record_stream(
                 self._unpack_chunk_iter(chunkiter))
 
@@ -86,27 +93,100 @@ class FromHgRepository(InterRepository):
         """Determine the Mercurial heads to fetch."""
         if fetch_spec is not None:
             mapping = self.source.get_mapping()
-            return [mapping.revision_id_bzr_to_foreign(head) for head in fetch_spec.heads]
+            return [mapping.revision_id_bzr_to_foreign(head)[0] for head in fetch_spec.heads]
         if revision_id is not None:
             mapping = self.source.get_mapping()
-            return mapping.revision_id_bzr_to_foreign(revision_id)
+            return [mapping.revision_id_bzr_to_foreign(revision_id)[0]]
         return self.source._hgrepo.heads()
+
+    def has_hgid(self, id):
+        if id == mercurial.node.nullid:
+            return True
+        if len(self.has_hgids([id])) == 1:
+            return True
+        return False
 
     def has_hgids(self, ids):
         """Check whether the specified Mercurial ids are present."""
         mapping = self.source.get_mapping()
-        revids = set([mapping.revision_id_foreign_to_bzr(h) for h, mapping in ids])
+        revids = set([mapping.revision_id_foreign_to_bzr(h) for h in ids])
         return set([
             mapping.revision_id_bzr_to_foreign(revid) 
             for revid in self.target.has_revisions(revids)])
 
     def findmissing(self, heads):
         """Find the set of ancestors of heads missing from target."""
+
         unknowns = set(heads) - self.has_hgids(heads)
         if not unknowns:
             return []
-        # FIXME
-        return []
+        seen = set()
+        search = []
+        fetch = set()
+        seenbranch = set()
+        remote = self.source._hgrepo
+        req = set(unknowns)
+
+        # search through remote branches
+        # a 'branch' here is a linear segment of history, with four parts:
+        # head, root, first parent, second parent
+        # (a branch always has two parents (or none) by definition)
+        unknowns = remote.branches(unknowns)
+        while unknowns:
+            r = []
+            while unknowns:
+                n = unknowns.pop(0)
+                if n[0] in seen:
+                    continue
+                trace.mutter("examining %s:%s", mercurial.node.short(n[0]), mercurial.node.short(n[1]))
+                if n[0] == mercurial.node.nullid: # found the end of the branch
+                    pass
+                elif n in seenbranch:
+                    trace.mutter("branch already found")
+                    continue
+                elif n[1] and self.has_hgid(n[1]): # do we know the base?
+                    trace.mutter("found incomplete branch %s:%s", 
+                        mercurial.node.short(n[0]), mercurial.node.short(n[1]))
+                    search.append(n[0:2]) # schedule branch range for scanning
+                    seenbranch.add(n)
+                else:
+                    if n[1] not in seen and n[1] not in fetch:
+                        if self.has_hgid(n[2]) and self.has_hgid(n[3]):
+                            trace.mutter("found new changeset %s", mercurial.node.short(n[1]))
+                            fetch.add(n[1]) # earliest unknowns
+                    for p in n[2:4]:
+                        if p not in req and not self.has_hgid(p):
+                            r.append(p)
+                            req.add(p)
+                seen.add(n[0])
+
+            if r:
+                for p in xrange(0, len(r), 10):
+                    for b in remote.branches(r[p:p+10]):
+                        trace.mutter("received %s:%s", mercurial.node.short(b[0]), mercurial.node.short(b[1]))
+                        unknowns.append(b)
+
+        # do binary search on the branches we found
+        while search:
+            newsearch = []
+            for n, l in zip(search, remote.between(search)):
+                l.append(n[1])
+                p = n[0]
+                f = 1
+                for i in l:
+                    trace.mutter("narrowing %d:%d %s", f, len(l), mercurial.node.short(i))
+                    if self.has_hgid(i):
+                        if f <= 2:
+                            trace.mutter("found new branch changeset %s", mercurial.node.short(p))
+                            fetch.add(p)
+                        else:
+                            trace.mutter("narrowed branch search to %s:%s", 
+                                          mercurial.node.short(p), mercurial.node.short(i))
+                            newsearch.append((p, i))
+                        break
+                    p, f = i, f * 2
+                search = newsearch
+        return fetch
 
     @needs_write_lock
     def copy_content(self, revision_id=None, basis=None):
@@ -135,7 +215,7 @@ class FromLocalHgRepository(FromHgRepository):
         # inserting the inventories and revisions, rather than doing 
         # rev-at-a-time.
         needed = {}
-        pending = set([mapping.revision_id_foreign_to_bzr(revid) for revid, mapping in self.heads(fetch_spec, revision_id)])
+        pending = set([mapping.revision_id_foreign_to_bzr(revid) for revid in self.heads(fetch_spec, revision_id)])
         # plan it.
         # we build a graph of the revisions we need, and a
         # full graph which we use for topo-sorting (we need a partial-

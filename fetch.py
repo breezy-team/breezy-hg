@@ -49,6 +49,20 @@ class FromHgRepository(InterRepository):
         """The format to test with - as yet there is no HgRepoFormat."""
         return None
 
+    def addchangegroup(self, cg):
+        """Import a Mercurial changegroup into the target repository."""
+        raise NotImplementedError(self.addchangegroup)
+
+    def get_target_heads(self):
+        """Determine the heads in the target repository."""
+        # FIXME: This should be more efficient
+        all_revs = self.target.all_revision_ids()
+        parent_map = self.target.get_parent_map(all_revs)
+        all_parents = set()
+        map(all_parents.update, parent_map.itervalues())
+        mapping = self.source.get_mapping()
+        return set([mapping.revision_id_bzr_to_foreign(revid)[0] for revid in set(all_revs) - all_parents])
+
     def heads(self, fetch_spec, revision_id):
         """Determine the Mercurial heads to fetch."""
         if fetch_spec is not None:
@@ -60,6 +74,7 @@ class FromHgRepository(InterRepository):
         return self.source._hgrepo.heads()
 
     def has_hgids(self, ids):
+        """Check whether the specified Mercurial ids are present."""
         mapping = self.source.get_mapping()
         revids = set([mapping.revision_id_foreign_to_bzr(h) for h in ids])
         return set([
@@ -67,6 +82,7 @@ class FromHgRepository(InterRepository):
             for revid in self.target.has_revisions(revids)])
 
     def findmissing(self, heads):
+        """Find the set of ancestors of heads missing from target."""
         unknowns = set(heads) - self.has_hgids(heads)
         if not unknowns:
             return []
@@ -214,19 +230,6 @@ class FromLocalHgRepository(FromHgRepository):
 
 class FromRemoteHgRepository(FromHgRepository):
     """Remote Hg repository to any repository actions."""
-
-    def addchangegroup(self, cg):
-        """Import a Mercurial changegroup into the target repository."""
-        raise NotImplementedError(self.addchangegroup)
-
-    def get_target_heads(self):
-        # FIXME: This should be more efficient
-        all_revs = self.target.all_revision_ids()
-        parent_map = self.target.get_parent_map(all_revs)
-        all_parents = set()
-        map(all_parents.update, parent_map.itervalues())
-        mapping = self.source.get_mapping()
-        return set([mapping.revision_id_bzr_to_foreign(revid)[0] for revid in set(all_revs) - all_parents])
 
     @needs_write_lock
     def fetch(self, revision_id=None, pb=None, find_ghosts=False, 

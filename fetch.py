@@ -56,7 +56,11 @@ from bzrlib.plugins.hg.mapping import (
 
 
 def parse_changeset(text):
-    """Parse a Mercurial changeset."""
+    """Parse a Mercurial changeset.
+    
+    :param text: Text to parse
+    :return: Tuple with (manifest, user, (time, timezone), files, desc, extra)
+    """
     last = text.index("\n\n")
     desc = mercurial.encoding.tolocal(text[last + 2:])
     l = text[:last].split('\n')
@@ -111,7 +115,11 @@ class FromHgRepository(InterRepository):
             base = node
 
     def addchangegroup(self, cg, mapping):
-        """Import a Mercurial changegroup into the target repository."""
+        """Import a Mercurial changegroup into the target repository.
+        
+        :param cg: Changegroup to add
+        :param mapping: Mercurial mapping
+        """
         # Changeset
         chunkiter = mercurial.changegroup.chunkiter(cg)
         # Map mapping manifest ids to bzr revision ids
@@ -155,7 +163,7 @@ class FromHgRepository(InterRepository):
         return set([mapping.revision_id_bzr_to_foreign(revid)[0] for revid in set(all_revs) - all_parents])
 
     def heads(self, fetch_spec, revision_id):
-        """Determine the Mercurial heads to fetch."""
+        """Determine the Mercurial heads to fetch. """
         if fetch_spec is not None:
             mapping = self.source.get_mapping()
             return [mapping.revision_id_bzr_to_foreign(head)[0] for head in fetch_spec.heads]
@@ -165,6 +173,11 @@ class FromHgRepository(InterRepository):
         return self.source._hgrepo.heads()
 
     def has_hgid(self, id):
+        """Check whether a Mercurial revision id is present in the target.
+        
+        :param id: Mercurial ID
+        :return: boolean
+        """
         if id == mercurial.node.nullid:
             return True
         if len(self.has_hgids([id])) == 1:
@@ -172,7 +185,11 @@ class FromHgRepository(InterRepository):
         return False
 
     def has_hgids(self, ids):
-        """Check whether the specified Mercurial ids are present."""
+        """Check whether the specified Mercurial ids are present.
+        
+        :param ids: Mercurial revision ids
+        :return: Set with the revisions that were present
+        """
         mapping = self.source.get_mapping()
         revids = set([mapping.revision_id_foreign_to_bzr(h) for h in ids])
         return set([
@@ -181,7 +198,6 @@ class FromHgRepository(InterRepository):
 
     def findmissing(self, heads):
         """Find the set of ancestors of heads missing from target."""
-
         unknowns = set(heads) - self.has_hgids(heads)
         if not unknowns:
             return []
@@ -203,7 +219,8 @@ class FromHgRepository(InterRepository):
                 n = unknowns.pop(0)
                 if n[0] in seen:
                     continue
-                trace.mutter("examining %s:%s", mercurial.node.short(n[0]), mercurial.node.short(n[1]))
+                trace.mutter("examining %s:%s", mercurial.node.short(n[0]),
+                             mercurial.node.short(n[1]))
                 if n[0] == mercurial.node.nullid: # found the end of the branch
                     pass
                 elif n in seenbranch:
@@ -217,7 +234,8 @@ class FromHgRepository(InterRepository):
                 else:
                     if n[1] not in seen and n[1] not in fetch:
                         if self.has_hgid(n[2]) and self.has_hgid(n[3]):
-                            trace.mutter("found new changeset %s", mercurial.node.short(n[1]))
+                            trace.mutter("found new changeset %s",
+                                         mercurial.node.short(n[1]))
                             fetch.add(n[1]) # earliest unknowns
                     for p in n[2:4]:
                         if p not in req and not self.has_hgid(p):
@@ -228,7 +246,9 @@ class FromHgRepository(InterRepository):
             if r:
                 for p in xrange(0, len(r), 10):
                     for b in remote.branches(r[p:p+10]):
-                        trace.mutter("received %s:%s", mercurial.node.short(b[0]), mercurial.node.short(b[1]))
+                        trace.mutter("received %s:%s",
+                                     mercurial.node.short(b[0]),
+                                     mercurial.node.short(b[1]))
                         unknowns.append(b)
 
         # do binary search on the branches we found
@@ -239,14 +259,17 @@ class FromHgRepository(InterRepository):
                 p = n[0]
                 f = 1
                 for i in l:
-                    trace.mutter("narrowing %d:%d %s", f, len(l), mercurial.node.short(i))
+                    trace.mutter("narrowing %d:%d %s", f, len(l),
+                                 mercurial.node.short(i))
                     if self.has_hgid(i):
                         if f <= 2:
-                            trace.mutter("found new branch changeset %s", mercurial.node.short(p))
+                            trace.mutter("found new branch changeset %s",
+                                         mercurial.node.short(p))
                             fetch.add(p)
                         else:
                             trace.mutter("narrowed branch search to %s:%s", 
-                                          mercurial.node.short(p), mercurial.node.short(i))
+                                          mercurial.node.short(p),
+                                          mercurial.node.short(i))
                             newsearch.append((p, i))
                         break
                     p, f = i, f * 2
@@ -359,13 +382,14 @@ class FromLocalHgRepository(FromHgRepository):
                     path = inventory.id2path(fileid)
                     revlog = self.source._hgrepo.file(path)
                     filerev = manifest[path]
-                    # TODO: perhaps we should use readmeta here to figure out renames ?
+                    # TODO: perhaps we should use readmeta here to figure out 
+                    # renames ?
                     text = revlog.read(filerev)
                     records = [
-                            FulltextContentFactory(
-                                (fileid, revision.revision_id),
-                                tuple([(fileid, revid) for revid in file_heads]),
-                                None, text)]
+                        FulltextContentFactory(
+                            (fileid, revision.revision_id),
+                            tuple([(fileid, revid) for revid in file_heads]),
+                            None, text)]
                 self.target.texts.insert_record_stream(records)
         inventory.revision_id = revision.revision_id
         inventory.root.revision = revision.revision_id # Yuck. FIXME
@@ -387,7 +411,8 @@ class FromLocalHgRepository(FromHgRepository):
     @staticmethod
     def is_compatible(source, target):
         """Be compatible with HgLocalRepositories."""
-        from bzrlib.plugins.hg.repository import HgLocalRepository, HgRepository
+        from bzrlib.plugins.hg.repository import (
+            HgLocalRepository, HgRepository, )
         return (isinstance(source, HgLocalRepository) and 
                 not isinstance(target, HgRepository))
 
@@ -414,7 +439,8 @@ class FromRemoteHgRepository(FromHgRepository):
     @staticmethod
     def is_compatible(source, target):
         """Be compatible with HgRemoteRepositories."""
-        from bzrlib.plugins.hg.repository import HgRemoteRepository, HgRepository
+        from bzrlib.plugins.hg.repository import (
+            HgRemoteRepository, HgRepository, )
         return (isinstance(source, HgRemoteRepository) and
                 not isinstance(target, HgRepository))
 

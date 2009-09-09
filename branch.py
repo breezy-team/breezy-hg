@@ -17,7 +17,6 @@
 
 """Mercurial Branch support."""
 
-import mercurial.node
 import os
 
 from bzrlib import (
@@ -38,13 +37,6 @@ from bzrlib.foreign import (
     )
 from bzrlib.repository import (
     InterRepository,
-    )
-
-from bzrlib.plugins.hg.mapping import (
-    mapping_registry,
-    )
-from bzrlib.plugins.hg.repository import (
-    HgRepository,
     )
 
 

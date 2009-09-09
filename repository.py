@@ -22,19 +22,14 @@ import os
 from bzrlib import (
     errors,
     )
-from bzrlib.decorators import (
-    needs_write_lock,
-    )
 from bzrlib.foreign import (
     ForeignRepository,
-    ForeignRevision,
     )
 from bzrlib.inventory import (
     Inventory,
     )
 from bzrlib.osutils import (
     sha_strings,
-    split_lines,
     )
 import bzrlib.repository
 from bzrlib.revision import (

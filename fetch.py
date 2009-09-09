@@ -79,7 +79,7 @@ def parse_changeset(text):
     else:
         time, timezone, extra = extra_data
         time, timezone = float(time), int(timezone)
-        extra = decodeextra(extra)
+        extra = mercurial.changelog.decodeextra(extra)
     if not extra.get('branch'):
         extra['branch'] = 'default'
     files = l[3:]
@@ -105,10 +105,10 @@ class FromHgRepository(InterRepository):
             delta = buffer(chunk, 80)
             del chunk
             key = lookup_key(node)
-            record = FulltextContentFactory(key, parents, None, str(delta))
+            record = FulltextContentFactory(key, None, None, str(delta))
             record.hgkey = node
             record.hgparents = (p1, p2)
-            parents = [
+            record.parents = [
                 lookup_key(p) for p in record.hgparents if p != mercurial.node.nullid]
             trace.mutter("yielding %r", key)
             yield record
@@ -128,8 +128,8 @@ class FromHgRepository(InterRepository):
             mapping.revision_id_foreign_to_bzr):
             (manifest, user, (time, timezone), files, desc, extra) = \
                 parse_changeset(record.get_bytes_as('fulltext'))
-            rev = mapping.import_revision(record.key, record.hgkey, record.hgparents, user,
-                (time, timezone), desc, extra)
+            rev = mapping.import_revision(record.key, record.hgkey,
+                record.hgparents, user, (time, timezone), desc, extra)
             manifest_map[manifest].add(record.key)
             self.target.add_revision(rev.revision_id, rev)
         # Manifest
@@ -286,6 +286,22 @@ class FromHgRepository(InterRepository):
         assert basis is None
         self.target.fetch(self.source)
 
+    @needs_write_lock
+    def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
+              fetch_spec=None):
+        """Fetch revisions. This is a partial implementation."""
+        heads = self.heads(fetch_spec, revision_id)
+        missing = self.findmissing(heads)
+        if not missing:
+            return
+        cg = self.source._hgrepo.changegroup(missing, 'pull')
+        mapping = self.source.get_mapping()
+        self.target.start_write_group()
+        try:
+            self.addchangegroup(cg, mapping)
+        finally:
+            self.target.commit_write_group()
+
 
 class FromLocalHgRepository(FromHgRepository):
     """Local Hg repository to any repository actions."""
@@ -419,22 +435,6 @@ class FromLocalHgRepository(FromHgRepository):
 
 class FromRemoteHgRepository(FromHgRepository):
     """Remote Hg repository to any repository actions."""
-
-    @needs_write_lock
-    def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
-              fetch_spec=None):
-        """Fetch revisions. This is a partial implementation."""
-        heads = self.heads(fetch_spec, revision_id)
-        missing = self.findmissing(heads)
-        if not missing:
-            return
-        cg = self.source._hgrepo.changegroup(missing, 'pull')
-        mapping = self.source.get_mapping()
-        self.target.start_write_group()
-        try:
-            self.addchangegroup(cg, mapping)
-        finally:
-            self.target.commit_write_group()
 
     @staticmethod
     def is_compatible(source, target):

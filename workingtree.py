@@ -16,19 +16,14 @@
 
 """Mercurial working tree support."""
 
-from bzrlib import (
-    errors,
-    )
 from bzrlib.inventory import (
     Inventory,
     )
 import bzrlib.workingtree
 from bzrlib.decorators import (
-    needs_read_lock,
     needs_write_lock,
     )
 
-import mercurial.cmdutil
 
 class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
     """Working Tree format for Mercurial Working Trees.

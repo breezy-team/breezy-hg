@@ -54,6 +54,32 @@ from bzrlib.plugins.hg.mapping import (
     mapping_registry,
     )
 
+def format_changeset(manifest, files, user, date, desc, extra):
+    user = user.strip()
+    # An empty username or a username with a "\n" will make the
+    # revision text contain two "\n\n" sequences -> corrupt
+    # repository since read cannot unpack the revision.
+    if not user:
+        raise mercurial.error.RevlogError("empty username")
+    if "\n" in user:
+        raise mercurial.error.RevlogError("username %s contains a newline"
+                                % repr(user))
+
+    # strip trailing whitespace and leading and trailing empty lines
+    desc = '\n'.join([l.rstrip() for l in desc.splitlines()]).strip('\n')
+
+    user = mercurial.encoding.fromlocal(user)
+    desc = mercurial.encoding.fromlocal(desc)
+
+    parseddate = "%d %d" % mercurial.util.parsedate(date)
+    if extra and extra.get("branch") in ("default", ""):
+        del extra["branch"]
+    if extra:
+        extra = mercurial.changelog.encodeextra(extra)
+        parseddate = "%s %s" % (parseddate, extra)
+    l = [mercurial.node.hex(manifest), user, parseddate] + sorted(files) + ["", desc]
+    return "\n".join(l)
+
 
 def parse_changeset(text):
     """Parse a Mercurial changeset.
@@ -86,33 +112,83 @@ def parse_changeset(text):
     return (manifest, user, (time, timezone), files, desc, extra)
 
 
+def unpack_chunk_iter(chunks, mapping, lookup_base, lookup_key=None):
+    if lookup_key is None:
+        lookup_key = lambda x: x
+    base = None
+    for chunk in chunks:
+        node, p1, p2, cs = struct.unpack("20s20s20s20s", chunk[:80])
+        if base is None:
+            base = p1
+        delta = buffer(chunk, 80)
+        del chunk
+        key = lookup_key(node)
+        textbase = lookup_base(base)
+        record = FulltextContentFactory(key, None, None, 
+            mercurial.mdiff.patches(textbase, [delta]))
+        record.hgkey = node
+        record.hgparents = (p1, p2)
+        record.parents = [
+            lookup_key(p) for p in record.hgparents if p != mercurial.node.nullid]
+        trace.mutter("yielding %r", key)
+        yield record
+        base = node
+
+
+def get_changed_files(inventory):
+    ret = []
+    for path, entry in inventory.iter_entries():
+        if entry.revision == inventory.revision_id:
+            ret.append(path)
+    return ret
+
+
 class FromHgRepository(InterRepository):
     """Hg to any repository actions."""
+
+    def __init__(self, source, target):
+        InterRepository.__init__(self, source, target)
+        self._inventories = {}
+        self._revisions = {}
+        self._files = {}
 
     @classmethod
     def _get_repo_format_to_test(self):
         """The format to test with - as yet there is no HgRepoFormat."""
         return None
 
-    def _unpack_chunk_iter(self, chunks, mapping, lookup_key=None):
-        if lookup_key is None:
-            lookup_key = lambda x: x
-        base = None
-        for chunk in chunks:
-            node, p1, p2, cs = struct.unpack("20s20s20s20s", chunk[:80])
-            if base is None:
-                base = p1
-            delta = buffer(chunk, 80)
-            del chunk
-            key = lookup_key(node)
-            record = FulltextContentFactory(key, None, None, str(delta))
-            record.hgkey = node
-            record.hgparents = (p1, p2)
-            record.parents = [
-                lookup_key(p) for p in record.hgparents if p != mercurial.node.nullid]
-            trace.mutter("yielding %r", key)
-            yield record
-            base = node
+    def _get_revision(self, revid):
+        try:
+            return self._revisions[revid]
+        except KeyError:
+            return self.target.get_revision(revid)
+
+    def _get_files(self, revid):
+        try:
+            return self._files[revid]
+        except KeyError:
+            inv = self._get_inventory(revid)
+            return get_changed_files(inv)
+
+    def _get_inventory(self, revid):
+        try:
+            return self._inventories[revid]
+        except KeyError:
+            return self.target.get_inventory(revid)
+
+    def _get_hg_revision(self, mapping, hgid):
+        if hgid == mercurial.node.nullid:
+            return ""
+        revid = mapping.revision_id_foreign_to_bzr(hgid)
+        rev = self._get_revision(revid)
+        (manifest, user, (time, timezone), desc, extra) = mapping.export_revision(rev)
+        assert manifest is not None # FIXME
+        files = self._get_files(revid)
+        return format_changeset(manifest, files, user, (time, timezone), desc,
+                                extra)
+
+    def _get_hg_manifest(self, mapping, hgid):
+        raise NotImplementedError(self._get_hg_manifest)
 
     def addchangegroup(self, cg, mapping):
         """Import a Mercurial changegroup into the target repository.
@@ -123,24 +199,36 @@ class FromHgRepository(InterRepository):
         # Changeset
         chunkiter = mercurial.changegroup.chunkiter(cg)
         # Map mapping manifest ids to bzr revision ids
-        manifest_map = defaultdict(set)
-        for record in self._unpack_chunk_iter(chunkiter, mapping,
-            mapping.revision_id_foreign_to_bzr):
+        manifest2rev_map = defaultdict(set)
+        rev2manifest_map = {}
+        for record in unpack_chunk_iter(chunkiter, mapping,
+                lambda node: self._get_hg_revision(mapping, node),
+                mapping.revision_id_foreign_to_bzr):
             (manifest, user, (time, timezone), files, desc, extra) = \
                 parse_changeset(record.get_bytes_as('fulltext'))
+            self._files[record.key] = files
             rev = mapping.import_revision(record.key, record.hgkey,
-                record.hgparents, user, (time, timezone), desc, extra)
-            manifest_map[manifest].add(record.key)
-            self.target.add_revision(rev.revision_id, rev)
+                record.hgparents, manifest, user, (time, timezone), desc, extra)
+            manifest2rev_map[manifest].add(record.key)
+            rev2manifest_map[record.key] = manifest
+            self._revisions[rev.revision_id] = rev
         # Manifest
         chunkiter = mercurial.changegroup.chunkiter(cg)
         filetext_map = {}
-        for record in self._unpack_chunk_iter(chunkiter, mapping):
+        for record in unpack_chunk_iter(chunkiter, mapping, 
+            self._get_hg_manifest):
             manifest = mercurial.manifest.manifestdict()
             mercurial.parsers.parse_manifest(manifest, None, 
                 record.get_bytes_as("lines"))
             # FIXME: Create inventory delta from manifest
             # FIXME: Insert inventory delta for every recorded related revision
+            rev = self._revisions[revid]
+            self.target.add_revision(rev.revision_id, rev)
+        def get_text(fileid, node):
+            key = filetext_map[fileid][node]
+            record = self.target.texts.get_record_stream([key],
+                "unordered", True).next()
+            return record.get_bytes_as("fulltext")
         # Texts
         while 1:
             f = mercurial.changegroup.getchunk(cg)
@@ -149,7 +237,8 @@ class FromHgRepository(InterRepository):
             fileid = mapping.generate_file_id(f)
             chunkiter = mercurial.changegroup.chunkiter(cg)
             self.target.texts.insert_record_stream(
-                self._unpack_chunk_iter(chunkiter, mapping, 
+                unpack_chunk_iter(chunkiter, mapping, 
+                    lambda node: get_text(fileid, node),
                     filetext_map[fileid].__getitem__))
 
     def get_target_heads(self):

@@ -352,7 +352,7 @@ class HgLocalRepository(HgRepository):
             raise errors.NoSuchRevision(revision_id)
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)
-        return mapping.import_revision(revision_id, hgrevid, hgparents, hgchange[1], hgchange[2], hgchange[4], hgchange[5])
+        return mapping.import_revision(revision_id, hgrevid, hgparents, hgchange[0], hgchange[1], hgchange[2], hgchange[4], hgchange[5])
 
     def has_revision(self, revision_id):
         try:

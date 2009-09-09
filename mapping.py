@@ -57,8 +57,18 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         # FIXME
         return fileid[len("hg:"):].replace(':', '/')
 
-    def import_revision(self, revid, hgrevid, hgparents, user, (time, timezone),
-                        desc, extra):
+    def export_revision(self, rev):
+        user = rev.committer.encode("utf-8")
+        time = rev.timestamp
+        timezone = -rev.timezone
+        extra = dict(rev.properties)
+        del extra["manifest"]
+        desc = rev.message.encode("utf-8")
+        manifest = mercurial.node.bin(rev.properties['manifest'])
+        return (manifest, user, (time, timezone), desc, extra)
+
+    def import_revision(self, revid, hgrevid, hgparents, manifest, user,
+                        (time, timezone), desc, extra):
         result = foreign.ForeignRevision(hgrevid, self, revid)
         result.parent_ids = []
         if hgparents[0] != mercurial.node.nullid:
@@ -70,7 +80,8 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         result.timezone = -timezone
         result.timestamp = time
         result.committer = user.decode("utf-8")
-        result.properties = extra
+        result.properties = dict(extra)
+        result.properties['manifest'] = mercurial.node.hex(manifest)
         return result
 
 

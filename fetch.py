@@ -33,6 +33,7 @@ import struct
 
 from bzrlib import (
     errors,
+    osutils,
     trace,
     ui,
     )
@@ -123,7 +124,10 @@ def unpack_chunk_iter(chunks, mapping, lookup_base, lookup_key=None):
         delta = buffer(chunk, 80)
         del chunk
         key = lookup_key(node)
-        textbase = lookup_base(base)
+        if base == mercurial.node.nullid:
+            textbase = ""
+        else:
+            textbase = lookup_base(base)
         record = FulltextContentFactory(key, None, None, 
             mercurial.mdiff.patches(textbase, [delta]))
         record.hgkey = node
@@ -151,6 +155,7 @@ class FromHgRepository(InterRepository):
         self._inventories = {}
         self._revisions = {}
         self._files = {}
+        self._manifests = {}
 
     @classmethod
     def _get_repo_format_to_test(self):
@@ -176,19 +181,23 @@ class FromHgRepository(InterRepository):
         except KeyError:
             return self.target.get_inventory(revid)
 
+    def _get_manifest(self, node):
+        try:
+            return self._manifests[node]
+        except KeyError:
+            raise NotImplementedError(self._get_manifest)
+
     def _get_hg_revision(self, mapping, hgid):
-        if hgid == mercurial.node.nullid:
-            return ""
         revid = mapping.revision_id_foreign_to_bzr(hgid)
         rev = self._get_revision(revid)
         (manifest, user, (time, timezone), desc, extra) = mapping.export_revision(rev)
-        assert manifest is not None # FIXME
+        # FIXME: For now we always know that a manifest was stored since 
+        # we don't support roundtripping into Mercurial yet. When we do, 
+        # we need a fallback mechanism to determine the manifest id.
+        assert manifest is not None
         files = self._get_files(revid)
         return format_changeset(manifest, files, user, (time, timezone), desc,
                                 extra)
-
-    def _get_hg_manifest(self, mapping, hgid):
-        raise NotImplementedError(self._get_hg_manifest)
 
     def addchangegroup(self, cg, mapping):
         """Import a Mercurial changegroup into the target repository.
@@ -200,7 +209,6 @@ class FromHgRepository(InterRepository):
         chunkiter = mercurial.changegroup.chunkiter(cg)
         # Map mapping manifest ids to bzr revision ids
         manifest2rev_map = defaultdict(set)
-        rev2manifest_map = {}
         for record in unpack_chunk_iter(chunkiter, mapping,
                 lambda node: self._get_hg_revision(mapping, node),
                 mapping.revision_id_foreign_to_bzr):
@@ -210,20 +218,26 @@ class FromHgRepository(InterRepository):
             rev = mapping.import_revision(record.key, record.hgkey,
                 record.hgparents, manifest, user, (time, timezone), desc, extra)
             manifest2rev_map[manifest].add(record.key)
-            rev2manifest_map[record.key] = manifest
             self._revisions[rev.revision_id] = rev
         # Manifest
         chunkiter = mercurial.changegroup.chunkiter(cg)
-        filetext_map = {}
+        filetext_map = defaultdict(dict)
         for record in unpack_chunk_iter(chunkiter, mapping, 
-            self._get_hg_manifest):
+            self._get_manifest):
             manifest = mercurial.manifest.manifestdict()
-            mercurial.parsers.parse_manifest(manifest, None, 
-                record.get_bytes_as("lines"))
-            # FIXME: Create inventory delta from manifest
-            # FIXME: Insert inventory delta for every recorded related revision
-            rev = self._revisions[revid]
-            self.target.add_revision(rev.revision_id, rev)
+            flags = {}
+            mercurial.parsers.parse_manifest(manifest, flags, 
+                record.get_bytes_as("fulltext"))
+            assert flags == {}
+            self._manifests[record.hgkey] = record.get_bytes_as("fulltext")
+            for revid in manifest2rev_map[record.hgkey]:
+                for path in self._get_files(revid):
+                    fileid = mapping.generate_file_id(path)
+                    filetext_map[fileid][manifest[path]] = revid
+                # FIXME: Create inventory from manifest
+                rev = self._revisions[revid]
+                self.target.add_revision(rev.revision_id, rev,
+                    inv)
         def get_text(fileid, node):
             key = filetext_map[fileid][node]
             record = self.target.texts.get_record_stream([key],

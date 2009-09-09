@@ -33,12 +33,14 @@ import struct
 
 from bzrlib import (
     errors,
-    osutils,
     trace,
     ui,
     )
 from bzrlib.decorators import (
     needs_write_lock,
+    )
+from bzrlib.inventory import (
+    Inventory,
     )
 from bzrlib.repository import (
     InterRepository,
@@ -54,6 +56,19 @@ from bzrlib.versionedfile import (
 from bzrlib.plugins.hg.mapping import (
     mapping_registry,
     )
+
+
+def manifest_to_inventory(mapping, parent_invs, manifest, flags, revid, files):
+    inv = Inventory()
+    for path in manifest:
+        if not path in files:
+            # Path was not modified here, from which parent inventory should
+            # we borrow the revision ?
+            pass
+        #inv.add_path(path, "file", mapping.generate_file_id(path))
+    inv.revision_id = revid
+    return inv
+
 
 def format_changeset(manifest, files, user, date, desc, extra):
     user = user.strip()
@@ -116,6 +131,7 @@ def parse_changeset(text):
 def unpack_chunk_iter(chunks, mapping, lookup_base, lookup_key=None):
     if lookup_key is None:
         lookup_key = lambda x: x
+    base_cache = {}
     base = None
     for chunk in chunks:
         node, p1, p2, cs = struct.unpack("20s20s20s20s", chunk[:80])
@@ -126,6 +142,8 @@ def unpack_chunk_iter(chunks, mapping, lookup_base, lookup_key=None):
         key = lookup_key(node)
         if base == mercurial.node.nullid:
             textbase = ""
+        elif base in base_cache:
+            textbase = base_cache[base].get_bytes_as("fulltext")
         else:
             textbase = lookup_base(base)
         record = FulltextContentFactory(key, None, None, 
@@ -136,6 +154,7 @@ def unpack_chunk_iter(chunks, mapping, lookup_base, lookup_key=None):
             lookup_key(p) for p in record.hgparents if p != mercurial.node.nullid]
         trace.mutter("yielding %r", key)
         yield record
+        base_cache[node] = record
         base = node
 
 
@@ -181,6 +200,17 @@ class FromHgRepository(InterRepository):
         except KeyError:
             return self.target.get_inventory(revid)
 
+    def _get_inventories(self, revision_ids):
+        ret = []
+        for revid in revision_ids:
+            try:
+                ret.append(self._inventories[revid])
+            except KeyError:
+                # if its not in the cache, its in target already
+                self._inventories[revid] = self.target.get_inventory(revid)
+                ret.append(self._inventories[revid])
+        return ret
+
     def _get_manifest(self, node):
         try:
             return self._manifests[node]
@@ -191,7 +221,7 @@ class FromHgRepository(InterRepository):
         revid = mapping.revision_id_foreign_to_bzr(hgid)
         rev = self._get_revision(revid)
         (manifest, user, (time, timezone), desc, extra) = mapping.export_revision(rev)
-        # FIXME: For now we always know that a manifest was stored since 
+        # FIXME: For now we always know that a manifest id was stored since 
         # we don't support roundtripping into Mercurial yet. When we do, 
         # we need a fallback mechanism to determine the manifest id.
         assert manifest is not None
@@ -228,21 +258,23 @@ class FromHgRepository(InterRepository):
             flags = {}
             mercurial.parsers.parse_manifest(manifest, flags, 
                 record.get_bytes_as("fulltext"))
-            assert flags == {}
             self._manifests[record.hgkey] = record.get_bytes_as("fulltext")
             for revid in manifest2rev_map[record.hgkey]:
+                rev = self._revisions[revid]
+                inv = manifest_to_inventory(mapping,
+                    self._get_inventories(rev.parent_ids),
+                    manifest, flags, revid, files)
                 for path in self._get_files(revid):
                     fileid = mapping.generate_file_id(path)
-                    filetext_map[fileid][manifest[path]] = revid
-                # FIXME: Create inventory from manifest
-                rev = self._revisions[revid]
-                self.target.add_revision(rev.revision_id, rev,
-                    inv)
+                    if path in manifest:
+                        # Path still has to actually exist..
+                        filetext_map[fileid][manifest[path]] = revid
+                self.target.add_revision(rev.revision_id, rev, inv)
         def get_text(fileid, node):
             key = filetext_map[fileid][node]
-            record = self.target.texts.get_record_stream([key],
-                "unordered", True).next()
-            return record.get_bytes_as("fulltext")
+            stream = self.target.texts.get_record_stream([key],
+                "unordered", True)
+            return stream.next().get_bytes_as("fulltext")
         # Texts
         while 1:
             f = mercurial.changegroup.getchunk(cg)
@@ -253,7 +285,7 @@ class FromHgRepository(InterRepository):
             self.target.texts.insert_record_stream(
                 unpack_chunk_iter(chunkiter, mapping, 
                     lambda node: get_text(fileid, node),
-                    filetext_map[fileid].__getitem__))
+                    lambda node: (fileid, filetext_map[fileid][node])))
 
     def get_target_heads(self):
         """Determine the heads in the target repository."""
@@ -409,10 +441,6 @@ class FromHgRepository(InterRepository):
 class FromLocalHgRepository(FromHgRepository):
     """Local Hg repository to any repository actions."""
 
-    def __init__(self, source, target):
-        FromHgRepository.__init__(self, source, target)
-        self._inventories = {}
-
     @needs_write_lock
     def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
               fetch_spec=None):
@@ -454,17 +482,6 @@ class FromLocalHgRepository(FromHgRepository):
         finally:
             self.target.commit_write_group()
 
-    def _get_inventories(self, revision_ids):
-        ret = []
-        for revid in revision_ids:
-            try:
-                ret.append(self._inventories[revid])
-            except KeyError:
-                # if its not in the cache, its in target already
-                self._inventories[revid] = self.target.get_inventory(revid)
-                ret.append(self._inventories[revid])
-        return ret
-
     def _fetch_hg_rev(self, revision):
         inventory = self.source.get_inventory(revision.revision_id)
         self._inventories[revision.revision_id] = inventory
@@ -472,8 +489,6 @@ class FromLocalHgRepository(FromHgRepository):
         log = self.source._hgrepo.changelog.read(hgrevid)
         manifest = self.source._hgrepo.manifest.read(log[0])
         for fileid in inventory:
-            #if fileid == bzrlib.inventory.ROOT_ID:
-            #    continue
             entry = inventory[fileid]
             if inventory[fileid].revision == revision.revision_id:
                 # changed in this revision

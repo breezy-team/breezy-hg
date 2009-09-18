@@ -67,11 +67,12 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
     if (other_inv is not None and 
         basis_inv.has_filename(os.path.dirname(path)) and 
         other_inv.has_filename(path)):
-        other_ie = other_inv[other_inv.path2id(path)]
-        ie = InventoryDirectory(other_ie.fileid, other_ie.name,
+        other_fileid = other_inv.path2id(path)
+        other_ie = other_inv[other_fileid]
+        ie = InventoryDirectory(other_fileid, other_ie.name,
                                 other_ie.parent_id)
         ie.revision = other_ie.revision
-        return ([(None, path, other_ie.fileid, ie)], other_ie.parent_id)
+        return ([(None, path, other_fileid, ie)], other_ie.parent_id)
     if path != "":
         ret, parent_id = inventory_create_directory(directories, basis_inv, 
                             other_inv, os.path.dirname(path), mapping, revid)
@@ -99,7 +100,10 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv, manifest,
         # Does it still exist in manifest ?
         if path not in manifest:
             # File removed
-            yield (path, None, basis_inv.path2id(path), None)
+            file_id = basis_inv.path2id(path)
+            if file_id is None:
+                raise AssertionError("Removed file %r didn't exist in basis" % path)
+            yield (path, None, file_id, None)
             potential_removable_directories.add(os.path.dirname(path))
         else:
             fileid = mapping.generate_file_id(path)
@@ -120,8 +124,8 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv, manifest,
             else:
                 ie = InventoryFile(fileid, os.path.basename(path), parent_id)
             ie.executable = ('x' in f)
-            ie.text_sha1, ie.text_size = lookup_metadata(fileid, ie.revision)
             ie.revision = revid
+            ie.text_sha1, ie.text_size = lookup_metadata((fileid, ie.revision))
             if other_inv is not None and fileid in other_inv:
                 other_ie = other_inv[fileid]
                 if (other_ie.text_sha1 == ie.text_sha1 and 
@@ -203,10 +207,8 @@ def parse_changeset(text):
     return (manifest, user, (time, timezone), files, desc, extra)
 
 
-def unpack_chunk_iter(chunks, mapping, lookup_base, lookup_key=None):
-    if lookup_key is None:
-        lookup_key = lambda x: x
-    base_cache = {}
+def unpack_chunk_iter(chunks, mapping, lookup_base):
+    fulltext_cache = {}
     base = None
     for chunk in chunks:
         node, p1, p2, cs = struct.unpack("20s20s20s20s", chunk[:80])
@@ -214,21 +216,16 @@ def unpack_chunk_iter(chunks, mapping, lookup_base, lookup_key=None):
             base = p1
         delta = buffer(chunk, 80)
         del chunk
-        key = lookup_key(node)
         if base == mercurial.node.nullid:
             textbase = ""
-        elif base in base_cache:
-            textbase = base_cache[base].get_bytes_as("fulltext")
         else:
-            textbase = lookup_base(base)
-        record = FulltextContentFactory(key, None, None, 
-            mercurial.mdiff.patches(textbase, [delta]))
-        record.hgkey = node
-        record.hgparents = (p1, p2)
-        record.parents = [
-            lookup_key(p) for p in record.hgparents if p != mercurial.node.nullid]
-        yield record
-        base_cache[node] = record
+            try:
+                textbase = fulltext_cache[base]
+            except KeyError:
+                textbase = lookup_base(base)
+        fulltext = mercurial.mdiff.patches(textbase, [delta])
+        yield fulltext, node, (p1, p2)
+        fulltext_cache[node] = fulltext
         base = node
 
 
@@ -238,6 +235,16 @@ def get_changed_files(inventory):
         if entry.revision == inventory.revision_id:
             ret.append(path)
     return ret
+
+
+def create_directory_texts(texts, invdelta):
+    stream = []
+    for (old_path, new_path, fileid, ie) in invdelta:
+        if old_path is None and ie.kind == "directory":
+            record = FulltextContentFactory((fileid, ie.revision), None, None, "")
+            record.parents = ()
+            stream.append(record)
+    texts.insert_record_stream(stream)
 
 
 class FromHgRepository(InterRepository):
@@ -251,6 +258,7 @@ class FromHgRepository(InterRepository):
         self._manifest_texts = {}
         self._manifests = {}
         self._manifest_order = []
+        self._text_metadata = {}
 
     @classmethod
     def _get_repo_format_to_test(self):
@@ -305,10 +313,9 @@ class FromHgRepository(InterRepository):
                 other_inv = parent_invs[1]
             else:
                 other_inv = None
-        def lookup_metadata(fileid, revision):
-            return ("", 0)
         return list(manifest_to_inventory_delta(mapping, basis_inv, other_inv,
-                manifest, flags, rev.revision_id, files, lookup_metadata))
+                manifest, flags, rev.revision_id, files, 
+                self._text_metadata.__getitem__))
 
     def _get_hg_revision(self, mapping, hgid):
         revid = mapping.revision_id_foreign_to_bzr(hgid)
@@ -333,36 +340,37 @@ class FromHgRepository(InterRepository):
         chunkiter = mercurial.changegroup.chunkiter(cg)
         # Map mapping manifest ids to bzr revision ids
         manifest2rev_map = defaultdict(set)
-        for record in unpack_chunk_iter(chunkiter, mapping,
+        for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter, mapping,
                 lambda node: self._get_hg_revision(mapping, node),
-                mapping.revision_id_foreign_to_bzr):
+                ):
             (manifest, user, (time, timezone), files, desc, extra) = \
-                parse_changeset(record.get_bytes_as('fulltext'))
-            self._files[record.key] = files
-            rev = mapping.import_revision(record.key, record.hgkey,
-                record.hgparents, manifest, user, (time, timezone), desc, extra)
-            manifest2rev_map[manifest].add(record.key)
+                parse_changeset(fulltext)
+            key = mapping.revision_id_foreign_to_bzr(hgkey)
+            self._files[key] = files
+            rev = mapping.import_revision(key, hgkey,
+                hgparents, manifest, user, (time, timezone), desc, extra)
+            manifest2rev_map[manifest].add(key)
             self._revisions[rev.revision_id] = rev
         # Manifest
         chunkiter = mercurial.changegroup.chunkiter(cg)
-        filetext_map = defaultdict(dict)
-        for record in unpack_chunk_iter(chunkiter, mapping, 
+        filetext_map = defaultdict(lambda: defaultdict(set))
+        for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter, mapping, 
             self._get_manifest_text):
             manifest = mercurial.manifest.manifestdict()
             flags = {}
             mercurial.parsers.parse_manifest(manifest, flags, 
-                record.get_bytes_as("fulltext"))
-            self._manifest_texts[record.hgkey] = record.get_bytes_as("fulltext")
-            self._manifests[record.hgkey] = (manifest, flags)
-            for revid in manifest2rev_map[record.hgkey]:
+                fulltext)
+            self._manifest_texts[hgkey] = fulltext
+            self._manifests[hgkey] = (manifest, flags)
+            for revid in manifest2rev_map[hgkey]:
                 for path in self._get_files(revid):
                     fileid = mapping.generate_file_id(path)
                     if path in manifest:
                         # Path still has to actually exist..
-                        filetext_map[fileid][manifest[path]] = revid
-            self._manifest_order.append(record.hgkey)
+                        filetext_map[fileid][manifest[path]].add(revid)
+            self._manifest_order.append(hgkey)
         def get_text(fileid, node):
-            key = filetext_map[fileid][node]
+            key = iter(filetext_map[fileid][node]).next()
             stream = self.target.texts.get_record_stream([key],
                 "unordered", True)
             return stream.next().get_bytes_as("fulltext")
@@ -373,10 +381,17 @@ class FromHgRepository(InterRepository):
                 break
             fileid = mapping.generate_file_id(f)
             chunkiter = mercurial.changegroup.chunkiter(cg)
-            self.target.texts.insert_record_stream(
-                unpack_chunk_iter(chunkiter, mapping, 
-                    lambda node: get_text(fileid, node),
-                    lambda node: (fileid, filetext_map[fileid][node])))
+            # FIXME: Iterator rather than list:
+            stream = []
+            for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter, mapping, 
+                    lambda node: get_text(fileid, node)):
+                for revision in filetext_map[fileid][hgkey]:
+                    key = (fileid, revision)
+                    record = FulltextContentFactory(key, None, None, fulltext)
+                    record.parents = () #FIXME?
+                    self._text_metadata[key] = (record.sha1, len(record.get_bytes_as('fulltext')))
+                    stream.append(record)
+            self.target.texts.insert_record_stream(stream)
         # add the actual revisions
         for manifest_id in self._manifest_order:
             manifest, flags = self._manifests[manifest_id]
@@ -389,6 +404,7 @@ class FromHgRepository(InterRepository):
                     basis_revid = rev.parent_ids[0]
                 invdelta = self._import_manifest_delta(manifest, flags, files,
                                                        rev, mapping)
+                create_directory_texts(self.target.texts, invdelta)
                 trace.mutter("INVDELTA: %r", invdelta)
                 (validator, new_inv) = self.target.add_inventory_by_delta(
                     basis_revid, invdelta, rev.revision_id, rev.parent_ids)

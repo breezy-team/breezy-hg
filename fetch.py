@@ -87,8 +87,10 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
     return ret, fileid
 
 
-def manifest_to_inventory_delta(mapping, basis_inv, other_inv, manifest, 
-                                flags, revid, files, lookup_metadata):
+def manifest_to_inventory_delta(mapping, basis_inv, other_inv, 
+                                (basis_manifest, basis_flags),
+                                (manifest, flags), 
+                                revid, files, lookup_metadata):
     """Simple O(n) manifest to inventory converter. 
 
     Does not take renames into account.
@@ -96,7 +98,10 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv, manifest,
     # Set of directories that have been created in this delta
     directories = {}
     potential_removable_directories = set()
-    for path in files:
+    for path in set(basis_manifest.keys() + manifest.keys()):
+        if (basis_manifest.get(path) == manifest.get(path) and 
+            basis_flags.get(path) == flags.get(path)):
+            continue
         # Does it still exist in manifest ?
         if path not in manifest:
             # File removed
@@ -124,16 +129,18 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv, manifest,
             else:
                 ie = InventoryFile(fileid, os.path.basename(path), parent_id)
             ie.executable = ('x' in f)
-            ie.revision = revid
-            ie.text_sha1, ie.text_size = lookup_metadata((fileid, ie.revision))
-            if other_inv is not None and fileid in other_inv:
-                other_ie = other_inv[fileid]
-                if (other_ie.text_sha1 == ie.text_sha1 and 
-                    other_ie.text_size == ie.text_size and 
-                    other_ie.executable == ie.executable and 
-                    other_ie.kind == ie.kind and 
-                    other_ie.symlink_target == ie.symlink_target):
-                    ie.revision = other_ie.revision
+            if path not in files:
+                # Not changed in this revision, so pick one of the parents
+                if manifest.get(path) == basis_manifest.get(path) and flags.get(path) == basis_flags.get(path):
+                    orig_inv = basis_inv
+                else:
+                    orig_inv = other_inv
+                ie.revision = orig_inv[fileid].revision
+                ie.text_sha1 = orig_inv[fileid].text_sha1
+                ie.text_size = orig_inv[fileid].text_size
+            else:
+                ie.revision = revid
+                ie.text_sha1, ie.text_size = lookup_metadata((fileid, ie.revision))
             yield (old_path, path, fileid, ie)
     # FIXME: Remove empty directories
     for path in sorted(potential_removable_directories, reverse=True):
@@ -295,6 +302,9 @@ class FromHgRepository(InterRepository):
                 ret.append(self._inventories[revid])
         return ret
 
+    def _get_manifest(self, node):
+        return self._manifests[node]
+
     def _get_manifest_text(self, node):
         try:
             return self._manifest_texts[node]
@@ -307,14 +317,19 @@ class FromHgRepository(InterRepository):
         if len(rev.parent_ids) == 0:
             basis_inv = Inventory(root_id=None)
             other_inv = None
+            basis_manifest = {}
+            basis_flags = {}
         else:
             basis_inv = parent_invs[0]
+            basis_manifest = {}
+            basis_flags = {}
             if len(rev.parent_ids) == 2:
                 other_inv = parent_invs[1]
             else:
                 other_inv = None
         return list(manifest_to_inventory_delta(mapping, basis_inv, other_inv,
-                manifest, flags, rev.revision_id, files, 
+                (basis_manifest, basis_flags),
+                (manifest, flags), rev.revision_id, files, 
                 self._text_metadata.__getitem__))
 
     def _get_hg_revision(self, mapping, hgid):
@@ -394,7 +409,7 @@ class FromHgRepository(InterRepository):
             self.target.texts.insert_record_stream(stream)
         # add the actual revisions
         for manifest_id in self._manifest_order:
-            manifest, flags = self._manifests[manifest_id]
+            manifest, flags = self._get_manifest(manifest_id)
             for revid in manifest2rev_map[manifest_id]:
                 rev = self._get_revision(revid)
                 files = self._get_files(rev.revision_id)

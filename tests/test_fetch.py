@@ -37,7 +37,7 @@ commit
 message""",
             format_changeset(mercurial.node.nullid, ["myfile"],
                 "Jelmer Vernooij <jelmer@samba.org>",
-                "2009-09-18 09:59:58", "Some\ncommit\nmessage",
+                (1253260798.0, -7200), "Some\ncommit\nmessage",
                 {}))
 
 

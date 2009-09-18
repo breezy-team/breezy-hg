@@ -34,9 +34,7 @@ import mercurial.util
 import struct
 
 from bzrlib import (
-    errors,
     trace,
-    ui,
     )
 from bzrlib.decorators import (
     needs_write_lock,
@@ -47,19 +45,8 @@ from bzrlib.inventory import (
 from bzrlib.repository import (
     InterRepository,
     )
-from bzrlib.tsort import (
-    topo_sort,
-    )
 from bzrlib.versionedfile import (
-    ChunkedContentFactory,
     FulltextContentFactory,
-    )
-
-from bzrlib.plugins.hg.inventory import (
-    ManifestImporter,
-    )
-from bzrlib.plugins.hg.mapping import (
-    mapping_registry,
     )
 
 
@@ -102,7 +89,7 @@ def format_changeset(manifest, files, user, date, desc, extra):
     user = mercurial.encoding.fromlocal(user)
     desc = mercurial.encoding.fromlocal(desc)
 
-    parseddate = "%d %d" % mercurial.util.parsedate(date)
+    parseddate = "%d %d" % date
     if extra and extra.get("branch") in ("default", ""):
         del extra["branch"]
     if extra:
@@ -187,7 +174,6 @@ class FromHgRepository(InterRepository):
         self._revisions = {}
         self._files = {}
         self._manifests = {}
-        self._manifest_importer = ManifestImporter()
 
     @classmethod
     def _get_repo_format_to_test(self):
@@ -346,7 +332,12 @@ class FromHgRepository(InterRepository):
             for revid in self.target.has_revisions(revids)])
 
     def findmissing(self, heads):
-        """Find the set of ancestors of heads missing from target."""
+        """Find the set of ancestors of heads missing from target.
+        
+        :param heads: Mercurial heads to check for.
+
+        Based on mercurial.localrepo.localrepository.findcommonincoming
+        """
         unknowns = set(heads) - self.has_hgids(heads)
         if not unknowns:
             return []
@@ -431,14 +422,16 @@ class FromHgRepository(InterRepository):
 
         To date the revision_id and basis parameters are not supported.
         """
-        assert revision_id is None
-        assert basis is None
+        if revision_id is not None:
+            raise AssertionError("revision_id not supported")
+        if basis is not None:
+            trace.mutter('Ignoring basis argument %r', basis)
         self.target.fetch(self.source)
 
     @needs_write_lock
     def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
               fetch_spec=None):
-        """Fetch revisions. This is a partial implementation."""
+        """Fetch revisions. """
         heads = self.heads(fetch_spec, revision_id)
         missing = self.findmissing(heads)
         if not missing:

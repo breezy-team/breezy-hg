@@ -122,8 +122,6 @@ def parse_changeset(text):
         time, timezone, extra = extra_data
         time, timezone = float(time), int(timezone)
         extra = mercurial.changelog.decodeextra(extra)
-    if not extra.get('branch'):
-        extra['branch'] = 'default'
     files = l[3:]
     return (manifest, user, (time, timezone), files, desc, extra)
 

@@ -31,6 +31,7 @@ from collections import defaultdict
 import mercurial.encoding
 import mercurial.node
 import mercurial.util
+import os
 import struct
 
 from bzrlib import (
@@ -41,25 +42,99 @@ from bzrlib.decorators import (
     )
 from bzrlib.inventory import (
     Inventory,
+    InventoryDirectory,
+    InventoryFile,
+    InventoryLink,
     )
 from bzrlib.repository import (
     InterRepository,
+    )
+from bzrlib.revision import (
+    NULL_REVISION,
     )
 from bzrlib.versionedfile import (
     FulltextContentFactory,
     )
 
 
-def manifest_to_inventory(mapping, parent_invs, manifest, flags, revid, files):
-    inv = Inventory()
-    for path in manifest:
-        if not path in files:
-            # Path was not modified here, from which parent inventory should
-            # we borrow the revision ?
-            pass
-        #inv.add_path(path, "file", mapping.generate_file_id(path))
-    inv.revision_id = revid
-    return inv
+def inventory_create_directory(directories, basis_inv, other_inv, path,
+                               mapping, revid):
+    if path in directories:
+        return ([], directories[path])
+    if basis_inv.has_filename(path):
+        directories[path] = basis_inv.path2id(path)
+        return ([], directories[path])
+    if (other_inv is not None and 
+        basis_inv.has_filename(os.path.dirname(path)) and 
+        other_inv.has_filename(path)):
+        other_ie = other_inv[other_inv.path2id(path)]
+        ie = InventoryDirectory(other_ie.fileid, other_ie.name,
+                                other_ie.parent_id)
+        ie.revision = other_ie.revision
+        return ([(None, path, other_ie.fileid, ie)], other_ie.parent_id)
+    if path != "":
+        ret, parent_id = inventory_create_directory(directories, basis_inv, 
+                            other_inv, os.path.dirname(path), mapping, revid)
+    else:
+        ret = []
+        parent_id = None
+    fileid = mapping.generate_file_id(path)
+    ie = InventoryDirectory(fileid, os.path.basename(path), parent_id)
+    ie.revision = revid
+    ret.append((None, path, fileid, ie))
+    directories[path] = fileid
+    return ret, fileid
+
+
+def manifest_to_inventory_delta(mapping, basis_inv, other_inv, manifest, 
+                                flags, revid, files, lookup_metadata):
+    """Simple O(n) manifest to inventory converter. 
+
+    Does not take renames into account.
+    """
+    # Set of directories that have been created in this delta
+    directories = {}
+    potential_removable_directories = set()
+    for path in files:
+        # Does it still exist in manifest ?
+        if path not in manifest:
+            # File removed
+            yield (path, None, basis_inv.path2id(path), None)
+            potential_removable_directories.add(os.path.dirname(path))
+        else:
+            fileid = mapping.generate_file_id(path)
+            parent_path = os.path.dirname(path)
+            if basis_inv.has_filename(path):
+                old_path = path
+                parent_id = basis_inv.path2id(parent_path)
+            else:
+                old_path = None
+                # Make sure parent exists
+                extra, parent_id = inventory_create_directory(directories, 
+                    basis_inv, other_inv, parent_path, mapping, revid)
+                for e in extra:
+                    yield e
+            f = flags.get(path, "")
+            if 'l' in f:
+                ie = InventoryLink(fileid, os.path.basename(path), parent_id)
+            else:
+                ie = InventoryFile(fileid, os.path.basename(path), parent_id)
+            ie.executable = ('x' in f)
+            ie.text_sha1, ie.text_size = lookup_metadata(fileid, ie.revision)
+            ie.revision = revid
+            if other_inv is not None and fileid in other_inv:
+                other_ie = other_inv[fileid]
+                if (other_ie.text_sha1 == ie.text_sha1 and 
+                    other_ie.text_size == ie.text_size and 
+                    other_ie.executable == ie.executable and 
+                    other_ie.kind == ie.kind and 
+                    other_ie.symlink_target == ie.symlink_target):
+                    ie.revision = other_ie.revision
+            yield (old_path, path, fileid, ie)
+    # FIXME: Remove empty directories
+    for path in sorted(potential_removable_directories, reverse=True):
+        # Is this directory really empty ?
+        pass # yield (path, None, basis_inv.path2id(path), None)
 
 
 def format_changeset(manifest, files, user, date, desc, extra):
@@ -173,7 +248,9 @@ class FromHgRepository(InterRepository):
         self._inventories = {}
         self._revisions = {}
         self._files = {}
+        self._manifest_texts = {}
         self._manifests = {}
+        self._manifest_order = []
 
     @classmethod
     def _get_repo_format_to_test(self):
@@ -210,11 +287,28 @@ class FromHgRepository(InterRepository):
                 ret.append(self._inventories[revid])
         return ret
 
-    def _get_manifest(self, node):
+    def _get_manifest_text(self, node):
         try:
-            return self._manifests[node]
+            return self._manifest_texts[node]
         except KeyError:
-            raise NotImplementedError(self._get_manifest)
+            raise NotImplementedError(self._get_manifest_text)
+
+    def _import_manifest_delta(self, manifest, flags, files, rev, mapping):
+        parent_invs = self._get_inventories(rev.parent_ids)
+        assert len(rev.parent_ids) in (0, 1, 2)
+        if len(rev.parent_ids) == 0:
+            basis_inv = Inventory(root_id=None)
+            other_inv = None
+        else:
+            basis_inv = parent_invs[0]
+            if len(rev.parent_ids) == 2:
+                other_inv = parent_invs[1]
+            else:
+                other_inv = None
+        def lookup_metadata(fileid, revision):
+            return ("", 0)
+        return list(manifest_to_inventory_delta(mapping, basis_inv, other_inv,
+                manifest, flags, rev.revision_id, files, lookup_metadata))
 
     def _get_hg_revision(self, mapping, hgid):
         revid = mapping.revision_id_foreign_to_bzr(hgid)
@@ -253,23 +347,20 @@ class FromHgRepository(InterRepository):
         chunkiter = mercurial.changegroup.chunkiter(cg)
         filetext_map = defaultdict(dict)
         for record in unpack_chunk_iter(chunkiter, mapping, 
-            self._get_manifest):
+            self._get_manifest_text):
             manifest = mercurial.manifest.manifestdict()
             flags = {}
             mercurial.parsers.parse_manifest(manifest, flags, 
                 record.get_bytes_as("fulltext"))
-            self._manifests[record.hgkey] = record.get_bytes_as("fulltext")
+            self._manifest_texts[record.hgkey] = record.get_bytes_as("fulltext")
+            self._manifests[record.hgkey] = (manifest, flags)
             for revid in manifest2rev_map[record.hgkey]:
-                rev = self._revisions[revid]
-                inv = manifest_to_inventory(mapping,
-                    self._get_inventories(rev.parent_ids),
-                    manifest, flags, revid, files)
                 for path in self._get_files(revid):
                     fileid = mapping.generate_file_id(path)
                     if path in manifest:
                         # Path still has to actually exist..
                         filetext_map[fileid][manifest[path]] = revid
-                self.target.add_revision(rev.revision_id, rev, inv)
+            self._manifest_order.append(record.hgkey)
         def get_text(fileid, node):
             key = filetext_map[fileid][node]
             stream = self.target.texts.get_record_stream([key],
@@ -286,6 +377,22 @@ class FromHgRepository(InterRepository):
                 unpack_chunk_iter(chunkiter, mapping, 
                     lambda node: get_text(fileid, node),
                     lambda node: (fileid, filetext_map[fileid][node])))
+        # add the actual revisions
+        for manifest_id in self._manifest_order:
+            manifest, flags = self._manifests[manifest_id]
+            for revid in manifest2rev_map[manifest_id]:
+                rev = self._get_revision(revid)
+                files = self._get_files(rev.revision_id)
+                if rev.parent_ids == []:
+                    basis_revid = NULL_REVISION
+                else:
+                    basis_revid = rev.parent_ids[0]
+                invdelta = self._import_manifest_delta(manifest, flags, files,
+                                                       rev, mapping)
+                trace.mutter("INVDELTA: %r", invdelta)
+                (validator, new_inv) = self.target.add_inventory_by_delta(
+                    basis_revid, invdelta, rev.revision_id, rev.parent_ids)
+                self.target.add_revision(rev.revision_id, rev, new_inv)
 
     def get_target_heads(self):
         """Determine the heads in the target repository."""

@@ -18,6 +18,7 @@ import mercurial
 
 from bzrlib.plugins.hg.fetch import (
     format_changeset,
+    parse_changeset,
     )
 from bzrlib.tests import (
     TestCase,
@@ -38,3 +39,19 @@ message""",
                 "Jelmer Vernooij <jelmer@samba.org>",
                 "2009-09-18 09:59:58", "Some\ncommit\nmessage",
                 {}))
+
+
+class ParseChangesetTests(TestCase):
+
+    def test_simple(self):
+        self.assertEquals((mercurial.node.nullid, 
+                "Jelmer Vernooij <jelmer@samba.org>",
+                (1253260798.0, -7200), ["myfile"], "Some\ncommit\nmessage",
+                {}), parse_changeset("""0000000000000000000000000000000000000000
+Jelmer Vernooij <jelmer@samba.org>
+1253260798 -7200
+myfile
+
+Some
+commit
+message"""))

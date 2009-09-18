@@ -28,7 +28,9 @@
 """Inter-repository operations involving Mercurial repositories."""
 
 from collections import defaultdict
+import mercurial.encoding
 import mercurial.node
+import mercurial.util
 import struct
 
 from bzrlib import (
@@ -71,6 +73,16 @@ def manifest_to_inventory(mapping, parent_invs, manifest, flags, revid, files):
 
 
 def format_changeset(manifest, files, user, date, desc, extra):
+    """Serialize a Mercurial changeset.
+
+    :param manifest: Manifest ID for this changeset, as 20-byte string
+    :param files: Array of the files modified by this changeset
+    :param user: Name + email of the committer
+    :param date: Date of the commit
+    :param desc: Commit message
+    :param extra: Dictionary with extra revision properties
+    :return: String with formatted revision
+    """
     user = user.strip()
     # An empty username or a username with a "\n" will make the
     # revision text contain two "\n\n" sequences -> corrupt

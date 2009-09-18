@@ -377,10 +377,8 @@ class HgRemoteRepository(HgRepository):
 
 
 from bzrlib.plugins.hg.fetch import (
-    FromLocalHgRepository,
-    FromRemoteHgRepository,
+    FromHgRepository,
     InterHgRepository,
     )
 bzrlib.repository.InterRepository.register_optimiser(InterHgRepository)
-bzrlib.repository.InterRepository.register_optimiser(FromLocalHgRepository)
-bzrlib.repository.InterRepository.register_optimiser(FromRemoteHgRepository)
+bzrlib.repository.InterRepository.register_optimiser(FromHgRepository)

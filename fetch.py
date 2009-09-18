@@ -55,6 +55,9 @@ from bzrlib.versionedfile import (
     FulltextContentFactory,
     )
 
+from bzrlib.plugins.hg.inventory import (
+    ManifestImporter,
+    )
 from bzrlib.plugins.hg.mapping import (
     mapping_registry,
     )
@@ -162,7 +165,6 @@ def unpack_chunk_iter(chunks, mapping, lookup_base, lookup_key=None):
         record.hgparents = (p1, p2)
         record.parents = [
             lookup_key(p) for p in record.hgparents if p != mercurial.node.nullid]
-        trace.mutter("yielding %r", key)
         yield record
         base_cache[node] = record
         base = node
@@ -185,6 +187,7 @@ class FromHgRepository(InterRepository):
         self._revisions = {}
         self._files = {}
         self._manifests = {}
+        self._manifest_importer = ManifestImporter()
 
     @classmethod
     def _get_repo_format_to_test(self):
@@ -230,7 +233,8 @@ class FromHgRepository(InterRepository):
     def _get_hg_revision(self, mapping, hgid):
         revid = mapping.revision_id_foreign_to_bzr(hgid)
         rev = self._get_revision(revid)
-        (manifest, user, (time, timezone), desc, extra) = mapping.export_revision(rev)
+        (manifest, user, (time, timezone), desc, extra) = \
+            mapping.export_revision(rev)
         # FIXME: For now we always know that a manifest id was stored since 
         # we don't support roundtripping into Mercurial yet. When we do, 
         # we need a fallback mechanism to determine the manifest id.
@@ -447,129 +451,12 @@ class FromHgRepository(InterRepository):
         finally:
             self.target.commit_write_group()
 
-
-class FromLocalHgRepository(FromHgRepository):
-    """Local Hg repository to any repository actions."""
-
-    @needs_write_lock
-    def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
-              fetch_spec=None):
-        """Fetch revisions. This is a partial implementation."""
-        # TODO: make this somewhat faster - calculate the specific needed
-        # file versions and then pull all of those per file, followed by
-        # inserting the inventories and revisions, rather than doing 
-        # rev-at-a-time.
-        needed = {}
-        mapping = self.source.get_mapping()
-        pending = set([mapping.revision_id_foreign_to_bzr(revid) for revid in self.heads(fetch_spec, revision_id)])
-        # plan it.
-        # we build a graph of the revisions we need, and a
-        # full graph which we use for topo-sorting (we need a partial-
-        # topo-sorter done to avoid this. TODO: a partial_topo_sort.)
-        # so needed is the revisions we need, and needed_graph is the entire
-        # graph, using 'local' sources for establishing the graph where
-        # possible. TODO: also, use the bzr knit graph facility to seed the
-        # graph once we encounter revisions we know about.
-        needed_graph = {}
-        while len(pending) > 0:
-            node = pending.pop()
-            try:
-                rev = self.target.get_revision(node)
-            except errors.NoSuchRevision:
-                rev = self.source.get_revision(node)
-                needed[node] = rev
-            parent_ids = rev.parent_ids
-            needed_graph[node] = parent_ids
-            for revision_id in parent_ids:
-                if revision_id not in needed_graph:
-                    pending.add(revision_id)
-        order = topo_sort(needed_graph.items())
-        # order is now too aggressive: filter to just what we need:
-        order = [rev_id for rev_id in order if rev_id in needed]
-        self.target.start_write_group()
-        try:
-            self._fetch_hg_revs(order, needed)
-        finally:
-            self.target.commit_write_group()
-
-    def _fetch_hg_rev(self, revision):
-        inventory = self.source.get_inventory(revision.revision_id)
-        self._inventories[revision.revision_id] = inventory
-        hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision.revision_id)
-        log = self.source._hgrepo.changelog.read(hgrevid)
-        manifest = self.source._hgrepo.manifest.read(log[0])
-        for fileid in inventory:
-            entry = inventory[fileid]
-            if inventory[fileid].revision == revision.revision_id:
-                # changed in this revision
-                entry = inventory[fileid]
-                # changing the parents-to-insert-as algorithm here will
-                # cause pulls from hg to change the per-file graph.
-                # BEWARE of doing that.
-                previous_inventories = self._get_inventories(
-                    revision.parent_ids)
-                file_heads = entry.parent_candidates(
-                    previous_inventories)
-
-                if entry.kind == 'directory':
-                    # a bit of an abstraction variation, but we dont have a
-                    # real tree for entry to read from, and it would be 
-                    # mostly dead weight to have a stub tree here.
-                    records = [
-                        ChunkedContentFactory(
-                            (fileid, revision.revision_id),
-                            tuple([(fileid, revid) for revid in file_heads]),
-                            None,
-                            [])]
-                else:
-                    # extract text and insert it.
-                    path = inventory.id2path(fileid)
-                    revlog = self.source._hgrepo.file(path)
-                    filerev = manifest[path]
-                    # TODO: perhaps we should use readmeta here to figure out 
-                    # renames ?
-                    text = revlog.read(filerev)
-                    records = [
-                        FulltextContentFactory(
-                            (fileid, revision.revision_id),
-                            tuple([(fileid, revid) for revid in file_heads]),
-                            None, text)]
-                self.target.texts.insert_record_stream(records)
-        inventory.revision_id = revision.revision_id
-        inventory.root.revision = revision.revision_id # Yuck. FIXME
-        self.target.add_inventory(revision.revision_id, inventory, 
-                                  revision.parent_ids)
-        self.target.add_revision(revision.revision_id, revision)
-
-    def _fetch_hg_revs(self, order, revisions):
-        total = len(order)
-        pb = ui.ui_factory.nested_progress_bar()
-        try:
-            for index, revision_id in enumerate(order):
-                pb.update('fetching revisions', index, total)
-                self._fetch_hg_rev(revisions[revision_id])
-        finally:
-            pb.finished()
-        return total, 0
-
     @staticmethod
     def is_compatible(source, target):
-        """Be compatible with HgLocalRepositories."""
+        """Be compatible with HgRepositories."""
         from bzrlib.plugins.hg.repository import (
-            HgLocalRepository, HgRepository, )
-        return (isinstance(source, HgLocalRepository) and 
-                not isinstance(target, HgRepository))
-
-
-class FromRemoteHgRepository(FromHgRepository):
-    """Remote Hg repository to any repository actions."""
-
-    @staticmethod
-    def is_compatible(source, target):
-        """Be compatible with HgRemoteRepositories."""
-        from bzrlib.plugins.hg.repository import (
-            HgRemoteRepository, HgRepository, )
-        return (isinstance(source, HgRemoteRepository) and
+            HgRepository, )
+        return (isinstance(source, HgRepository) and
                 not isinstance(target, HgRepository))
 
 
@@ -590,7 +477,7 @@ class InterHgRepository(FromHgRepository):
 
     @staticmethod
     def is_compatible(source, target):
-        """Be compatible with HgRemoteRepositories."""
+        """Be compatible with HgRepositories."""
         from bzrlib.plugins.hg.repository import HgRepository
         return (isinstance(source, HgRepository) and 
                 isinstance(target, HgRepository))

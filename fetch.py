@@ -155,7 +155,8 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                 ie.text_size = orig_inv[fileid].text_size
             else:
                 ie.revision = revid
-                ie.text_sha1, ie.text_size = lookup_metadata((fileid, ie.revision))
+                ie.text_sha1, ie.text_size = lookup_metadata(
+                    (fileid, ie.revision))
             yield (old_path, path, fileid, ie)
     # FIXME: Remove empty directories
     for path in sorted(potential_removable_directories, reverse=True):
@@ -197,7 +198,8 @@ def format_changeset(manifest, files, user, date, desc, extra):
     if extra:
         extra = mercurial.changelog.encodeextra(extra)
         parseddate = "%s %s" % (parseddate, extra)
-    l = [mercurial.node.hex(manifest), user, parseddate] + sorted(files) + ["", desc]
+    l = [mercurial.node.hex(manifest), user, parseddate] + \
+        sorted(files) + ["", desc]
     return "\n".join(l)
 
 
@@ -269,7 +271,8 @@ def create_directory_texts(texts, invdelta):
     stream = []
     for (old_path, new_path, fileid, ie) in invdelta:
         if old_path is None and ie.kind == "directory":
-            record = FulltextContentFactory((fileid, ie.revision), None, None, "")
+            record = FulltextContentFactory((fileid, ie.revision), None, None,
+                                            "")
             record.parents = ()
             stream.append(record)
     texts.insert_record_stream(stream)
@@ -342,7 +345,8 @@ class FromHgRepository(InterRepository):
             basis_flags = {}
         else:
             basis_inv = parent_invs[0]
-            basis_manifest, basis_flags = self._get_manifest(self._rev2manifest_map[rev.parent_ids[0]])
+            basis_manifest, basis_flags = self._get_manifest(
+                self._rev2manifest_map[rev.parent_ids[0]])
             if len(rev.parent_ids) == 2:
                 other_inv = parent_invs[1]
             else:
@@ -420,8 +424,8 @@ class FromHgRepository(InterRepository):
             chunkiter = mercurial.changegroup.chunkiter(cg)
             # FIXME: Iterator rather than list:
             stream = []
-            for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter, mapping, 
-                    lambda node: get_text(fileid, node)):
+            for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter,
+                mapping, lambda node: get_text(fileid, node)):
                 for revision in filetext_map[fileid][hgkey]:
                     key = (fileid, revision)
                     record = FulltextContentFactory(key, None, None, fulltext)

@@ -59,6 +59,19 @@ from bzrlib.versionedfile import (
 
 def inventory_create_directory(directories, basis_inv, other_inv, path,
                                mapping, revid):
+    """Make sure a directory and its parents exist.
+
+    :param directories: Dictionary with directories that have already been 
+        created as keys, their id as value
+    :param basis_inv: Basis inventory against which directories should be 
+        created
+    :param other_inv: Optional other inventory that could have introduced 
+        directories
+    :param path: Path of the directory
+    :param mapping: Bzr<->Hg mapping to use
+    :param revid: Revision id to use when creating new inventory entries
+    :return: Tuple with inventory delta and file id of the specified path.
+    """
     if path in directories:
         return ([], directories[path])
     if basis_inv.has_filename(path):
@@ -72,11 +85,12 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
         ie = InventoryDirectory(other_fileid, other_ie.name,
                                 other_ie.parent_id)
         ie.revision = other_ie.revision
-        return ([(None, path, other_fileid, ie)], other_ie.parent_id)
+        return ([(None, path, other_fileid, ie)], other_fileid)
     if path != "":
         ret, parent_id = inventory_create_directory(directories, basis_inv, 
                             other_inv, os.path.dirname(path), mapping, revid)
     else:
+        # Root directory doesn't have a parent id
         ret = []
         parent_id = None
     fileid = mapping.generate_file_id(path)
@@ -112,7 +126,7 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
             potential_removable_directories.add(os.path.dirname(path))
         else:
             fileid = mapping.generate_file_id(path)
-            parent_path = os.path.dirname(path)
+            parent_path, basename = os.path.split(path)
             if basis_inv.has_filename(path):
                 old_path = path
                 parent_id = basis_inv.path2id(parent_path)
@@ -125,13 +139,14 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                     yield e
             f = flags.get(path, "")
             if 'l' in f:
-                ie = InventoryLink(fileid, os.path.basename(path), parent_id)
+                ie = InventoryLink(fileid, basename, parent_id)
             else:
-                ie = InventoryFile(fileid, os.path.basename(path), parent_id)
+                ie = InventoryFile(fileid, basename, parent_id)
             ie.executable = ('x' in f)
             if path not in files:
                 # Not changed in this revision, so pick one of the parents
-                if manifest.get(path) == basis_manifest.get(path) and flags.get(path) == basis_flags.get(path):
+                if (manifest.get(path) == basis_manifest.get(path) and 
+                    flags.get(path) == basis_flags.get(path)):
                     orig_inv = basis_inv
                 else:
                     orig_inv = other_inv
@@ -164,10 +179,9 @@ def format_changeset(manifest, files, user, date, desc, extra):
     # revision text contain two "\n\n" sequences -> corrupt
     # repository since read cannot unpack the revision.
     if not user:
-        raise mercurial.error.RevlogError("empty username")
+        raise AssertionError("empty username")
     if "\n" in user:
-        raise mercurial.error.RevlogError("username %s contains a newline"
-                                % repr(user))
+        raise AssertionError("username %s contains a newline" % repr(user))
 
     # strip trailing whitespace and leading and trailing empty lines
     desc = '\n'.join([l.rstrip() for l in desc.splitlines()]).strip('\n')
@@ -175,6 +189,8 @@ def format_changeset(manifest, files, user, date, desc, extra):
     user = mercurial.encoding.fromlocal(user)
     desc = mercurial.encoding.fromlocal(desc)
 
+    if not isinstance(date, tuple):
+        raise AssertionError("date is not a tuple")
     parseddate = "%d %d" % date
     if extra and extra.get("branch") in ("default", ""):
         del extra["branch"]
@@ -245,6 +261,11 @@ def get_changed_files(inventory):
 
 
 def create_directory_texts(texts, invdelta):
+    """Create the texts for directories mentioned in an inventory delta.
+
+    :param texts: VersionedFiles to add entries to
+    :param invdelta: Inventory delta
+    """
     stream = []
     for (old_path, new_path, fileid, ie) in invdelta:
         if old_path is None and ie.kind == "directory":
@@ -321,8 +342,7 @@ class FromHgRepository(InterRepository):
             basis_flags = {}
         else:
             basis_inv = parent_invs[0]
-            basis_manifest = {}
-            basis_flags = {}
+            basis_manifest, basis_flags = self._get_manifest(self._rev2manifest_map[rev.parent_ids[0]])
             if len(rev.parent_ids) == 2:
                 other_inv = parent_invs[1]
             else:
@@ -354,7 +374,8 @@ class FromHgRepository(InterRepository):
         # Changeset
         chunkiter = mercurial.changegroup.chunkiter(cg)
         # Map mapping manifest ids to bzr revision ids
-        manifest2rev_map = defaultdict(set)
+        self._manifest2rev_map = defaultdict(set)
+        self._rev2manifest_map = {}
         for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter, mapping,
                 lambda node: self._get_hg_revision(mapping, node),
                 ):
@@ -364,7 +385,8 @@ class FromHgRepository(InterRepository):
             self._files[key] = files
             rev = mapping.import_revision(key, hgkey,
                 hgparents, manifest, user, (time, timezone), desc, extra)
-            manifest2rev_map[manifest].add(key)
+            self._manifest2rev_map[manifest].add(key)
+            self._rev2manifest_map[key] = manifest
             self._revisions[rev.revision_id] = rev
         # Manifest
         chunkiter = mercurial.changegroup.chunkiter(cg)
@@ -377,7 +399,7 @@ class FromHgRepository(InterRepository):
                 fulltext)
             self._manifest_texts[hgkey] = fulltext
             self._manifests[hgkey] = (manifest, flags)
-            for revid in manifest2rev_map[hgkey]:
+            for revid in self._manifest2rev_map[hgkey]:
                 for path in self._get_files(revid):
                     fileid = mapping.generate_file_id(path)
                     if path in manifest:
@@ -410,7 +432,7 @@ class FromHgRepository(InterRepository):
         # add the actual revisions
         for manifest_id in self._manifest_order:
             manifest, flags = self._get_manifest(manifest_id)
-            for revid in manifest2rev_map[manifest_id]:
+            for revid in self._manifest2rev_map[manifest_id]:
                 rev = self._get_revision(revid)
                 files = self._get_files(rev.revision_id)
                 if rev.parent_ids == []:

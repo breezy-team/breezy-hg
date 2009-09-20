@@ -199,7 +199,8 @@ class HgDir(bzrlib.bzrdir.BzrDir):
     def open_workingtree(self, shared=False, recommend_upgrade=False):
         """'open' a workingtree for this dir."""
         from bzrlib.plugins.hg.workingtree import HgWorkingTree
-        return HgWorkingTree(self._hgrepo, self.open_branch(), self, self._lockfiles)
+        return HgWorkingTree(self._hgrepo, self.open_branch(), self, 
+                             self._lockfiles)
 
     def cloning_metadir(self, stacked=False):
         try:

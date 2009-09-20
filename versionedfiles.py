@@ -62,7 +62,8 @@ class RevlogVersionedFiles(VersionedFiles):
         for (fileid, revision) in nodes:
             revlog = self._get_revlog(fileid)
             vf = RevlogVersionedFile(revlog, self._mapping)
-            for x in vf.get_record_stream([(revision, )], ordered, include_delta_closure):
+            for x in vf.get_record_stream([(revision, )], ordered, 
+                                          include_delta_closure):
                 yield x
 
 

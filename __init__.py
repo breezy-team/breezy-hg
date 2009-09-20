@@ -16,16 +16,8 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 
-"""Hg support for bzr.
+"""Mercurial support for Bazaar.
 
-hg and bzr have different restrictions placed n revision ids. Its not possible
-with the current hg model to allow bzr to write sanely to hg. However its
-possibe to get bzr data out of hg.
-
-The key translations needed are:
- * in bzr we use a revision id of "hg:" + hex(hgrevid) to ensure we can 
-   always utf8 encode it.
- * we convert manifests to inventories on the fly.
 """
 
 import bzrlib
@@ -49,7 +41,7 @@ from bzrlib.foreign import (
     )
 import bzrlib.lockable_files
 
-LockWarner = getattr(bzrlib.lockable_files, "_LockWarner", None)
+LockWarner = bzrlib.lockable_files._LockWarner
 
 def lazy_load_mercurial():
     import mercurial
@@ -127,11 +119,7 @@ class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
         self._transaction = None
         self._lock_mode = None
         self._transport = transport
-        if LockWarner is None:
-            # Bzr 1.13
-            self._lock_count = 0
-        else:
-            self._lock_warner = LockWarner(repr(self))
+        self._lock_warner = LockWarner(repr(self))
 
 
 class HgDir(bzrlib.bzrdir.BzrDir):

@@ -35,6 +35,7 @@ import os
 import struct
 
 from bzrlib import (
+    osutils,
     trace,
     )
 from bzrlib.decorators import (
@@ -431,9 +432,9 @@ class FromHgRepository(InterRepository):
                 mapping, lambda node: get_text(fileid, node)):
                 for revision in filetext_map[fileid][hgkey]:
                     key = (fileid, revision)
-                    record = FulltextContentFactory(key, None, None, fulltext)
+                    record = FulltextContentFactory(key, None, osutils.sha_string(fulltext), fulltext)
                     record.parents = () #FIXME?
-                    self._text_metadata[key] = (record.sha1, len(record.get_bytes_as('fulltext')))
+                    self._text_metadata[key] = (record.sha1, len(fulltext))
                     stream.append(record)
             self.target.texts.insert_record_stream(stream)
         # add the actual revisions

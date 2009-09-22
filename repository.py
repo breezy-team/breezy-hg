@@ -156,6 +156,7 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
     """manifests addressed by changelog."""
     for file, file_revision in manifest.items():
         revlog = hgrepo.file(file)
+        file_flags = manifest.flags(file)
 
         # find when the file was modified. 
         # start with the manifest nodeid
@@ -183,7 +184,7 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
                     current_manifest_id)
             current_manifest = known_manifests[current_cl]
             done_cls.add(current_cl)
-            if current_manifest.get(file, None) != file_revision:
+            if current_manifest.get(file, None) != file_revision or current_manifest.flags(file) != file_flags:
                 continue
             # unchanged in parent, advance to the parent.
             good_id = current_cl
@@ -225,13 +226,15 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
         add_dir_for(file, introduced_at_path_revision)
         entry = result.add_path(file, 'file',
             file_id=mapping.generate_file_id(file))
-        entry.text_size = revlog.size(revlog.nodemap[file_revision])
         # its a shame we need to pull the text out. is there a better way?
         # TODO: perhaps we should use readmeta here to figure out renames ?
         text = revlog.read(file_revision)
-        entry.text_sha1 = sha_strings(text)
-        # FIXME: Which flags indicate executability?
-        if manifest.flags(file):
+        if "l" in file_flags:
+            entry.symlink_target = text
+        else:
+            entry.text_size = len(text)
+            entry.text_sha1 = sha_strings(text)
+        if "x" in file_flags:
             entry.executable = True
         entry.revision = modified_revision
     for dir, dir_revision_id in directories.items():

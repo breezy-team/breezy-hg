@@ -105,7 +105,8 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
 def manifest_to_inventory_delta(mapping, basis_inv, other_inv, 
                                 (basis_manifest, basis_flags),
                                 (manifest, flags), 
-                                revid, files, lookup_metadata):
+                                revid, files, lookup_metadata,
+                                lookup_symlink):
     """Simple O(n) manifest to inventory converter. 
 
     Does not take renames into account.
@@ -160,7 +161,8 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                 ie.text_sha1, ie.text_size = lookup_metadata(
                     (fileid, ie.revision))
                 if ie.kind == "symlink":
-                    ie.symlink_target = "FIXME"
+                    ie.symlink_target = lookup_symlink(
+                        (fileid, ie.revision))
             yield (old_path, path, fileid, ie)
     # FIXME: Remove empty directories
     for path in sorted(potential_removable_directories, reverse=True):
@@ -355,10 +357,13 @@ class FromHgRepository(InterRepository):
                 other_inv = parent_invs[1]
             else:
                 other_inv = None
+        def lookup_symlink(key):
+            return self.target.texts.get_record_stream([key], "unordered", True).next().get_bytes_as("fulltext")
         return list(manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                 (basis_manifest, basis_flags),
                 (manifest, flags), rev.revision_id, files, 
-                self._text_metadata.__getitem__))
+                self._text_metadata.__getitem__,
+                lookup_symlink))
 
     def _get_hg_revision(self, mapping, hgid):
         revid = mapping.revision_id_foreign_to_bzr(hgid)
@@ -450,7 +455,6 @@ class FromHgRepository(InterRepository):
                 invdelta = self._import_manifest_delta(manifest, flags, files,
                                                        rev, mapping)
                 create_directory_texts(self.target.texts, invdelta)
-                trace.mutter("INVDELTA: %r", invdelta)
                 (validator, new_inv) = self.target.add_inventory_by_delta(
                     basis_revid, invdelta, rev.revision_id, rev.parent_ids)
                 self.target.add_revision(rev.revision_id, rev, new_inv)

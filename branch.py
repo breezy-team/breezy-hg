@@ -218,6 +218,9 @@ class FromHgBranch(InterBranch):
         inter = InterRepository.get(self.source.repository, 
                                     self.target.repository)
         inter.fetch(revision_id=stop_revision)
+        self.target.generate_revision_history(self.source.last_revision(), 
+                                              self.target.last_revision(),
+                                              self.source)
         result.new_revno, result.new_revid = self.target.last_revision_info()
         return result
 
@@ -229,6 +232,9 @@ class FromHgBranch(InterBranch):
         inter = InterRepository.get(self.source.repository, 
                                     self.target.repository)
         inter.fetch(revision_id=stop_revision)
+        self.target.generate_revision_history(self.source.last_revision(), 
+                                              self.target.last_revision(),
+                                              self.source)
         result.new_revid = self.target.last_revision()
         return result
 

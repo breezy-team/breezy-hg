@@ -272,6 +272,9 @@ class HgRepository(ForeignRepository):
         # TODO: Call out to mercurial for consistency checking?
         return bzrlib.branch.BranchCheckResult(self)
 
+    def make_working_trees(self):
+        return True # Do bare repositories exist at all in Mercurial?
+
     def get_mapping(self):
         return default_mapping # for now
 

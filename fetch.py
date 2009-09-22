@@ -37,6 +37,7 @@ import struct
 from bzrlib import (
     osutils,
     trace,
+    ui,
     )
 from bzrlib.decorators import (
     needs_write_lock,
@@ -357,13 +358,11 @@ class FromHgRepository(InterRepository):
                 other_inv = parent_invs[1]
             else:
                 other_inv = None
-        def lookup_symlink(key):
-            return self.target.texts.get_record_stream([key], "unordered", True).next().get_bytes_as("fulltext")
         return list(manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                 (basis_manifest, basis_flags),
                 (manifest, flags), rev.revision_id, files, 
                 self._text_metadata.__getitem__,
-                lookup_symlink))
+                self._get_target_fulltext))
 
     def _get_hg_revision(self, mapping, hgid):
         revid = mapping.revision_id_foreign_to_bzr(hgid)
@@ -377,6 +376,53 @@ class FromHgRepository(InterRepository):
         files = self._get_files(revid)
         return format_changeset(manifest, files, user, (time, timezone), desc,
                                 extra)
+
+    def _get_target_fulltext(self, key):
+        stream = self.target.texts.get_record_stream([key],
+            "unordered", True)
+        return stream.next().get_bytes_as("fulltext")
+
+    def _unpack_texts(self, cg, mapping, filetext_map, pb):
+        i = 0
+        # Texts
+        while 1:
+            f = mercurial.changegroup.getchunk(cg)
+            if not f:
+                break
+            i += 1
+            pb.update("fetching texts", i, len(filetext_map))
+            fileid = mapping.generate_file_id(f)
+            chunkiter = mercurial.changegroup.chunkiter(cg)
+            def get_text(node):
+                key = iter(filetext_map[fileid][node]).next()
+                return self._get_target_fulltext(key)
+            for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter,
+                mapping, get_text):
+                for revision in filetext_map[fileid][hgkey]:
+                    key = (fileid, revision)
+                    record = FulltextContentFactory(key, None, osutils.sha_string(fulltext), fulltext)
+                    record.parents = () #FIXME?
+                    self._text_metadata[key] = (record.sha1, len(fulltext))
+                    yield record
+
+    def _add_inventories(self, manifest_ids, mapping, pb):
+        # add the actual revisions
+        for i, manifest_id in enumerate(manifest_ids):
+            pb.update("adding inventories", i, len(manifest_ids))
+            manifest, flags = self._get_manifest(manifest_id)
+            for revid in self._manifest2rev_map[manifest_id]:
+                rev = self._get_revision(revid)
+                files = self._get_files(rev.revision_id)
+                if rev.parent_ids == []:
+                    basis_revid = NULL_REVISION
+                else:
+                    basis_revid = rev.parent_ids[0]
+                invdelta = self._import_manifest_delta(manifest, flags, files,
+                                                       rev, mapping)
+                create_directory_texts(self.target.texts, invdelta)
+                (validator, new_inv) = self.target.add_inventory_by_delta(
+                    basis_revid, invdelta, rev.revision_id, rev.parent_ids)
+                self.target.add_revision(rev.revision_id, rev, new_inv)
 
     def addchangegroup(self, cg, mapping):
         """Import a Mercurial changegroup into the target repository.
@@ -404,8 +450,10 @@ class FromHgRepository(InterRepository):
         # Manifest
         chunkiter = mercurial.changegroup.chunkiter(cg)
         filetext_map = defaultdict(lambda: defaultdict(set))
-        for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter, mapping, 
-            self._get_manifest_text):
+        pb = ui.ui_factory.nested_progress_bar()
+        for i, (fulltext, hgkey, hgparents) in enumerate(unpack_chunk_iter(chunkiter, mapping, 
+            self._get_manifest_text)):
+            pb.update("fetching manifests", i, len(self._revisions))
             manifest = mercurial.manifest.manifestdict()
             flags = {}
             mercurial.parsers.parse_manifest(manifest, flags, 
@@ -419,45 +467,18 @@ class FromHgRepository(InterRepository):
                         # Path still has to actually exist..
                         filetext_map[fileid][manifest[path]].add(revid)
             self._manifest_order.append(hgkey)
-        def get_text(fileid, node):
-            key = iter(filetext_map[fileid][node]).next()
-            stream = self.target.texts.get_record_stream([key],
-                "unordered", True)
-            return stream.next().get_bytes_as("fulltext")
-        # Texts
-        while 1:
-            f = mercurial.changegroup.getchunk(cg)
-            if not f:
-                break
-            fileid = mapping.generate_file_id(f)
-            chunkiter = mercurial.changegroup.chunkiter(cg)
-            # FIXME: Iterator rather than list:
-            stream = []
-            for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter,
-                mapping, lambda node: get_text(fileid, node)):
-                for revision in filetext_map[fileid][hgkey]:
-                    key = (fileid, revision)
-                    record = FulltextContentFactory(key, None, osutils.sha_string(fulltext), fulltext)
-                    record.parents = () #FIXME?
-                    self._text_metadata[key] = (record.sha1, len(fulltext))
-                    stream.append(record)
-            self.target.texts.insert_record_stream(stream)
-        # add the actual revisions
-        for manifest_id in self._manifest_order:
-            manifest, flags = self._get_manifest(manifest_id)
-            for revid in self._manifest2rev_map[manifest_id]:
-                rev = self._get_revision(revid)
-                files = self._get_files(rev.revision_id)
-                if rev.parent_ids == []:
-                    basis_revid = NULL_REVISION
-                else:
-                    basis_revid = rev.parent_ids[0]
-                invdelta = self._import_manifest_delta(manifest, flags, files,
-                                                       rev, mapping)
-                create_directory_texts(self.target.texts, invdelta)
-                (validator, new_inv) = self.target.add_inventory_by_delta(
-                    basis_revid, invdelta, rev.revision_id, rev.parent_ids)
-                self.target.add_revision(rev.revision_id, rev, new_inv)
+        del self._manifest_texts
+        pb.finished()
+        pb = ui.ui_factory.nested_progress_bar()
+        try:
+            self.target.texts.insert_record_stream(self._unpack_texts(cg, mapping, filetext_map, pb))
+        finally:
+            pb.finished()
+        pb = ui.ui_factory.nested_progress_bar()
+        try:
+            self._add_inventories(self._manifest_order, mapping, pb)
+        finally:
+            pb.finished()
 
     def get_target_heads(self):
         """Determine the heads in the target repository."""

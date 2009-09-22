@@ -160,8 +160,7 @@ class HgDir(bzrlib.bzrdir.BzrDir):
 
     def create_workingtree(self, shared=False):
         """'create' a workingtree for this dir."""
-        from bzrlib.plugins.hg.workingtree import HgWorkingTree
-        return HgWorkingTree(self._hgrepo, self, self._lockfiles)
+        return self.open_workingtree()
 
     def get_branch_transport(self, branch_format):
         if branch_format is None:
@@ -273,7 +272,7 @@ bzrlib.bzrdir.BzrDirFormat.register_control_format(HgBzrDirFormat)
 
 bzrlib.bzrdir.format_registry.register("mercurial",
     HgBzrDirFormat,
-    "Mercurial Repository. ", native=False, hidden=True)
+    "Mercurial Repository. ", native=False, hidden=False)
 
 
 def test_suite():

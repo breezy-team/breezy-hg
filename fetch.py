@@ -153,10 +153,13 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                 ie.revision = orig_inv[fileid].revision
                 ie.text_sha1 = orig_inv[fileid].text_sha1
                 ie.text_size = orig_inv[fileid].text_size
+                ie.symlink_target = orig_inv[fileid].symlink_target
             else:
                 ie.revision = revid
                 ie.text_sha1, ie.text_size = lookup_metadata(
                     (fileid, ie.revision))
+                if ie.kind == "symlink":
+                    ie.symlink_target = "FIXME"
             yield (old_path, path, fileid, ie)
     # FIXME: Remove empty directories
     for path in sorted(potential_removable_directories, reverse=True):

@@ -293,7 +293,6 @@ class FromHgRepository(InterRepository):
         self._inventories = {}
         self._revisions = {}
         self._files = {}
-        self._manifest_texts = {}
         self._manifests = {}
         self._manifest_order = []
         self._text_metadata = {}
@@ -335,12 +334,6 @@ class FromHgRepository(InterRepository):
 
     def _get_manifest(self, node):
         return self._manifests[node]
-
-    def _get_manifest_text(self, node):
-        try:
-            return self._manifest_texts[node]
-        except KeyError:
-            raise NotImplementedError(self._get_manifest_text)
 
     def _import_manifest_delta(self, manifest, flags, files, rev, mapping):
         parent_invs = self._get_inventories(rev.parent_ids)
@@ -424,20 +417,11 @@ class FromHgRepository(InterRepository):
                     basis_revid, invdelta, rev.revision_id, rev.parent_ids)
                 self.target.add_revision(rev.revision_id, rev, new_inv)
 
-    def addchangegroup(self, cg, mapping):
-        """Import a Mercurial changegroup into the target repository.
-        
-        :param cg: Changegroup to add
-        :param mapping: Mercurial mapping
-        """
-        # Changeset
+    def _unpack_changesets(self, cg, mapping, pb):
         chunkiter = mercurial.changegroup.chunkiter(cg)
-        # Map mapping manifest ids to bzr revision ids
-        self._manifest2rev_map = defaultdict(set)
-        self._rev2manifest_map = {}
-        for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter, mapping,
-                lambda node: self._get_hg_revision(mapping, node),
-                ):
+        for i, (fulltext, hgkey, hgparents) in enumerate(unpack_chunk_iter(chunkiter, mapping,
+                lambda node: self._get_hg_revision(mapping, node))):
+            pb.update("fetching changesets", i)
             (manifest, user, (time, timezone), files, desc, extra) = \
                 parse_changeset(fulltext)
             key = mapping.revision_id_foreign_to_bzr(hgkey)
@@ -447,18 +431,24 @@ class FromHgRepository(InterRepository):
             self._manifest2rev_map[manifest].add(key)
             self._rev2manifest_map[key] = manifest
             self._revisions[rev.revision_id] = rev
-        # Manifest
-        chunkiter = mercurial.changegroup.chunkiter(cg)
+
+    def _unpack_manifests(self, cg, mapping, pb):
+        manifest_texts = {}
+        def get_manifest_text(node):
+            try:
+                return manifest_texts[node]
+            except KeyError:
+                raise NotImplementedError(self._get_manifest_text)
         filetext_map = defaultdict(lambda: defaultdict(set))
-        pb = ui.ui_factory.nested_progress_bar()
+        chunkiter = mercurial.changegroup.chunkiter(cg)
         for i, (fulltext, hgkey, hgparents) in enumerate(unpack_chunk_iter(chunkiter, mapping, 
-            self._get_manifest_text)):
+            get_manifest_text)):
             pb.update("fetching manifests", i, len(self._revisions))
             manifest = mercurial.manifest.manifestdict()
             flags = {}
             mercurial.parsers.parse_manifest(manifest, flags, 
                 fulltext)
-            self._manifest_texts[hgkey] = fulltext
+            manifest_texts[hgkey] = fulltext
             self._manifests[hgkey] = (manifest, flags)
             for revid in self._manifest2rev_map[hgkey]:
                 for path in self._get_files(revid):
@@ -467,13 +457,36 @@ class FromHgRepository(InterRepository):
                         # Path still has to actually exist..
                         filetext_map[fileid][manifest[path]].add(revid)
             self._manifest_order.append(hgkey)
-        del self._manifest_texts
-        pb.finished()
+        return filetext_map
+
+    def addchangegroup(self, cg, mapping):
+        """Import a Mercurial changegroup into the target repository.
+        
+        :param cg: Changegroup to add
+        :param mapping: Mercurial mapping
+        """
+        # Map mapping manifest ids to bzr revision ids
+        self._manifest2rev_map = defaultdict(set)
+        self._rev2manifest_map = {}
+        # Changesets
+        pb = ui.ui_factory.nested_progress_bar()
+        try:
+            self._unpack_changesets(cg, mapping, pb)
+        finally:
+            pb.finished()
+        # Manifests
+        pb = ui.ui_factory.nested_progress_bar()
+        try:
+            filetext_map = self._unpack_manifests(cg, mapping, pb)
+        finally:
+            pb.finished()
+        # Texts
         pb = ui.ui_factory.nested_progress_bar()
         try:
             self.target.texts.insert_record_stream(self._unpack_texts(cg, mapping, filetext_map, pb))
         finally:
             pb.finished()
+        # Adding actual data
         pb = ui.ui_factory.nested_progress_bar()
         try:
             self._add_inventories(self._manifest_order, mapping, pb)

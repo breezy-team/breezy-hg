@@ -111,6 +111,18 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
     """Simple O(n) manifest to inventory converter. 
 
     Does not take renames into account.
+
+    :param mapping: Bzr<->Hg mapping to use
+    :param basis_inv: Basis (Bazaar) inventory
+    :param other_inv: Optional merge parent inventory
+    :param (basis_manifest, basis_flags): Manifest and flags matching basis 
+        inventory.
+    :param (manifest, flags): Manifest and flags to convert
+    :param revid: Revision id of the revision for which to convert the manifest
+    :param files: List of files changed somehow
+    :param lookup_metadata: Function for looking up sha1 
+        and length for a node by (fileid, revision) tuple.
+    :param lookup_symlink: Function to lookup symlink target.
     """
     # Set of directories that have been created in this delta
     directories = {}
@@ -239,10 +251,17 @@ def parse_changeset(text):
     return (manifest, user, (time, timezone), files, desc, extra)
 
 
-def unpack_chunk_iter(chunks, mapping, lookup_base):
+def unpack_chunk_iter(chunk_iter, lookup_base):
+    """Unpack a series of Mercurial deltas.
+
+    :param chunk_iter: Iterator over chunks to unpack
+    :param lookup_base: Function to look up contents of 
+        bases for deltas.
+    :return: Iterator over (fulltext, node, (p1, p2)) tuples.
+    """
     fulltext_cache = {}
     base = None
-    for chunk in chunks:
+    for chunk in chunk_iter:
         node, p1, p2, cs = struct.unpack("20s20s20s20s", chunk[:80])
         if base is None:
             base = p1
@@ -389,8 +408,7 @@ class FromHgRepository(InterRepository):
             def get_text(node):
                 key = iter(filetext_map[fileid][node]).next()
                 return self._get_target_fulltext(key)
-            for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter,
-                mapping, get_text):
+            for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter, get_text):
                 for revision in filetext_map[fileid][hgkey]:
                     key = (fileid, revision)
                     record = FulltextContentFactory(key, None, osutils.sha_string(fulltext), fulltext)
@@ -419,7 +437,7 @@ class FromHgRepository(InterRepository):
 
     def _unpack_changesets(self, cg, mapping, pb):
         chunkiter = mercurial.changegroup.chunkiter(cg)
-        for i, (fulltext, hgkey, hgparents) in enumerate(unpack_chunk_iter(chunkiter, mapping,
+        for i, (fulltext, hgkey, hgparents) in enumerate(unpack_chunk_iter(chunkiter, 
                 lambda node: self._get_hg_revision(mapping, node))):
             pb.update("fetching changesets", i)
             (manifest, user, (time, timezone), files, desc, extra) = \
@@ -441,8 +459,7 @@ class FromHgRepository(InterRepository):
                 raise NotImplementedError(self._get_manifest_text)
         filetext_map = defaultdict(lambda: defaultdict(set))
         chunkiter = mercurial.changegroup.chunkiter(cg)
-        for i, (fulltext, hgkey, hgparents) in enumerate(unpack_chunk_iter(chunkiter, mapping, 
-            get_manifest_text)):
+        for i, (fulltext, hgkey, hgparents) in enumerate(unpack_chunk_iter(chunkiter, get_manifest_text)):
             pb.update("fetching manifests", i, len(self._revisions))
             manifest = mercurial.manifest.manifestdict()
             flags = {}

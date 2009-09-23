@@ -102,7 +102,6 @@ class HgBranch(ForeignBranch):
 
     def get_parent(self):
         """Return the URL of the parent branch."""
-        # TODO: Obtain "repository default" 
         return self.get_config().get_parent()
 
     def get_physical_lock_status(self):
@@ -168,16 +167,16 @@ class InterHgBranch(InterBranch):
 
     @staticmethod
     def is_compatible(source, target):
+        """See InterBranch.is_compatible()."""
         return (isinstance(source, HgBranch) and isinstance(target, HgBranch))
 
     def pull(self, overwrite=False, stop_revision=None, 
              possible_transports=None, local=False):
+        """See InterBranch.pull()."""
         result = PullResult()
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revno, result.old_revid = self.target.last_revision_info()
-        # TODO: Just use Mercurial API here directly rather than going via 
-        # InterRepository ?
         inter = InterRepository.get(self.source.repository, 
                                     self.target.repository)
         inter.fetch(revision_id=stop_revision)
@@ -185,12 +184,11 @@ class InterHgBranch(InterBranch):
         return result
 
     def push(self, overwrite=False, stop_revision=None):
+        """See InterBranch.push()."""
         result = BranchPushResult()
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revid = self.target.last_revision()
-        # TODO: Just use Mercurial API here directly rather than going via 
-        # InterRepository ?
         inter = InterRepository.get(self.source.repository, 
                                     self.target.repository)
         inter.fetch(revision_id=stop_revision)
@@ -206,11 +204,13 @@ class FromHgBranch(InterBranch):
 
     @staticmethod
     def is_compatible(source, target):
+        """See InterBranch.is_compatible()."""
         return (isinstance(source, HgBranch) and 
                 not isinstance(target, HgBranch))
 
     def pull(self, overwrite=False, stop_revision=None, 
              possible_transports=None, local=False):
+        """See InterBranch.pull()."""
         result = PullResult()
         result.source_branch = self.source
         result.target_branch = self.target
@@ -225,6 +225,7 @@ class FromHgBranch(InterBranch):
         return result
 
     def push(self, overwrite=False, stop_revision=None):
+        """See InterBranch.push()."""
         result = BranchPushResult()
         result.source_branch = self.source
         result.target_branch = self.target

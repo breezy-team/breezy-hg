@@ -28,6 +28,7 @@
 """Inter-repository operations involving Mercurial repositories."""
 
 from collections import defaultdict
+import itertools
 import mercurial.encoding
 import mercurial.node
 import mercurial.util
@@ -281,12 +282,12 @@ def unpack_chunk_iter(chunk_iter, lookup_base):
         base = node
 
 
-def get_changed_files(inventory):
-    ret = []
-    for path, entry in inventory.iter_entries():
-        if entry.revision == inventory.revision_id:
-            ret.append(path)
-    return ret
+def unpack_manifest_chunks(chunkiter, lookup_base):
+    for (fulltext, hgkey, hgparents) in unpack_chunk_iter(chunkiter, lookup_base):
+        manifest = mercurial.manifest.manifestdict()
+        flags = {}
+        mercurial.parsers.parse_manifest(manifest, flags, fulltext)
+        yield hgkey, manifest, flags
 
 
 def create_directory_texts(texts, invdelta):
@@ -314,7 +315,6 @@ class FromHgRepository(InterRepository):
         self._revisions = {}
         self._files = {}
         self._manifests = {}
-        self._manifest_order = []
         self._text_metadata = {}
 
     @classmethod
@@ -407,11 +407,10 @@ class FromHgRepository(InterRepository):
                     self._text_metadata[key] = (record.sha1, len(fulltext))
                     yield record
 
-    def _add_inventories(self, manifest_ids, mapping, pb):
+    def _add_inventories(self, manifestchunks, mapping, pb):
         # add the actual revisions
-        for i, manifest_id in enumerate(manifest_ids):
-            pb.update("adding inventories", i, len(manifest_ids))
-            manifest, flags = self._get_manifest(manifest_id)
+        for i, (manifest_id, manifest, flags) in enumerate(unpack_manifest_chunks(manifestchunks, None)):
+            pb.update("adding inventories", i, len(self._revisions))
             for revid in self._manifest2rev_map[manifest_id]:
                 rev = self._get_revision(revid)
                 files = self._get_files(rev.revision_id)
@@ -426,8 +425,7 @@ class FromHgRepository(InterRepository):
                     basis_revid, invdelta, rev.revision_id, rev.parent_ids)
                 self.target.add_revision(rev.revision_id, rev, new_inv)
 
-    def _unpack_changesets(self, cg, mapping, pb):
-        chunkiter = mercurial.changegroup.chunkiter(cg)
+    def _unpack_changesets(self, chunkiter, mapping, pb):
         for i, (fulltext, hgkey, hgparents) in enumerate(unpack_chunk_iter(chunkiter, 
                 lambda node: self._get_hg_revision(mapping, node))):
             pb.update("fetching changesets", i)
@@ -441,17 +439,12 @@ class FromHgRepository(InterRepository):
             self._rev2manifest_map[key] = manifest
             self._revisions[rev.revision_id] = rev
 
-    def _unpack_manifests(self, cg, mapping, pb):
+    def _unpack_manifests(self, chunkiter, mapping, pb):
         def get_manifest_text(node):
             raise NotImplementedError(self._get_manifest_text)
         filetext_map = defaultdict(lambda: defaultdict(set))
-        chunkiter = mercurial.changegroup.chunkiter(cg)
-        for i, (fulltext, hgkey, hgparents) in enumerate(unpack_chunk_iter(chunkiter, get_manifest_text)):
+        for i, (hgkey, manifest, flags) in enumerate(unpack_manifest_chunks(chunkiter, get_manifest_text)):
             pb.update("fetching manifests", i, len(self._revisions))
-            manifest = mercurial.manifest.manifestdict()
-            flags = {}
-            mercurial.parsers.parse_manifest(manifest, flags, 
-                fulltext)
             self._manifests[hgkey] = (manifest, flags)
             for revid in self._manifest2rev_map[hgkey]:
                 for path in self._get_files(revid):
@@ -459,7 +452,6 @@ class FromHgRepository(InterRepository):
                     if path in manifest:
                         # Path still has to actually exist..
                         filetext_map[fileid][manifest[path]].add(revid)
-            self._manifest_order.append(hgkey)
         return filetext_map
 
     def addchangegroup(self, cg, mapping):
@@ -472,15 +464,17 @@ class FromHgRepository(InterRepository):
         self._manifest2rev_map = defaultdict(set)
         self._rev2manifest_map = {}
         # Changesets
+        manifestchunks1, manifestchunks2 = itertools.tee(mercurial.changegroup.chunkiter(cg))
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            self._unpack_changesets(cg, mapping, pb)
+            self._unpack_changesets(manifestchunks1, mapping, pb)
         finally:
             pb.finished()
         # Manifests
+        chunkiter = list(mercurial.changegroup.chunkiter(cg))
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            filetext_map = self._unpack_manifests(cg, mapping, pb)
+            filetext_map = self._unpack_manifests(chunkiter, mapping, pb)
         finally:
             pb.finished()
         # Texts
@@ -492,7 +486,7 @@ class FromHgRepository(InterRepository):
         # Adding actual data
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            self._add_inventories(self._manifest_order, mapping, pb)
+            self._add_inventories(manifestchunks2, mapping, pb)
         finally:
             pb.finished()
 

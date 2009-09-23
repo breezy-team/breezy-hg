@@ -451,12 +451,8 @@ class FromHgRepository(InterRepository):
             self._revisions[rev.revision_id] = rev
 
     def _unpack_manifests(self, cg, mapping, pb):
-        manifest_texts = {}
         def get_manifest_text(node):
-            try:
-                return manifest_texts[node]
-            except KeyError:
-                raise NotImplementedError(self._get_manifest_text)
+            raise NotImplementedError(self._get_manifest_text)
         filetext_map = defaultdict(lambda: defaultdict(set))
         chunkiter = mercurial.changegroup.chunkiter(cg)
         for i, (fulltext, hgkey, hgparents) in enumerate(unpack_chunk_iter(chunkiter, get_manifest_text)):
@@ -465,7 +461,6 @@ class FromHgRepository(InterRepository):
             flags = {}
             mercurial.parsers.parse_manifest(manifest, flags, 
                 fulltext)
-            manifest_texts[hgkey] = fulltext
             self._manifests[hgkey] = (manifest, flags)
             for revid in self._manifest2rev_map[hgkey]:
                 for path in self._get_files(revid):

@@ -323,6 +323,8 @@ class FromHgRepository(InterRepository):
         self._remember_manifests = defaultdict(lambda: 0)
         self._manifests = {}
         self._text_metadata = {}
+        # Map mapping manifest ids to bzr revision ids
+        self._manifest2rev_map = defaultdict(set)
 
     @classmethod
     def _get_repo_format_to_test(self):
@@ -349,14 +351,16 @@ class FromHgRepository(InterRepository):
                 ret.append(self._inventories[revid])
         return ret
 
-    def _import_manifest_delta(self, manifest, flags, files, rev, mapping):
+    def _import_manifest_delta(self, manifest, manifest_p1, flags, files, rev, mapping):
         def get_base(node):
-            self._remember_manifests[node] -= 1
+            assert self._remember_manifests[node] > 0
             try:
                 return self._manifests[node]
             finally:
+                self._remember_manifests[node] -= 1
                 if self._remember_manifests[node] == 0:
                     del self._manifests[node]
+                    del self._remember_manifests[node]
         parent_invs = self._get_inventories(rev.parent_ids)
         assert len(rev.parent_ids) in (0, 1, 2)
         if len(rev.parent_ids) == 0:
@@ -366,8 +370,7 @@ class FromHgRepository(InterRepository):
             basis_flags = {}
         else:
             basis_inv = parent_invs[0]
-            basis_manifest, basis_flags = get_base(
-                self._rev2manifest_map[rev.parent_ids[0]])
+            basis_manifest, basis_flags = get_base(manifest_p1)
             if len(rev.parent_ids) == 2:
                 other_inv = parent_invs[1]
             else:
@@ -418,7 +421,7 @@ class FromHgRepository(InterRepository):
                     basis_revid = NULL_REVISION
                 else:
                     basis_revid = rev.parent_ids[0]
-                invdelta = self._import_manifest_delta(manifest, flags, files,
+                invdelta = self._import_manifest_delta(manifest, manifest_parents[0], flags, files,
                                                        rev, mapping)
                 create_directory_texts(self.target.texts, invdelta)
                 (validator, new_inv) = self.target.add_inventory_by_delta(
@@ -428,6 +431,8 @@ class FromHgRepository(InterRepository):
                 del self._revisions[rev.revision_id]
                 if self._remember_manifests[manifest_id] > 0:
                     self._manifests[manifest_id] = (manifest, flags)
+        del self._remember_manifests[mercurial.node.nullid]
+        assert len([x for x,n in self._remember_manifests.iteritems() if n > 1]) == 0, "%r not empty" % self._remember_manifests
 
     def _unpack_changesets(self, chunkiter, mapping, pb):
         def get_hg_revision(hgid):
@@ -452,7 +457,6 @@ class FromHgRepository(InterRepository):
             rev = mapping.import_revision(key, hgkey,
                 hgparents, manifest, user, (time, timezone), desc, extra)
             self._manifest2rev_map[manifest].add(key)
-            self._rev2manifest_map[key] = manifest
             self._revisions[rev.revision_id] = rev
 
     def _unpack_manifests(self, chunkiter, mapping, pb):
@@ -476,9 +480,6 @@ class FromHgRepository(InterRepository):
         :param cg: Changegroup to add
         :param mapping: Mercurial mapping
         """
-        # Map mapping manifest ids to bzr revision ids
-        self._manifest2rev_map = defaultdict(set)
-        self._rev2manifest_map = {}
         # Changesets
         chunkiter = mercurial.changegroup.chunkiter(cg)
         pb = ui.ui_factory.nested_progress_bar()

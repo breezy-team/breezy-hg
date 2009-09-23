@@ -17,6 +17,7 @@
 
 """Mappings."""
 
+import base64
 import mercurial
 from mercurial.node import (
     hex,
@@ -61,7 +62,10 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         user = rev.committer.encode("utf-8")
         time = rev.timestamp
         timezone = -rev.timezone
-        extra = dict(rev.properties)
+        extra = {}
+        for name, value in rev.properties.iteritems():
+            if name.startswith("hg:"):
+                extra[name[len("hg:"):]] = base64.b64decode(value)
         del extra["manifest"]
         desc = rev.message.encode("utf-8")
         manifest = mercurial.node.bin(rev.properties['manifest'])
@@ -80,8 +84,11 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         result.timezone = -timezone
         result.timestamp = time
         result.committer = user.decode("utf-8")
-        result.properties = dict(extra)
-        result.properties['manifest'] = mercurial.node.hex(manifest)
+        result.properties = {
+                'manifest': mercurial.node.hex(manifest)
+                }
+        for name, value in extra.iteritems():
+            result.properties["hg:" + name] = base64.b64encode(value)
         return result
 
 

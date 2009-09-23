@@ -35,6 +35,7 @@ import os
 import struct
 
 from bzrlib import (
+    lru_cache,
     osutils,
     trace,
     ui,
@@ -309,7 +310,7 @@ class FromHgRepository(InterRepository):
 
     def __init__(self, source, target):
         InterRepository.__init__(self, source, target)
-        self._inventories = {}
+        self._inventories = lru_cache.LRUSizeCache(10*1024*1024)
         self._revisions = {}
         self._files = {}
         self._manifests = {}
@@ -328,17 +329,7 @@ class FromHgRepository(InterRepository):
             return self.target.get_revision(revid)
 
     def _get_files(self, revid):
-        try:
-            return self._files[revid]
-        except KeyError:
-            inv = self._get_inventory(revid)
-            return get_changed_files(inv)
-
-    def _get_inventory(self, revid):
-        try:
-            return self._inventories[revid]
-        except KeyError:
-            return self.target.get_inventory(revid)
+        return self._files[revid]
 
     def _get_inventories(self, revision_ids):
         ret = []

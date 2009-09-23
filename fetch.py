@@ -292,7 +292,7 @@ def parse_manifest(fulltext):
 def unpack_manifest_chunks(chunkiter, lookup_base):
     for (fulltext, hgkey, hgparents) in unpack_chunk_iter(chunkiter, lookup_base):
         (manifest, flags) = parse_manifest(fulltext)
-        yield hgkey, manifest, flags
+        yield hgkey, hgparents, manifest, flags
 
 
 def create_directory_texts(texts, invdelta):
@@ -316,9 +316,10 @@ class FromHgRepository(InterRepository):
 
     def __init__(self, source, target):
         InterRepository.__init__(self, source, target)
-        self._inventories = lru_cache.LRUSizeCache(10*1024*1024)
+        self._inventories = lru_cache.LRUCache(25)
         self._revisions = {}
         self._files = {}
+        self._remember_manifests = defaultdict(lambda: 0)
         self._manifests = {}
         self._text_metadata = {}
 
@@ -347,10 +348,14 @@ class FromHgRepository(InterRepository):
                 ret.append(self._inventories[revid])
         return ret
 
-    def _get_manifest(self, node):
-        return self._manifests[node]
-
     def _import_manifest_delta(self, manifest, flags, files, rev, mapping):
+        def get_base(node):
+            self._remember_manifests[node] -= 1
+            try:
+                return self._manifests[node]
+            finally:
+                if self._remember_manifests[node] == 0:
+                    del self._manifests[node]
         parent_invs = self._get_inventories(rev.parent_ids)
         assert len(rev.parent_ids) in (0, 1, 2)
         if len(rev.parent_ids) == 0:
@@ -360,7 +365,7 @@ class FromHgRepository(InterRepository):
             basis_flags = {}
         else:
             basis_inv = parent_invs[0]
-            basis_manifest, basis_flags = self._get_manifest(
+            basis_manifest, basis_flags = get_base(
                 self._rev2manifest_map[rev.parent_ids[0]])
             if len(rev.parent_ids) == 2:
                 other_inv = parent_invs[1]
@@ -371,19 +376,6 @@ class FromHgRepository(InterRepository):
                 (manifest, flags), rev.revision_id, files, 
                 self._text_metadata.__getitem__,
                 self._get_target_fulltext))
-
-    def _get_hg_revision(self, mapping, hgid):
-        revid = mapping.revision_id_foreign_to_bzr(hgid)
-        rev = self._get_revision(revid)
-        (manifest, user, (time, timezone), desc, extra) = \
-            mapping.export_revision(rev)
-        # FIXME: For now we always know that a manifest id was stored since 
-        # we don't support roundtripping into Mercurial yet. When we do, 
-        # we need a fallback mechanism to determine the manifest id.
-        assert manifest is not None
-        files = self._get_files(revid)
-        return format_changeset(manifest, files, user, (time, timezone), desc,
-                                extra)
 
     def _get_target_fulltext(self, key):
         stream = self.target.texts.get_record_stream([key],
@@ -414,7 +406,7 @@ class FromHgRepository(InterRepository):
 
     def _add_inventories(self, manifestchunks, mapping, pb):
         # add the actual revisions
-        for i, (manifest_id, manifest, flags) in enumerate(unpack_manifest_chunks(manifestchunks, None)):
+        for i, (manifest_id, manifest_parents, manifest, flags) in enumerate(unpack_manifest_chunks(manifestchunks, None)):
             pb.update("adding inventories", i, len(self._revisions))
             for revid in self._manifest2rev_map[manifest_id]:
                 rev = self._get_revision(revid)
@@ -430,10 +422,24 @@ class FromHgRepository(InterRepository):
                     basis_revid, invdelta, rev.revision_id, rev.parent_ids)
                 self._inventories[rev.revision_id] = new_inv
                 self.target.add_revision(rev.revision_id, rev, new_inv)
+                if self._remember_manifests[manifest_id]:
+                    self._manifests[manifest_id] = (manifest, flags)
 
     def _unpack_changesets(self, chunkiter, mapping, pb):
+        def get_hg_revision(hgid):
+            revid = mapping.revision_id_foreign_to_bzr(hgid)
+            rev = self._get_revision(revid)
+            (manifest, user, (time, timezone), desc, extra) = \
+                mapping.export_revision(rev)
+            # FIXME: For now we always know that a manifest id was stored since 
+            # we don't support roundtripping into Mercurial yet. When we do, 
+            # we need a fallback mechanism to determine the manifest id.
+            assert manifest is not None
+            files = self._get_files(revid)
+            return format_changeset(manifest, files, user, (time, timezone), desc,
+                                    extra)
         for i, (fulltext, hgkey, hgparents) in enumerate(unpack_chunk_iter(chunkiter, 
-                lambda node: self._get_hg_revision(mapping, node))):
+                get_hg_revision)):
             pb.update("fetching changesets", i)
             (manifest, user, (time, timezone), files, desc, extra) = \
                 parse_changeset(fulltext)
@@ -447,17 +453,17 @@ class FromHgRepository(InterRepository):
 
     def _unpack_manifests(self, chunkiter, mapping, pb):
         def get_manifest_text(node):
-            raise NotImplementedError(self._get_manifest_text)
+            raise NotImplementedError(get_manifest_text)
         filetext_map = defaultdict(lambda: defaultdict(set))
-        for i, (hgkey, manifest, flags) in enumerate(unpack_manifest_chunks(chunkiter, get_manifest_text)):
+        for i, (hgkey, hgparents, manifest, flags) in enumerate(unpack_manifest_chunks(chunkiter, get_manifest_text)):
             pb.update("fetching manifests", i, len(self._revisions))
-            self._manifests[hgkey] = (manifest, flags)
             for revid in self._manifest2rev_map[hgkey]:
                 for path in self._get_files(revid):
                     fileid = mapping.generate_file_id(path)
                     if path in manifest:
                         # Path still has to actually exist..
                         filetext_map[fileid][manifest[path]].add(revid)
+                self._remember_manifests[hgparents[0]] += 1
         return filetext_map
 
     def addchangegroup(self, cg, mapping):

@@ -282,11 +282,16 @@ def unpack_chunk_iter(chunk_iter, lookup_base):
         base = node
 
 
+def parse_manifest(fulltext):
+    manifest = mercurial.manifest.manifestdict()
+    flags = {}
+    mercurial.parsers.parse_manifest(manifest, flags, fulltext)
+    return manifest, flags
+
+
 def unpack_manifest_chunks(chunkiter, lookup_base):
     for (fulltext, hgkey, hgparents) in unpack_chunk_iter(chunkiter, lookup_base):
-        manifest = mercurial.manifest.manifestdict()
-        flags = {}
-        mercurial.parsers.parse_manifest(manifest, flags, fulltext)
+        (manifest, flags) = parse_manifest(fulltext)
         yield hgkey, manifest, flags
 
 
@@ -423,6 +428,7 @@ class FromHgRepository(InterRepository):
                 create_directory_texts(self.target.texts, invdelta)
                 (validator, new_inv) = self.target.add_inventory_by_delta(
                     basis_revid, invdelta, rev.revision_id, rev.parent_ids)
+                self._inventories[rev.revision_id] = new_inv
                 self.target.add_revision(rev.revision_id, rev, new_inv)
 
     def _unpack_changesets(self, chunkiter, mapping, pb):
@@ -464,17 +470,17 @@ class FromHgRepository(InterRepository):
         self._manifest2rev_map = defaultdict(set)
         self._rev2manifest_map = {}
         # Changesets
-        manifestchunks1, manifestchunks2 = itertools.tee(mercurial.changegroup.chunkiter(cg))
+        chunkiter = mercurial.changegroup.chunkiter(cg)
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            self._unpack_changesets(manifestchunks1, mapping, pb)
+            self._unpack_changesets(chunkiter, mapping, pb)
         finally:
             pb.finished()
         # Manifests
-        chunkiter = list(mercurial.changegroup.chunkiter(cg))
+        manifestchunks1, manifestchunks2 = itertools.tee(mercurial.changegroup.chunkiter(cg))
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            filetext_map = self._unpack_manifests(chunkiter, mapping, pb)
+            filetext_map = self._unpack_manifests(manifestchunks1, mapping, pb)
         finally:
             pb.finished()
         # Texts

@@ -89,6 +89,7 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
         ie = InventoryDirectory(other_fileid, other_ie.name,
                                 other_ie.parent_id)
         ie.revision = other_ie.revision
+        directories[path] = other_fileid
         return ([(None, path, other_fileid, ie)], other_fileid)
     if path != "":
         ret, parent_id = inventory_create_directory(directories, basis_inv, 
@@ -405,12 +406,14 @@ class FromHgRepository(InterRepository):
                     yield record
 
     def _add_inventories(self, manifestchunks, mapping, pb):
+        total = len(self._revisions)
         # add the actual revisions
         for i, (manifest_id, manifest_parents, manifest, flags) in enumerate(unpack_manifest_chunks(manifestchunks, None)):
-            pb.update("adding inventories", i, len(self._revisions))
+            pb.update("adding inventories", i, total)
             for revid in self._manifest2rev_map[manifest_id]:
                 rev = self._get_revision(revid)
                 files = self._get_files(rev.revision_id)
+                del self._files[rev.revision_id]
                 if rev.parent_ids == []:
                     basis_revid = NULL_REVISION
                 else:
@@ -422,7 +425,8 @@ class FromHgRepository(InterRepository):
                     basis_revid, invdelta, rev.revision_id, rev.parent_ids)
                 self._inventories[rev.revision_id] = new_inv
                 self.target.add_revision(rev.revision_id, rev, new_inv)
-                if self._remember_manifests[manifest_id]:
+                del self._revisions[rev.revision_id]
+                if self._remember_manifests[manifest_id] > 0:
                     self._manifests[manifest_id] = (manifest, flags)
 
     def _unpack_changesets(self, chunkiter, mapping, pb):

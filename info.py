@@ -7,7 +7,7 @@ bzr_minimum_version = bzr_compatible_versions[0]
 
 bzr_maximum_version = bzr_compatible_versions[-1]
 
-bzr_plugin_version = (0, 1, 0, 'dev', 0)
+bzr_plugin_version = (0, 1, 0, 'final', 0)
 
 bzr_control_formats = {"Mercurial": {'.hg/': None}}
 

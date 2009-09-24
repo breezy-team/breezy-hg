@@ -78,7 +78,7 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
     """
     if path in directories:
         return ([], directories[path])
-    if basis_inv.has_filename(path):
+    if basis_inv is not None and basis_inv.has_filename(path):
         directories[path] = basis_inv.path2id(path)
         return ([], directories[path])
     if (other_inv is not None and 
@@ -116,7 +116,7 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
     Does not take renames into account.
 
     :param mapping: Bzr<->Hg mapping to use
-    :param basis_inv: Basis (Bazaar) inventory
+    :param basis_inv: Basis (Bazaar) inventory (may be None if there are no parents)
     :param other_inv: Optional merge parent inventory
     :param (basis_manifest, basis_flags): Manifest and flags matching basis 
         inventory.
@@ -145,7 +145,7 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
         else:
             fileid = mapping.generate_file_id(path)
             parent_path, basename = os.path.split(path)
-            if basis_inv.has_filename(path):
+            if basis_inv is not None and basis_inv.has_filename(path):
                 old_path = path
                 parent_id = basis_inv.path2id(parent_path)
             else:
@@ -364,7 +364,7 @@ class FromHgRepository(InterRepository):
         parent_invs = self._get_inventories(rev.parent_ids)
         assert len(rev.parent_ids) in (0, 1, 2)
         if len(rev.parent_ids) == 0:
-            basis_inv = Inventory(root_id=None)
+            basis_inv = None
             other_inv = None
             basis_manifest = {}
             basis_flags = {}
@@ -375,8 +375,8 @@ class FromHgRepository(InterRepository):
                 other_inv = parent_invs[1]
             else:
                 other_inv = None
-        return list(manifest_to_inventory_delta(mapping, basis_inv, other_inv,
-                (basis_manifest, basis_flags),
+        return basis_inv, list(manifest_to_inventory_delta(mapping, 
+                basis_inv, other_inv, (basis_manifest, basis_flags),
                 (manifest, flags), rev.revision_id, files, 
                 self._text_metadata.__getitem__,
                 self._get_target_fulltext))
@@ -421,11 +421,13 @@ class FromHgRepository(InterRepository):
                     basis_revid = NULL_REVISION
                 else:
                     basis_revid = rev.parent_ids[0]
-                invdelta = self._import_manifest_delta(manifest, manifest_parents[0], flags, files,
-                                                       rev, mapping)
+                basis_inv, invdelta = self._import_manifest_delta(
+                    manifest, manifest_parents[0], flags, files, 
+                    rev, mapping)
                 create_directory_texts(self.target.texts, invdelta)
                 (validator, new_inv) = self.target.add_inventory_by_delta(
-                    basis_revid, invdelta, rev.revision_id, rev.parent_ids)
+                    basis_revid, invdelta, rev.revision_id, rev.parent_ids, 
+                    basis_inv)
                 self._inventories[rev.revision_id] = new_inv
                 self.target.add_revision(rev.revision_id, rev, new_inv)
                 del self._revisions[rev.revision_id]

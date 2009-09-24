@@ -202,10 +202,7 @@ class HgDir(bzrlib.bzrdir.BzrDir):
                              self._lockfiles)
 
     def cloning_metadir(self, stacked=False):
-        try:
-            return bzrlib.bzrdir.format_registry.make_bzrdir("default-rich-root")
-        except KeyError:
-            return bzrlib.bzrdir.format_registry.make_bzrdir("1.9-rich-root")
+        return bzrlib.bzrdir.format_registry.make_bzrdir("default-rich-root")
 
 
 class HgToSomethingConverter(bzrlib.bzrdir.Converter):

@@ -1,5 +1,9 @@
 0.2.0		UNRELEASED
 
+ BUG FIXES
+
+  * Mark as compatible with Bazaar 2.1.
+
 0.1.0		2009-09-24
 
  Initial release.

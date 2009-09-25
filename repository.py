@@ -21,6 +21,7 @@ import os
 
 from bzrlib import (
     errors,
+    ui,
     )
 from bzrlib.foreign import (
     ForeignRepository,
@@ -68,7 +69,7 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
 
 
 def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
-                          mapping):
+                          mapping, pb):
     """Convert a Mercurial manifest to a Bazaar inventory.
 
     :param hgrepo: A local Mercurial repository
@@ -77,6 +78,7 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
     :param manifest: The manifest
     :param all_relevant_revisions: Graph will relevant revisions
     :param mapping: Mapping to use
+    :param pb: Progress bar
     :return: Inventory object
     """
     ancestry_cache = {}
@@ -154,7 +156,8 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
     # the dirname() calls.
     known_manifests = {}
     """manifests addressed by changelog."""
-    for file, file_revision in manifest.items():
+    for i, (file, file_revision) in enumerate(manifest.items()):
+        pb.update("converting manifest", i, len(manifest))
         revlog = hgrepo.file(file)
         file_flags = manifest.flags(file)
 
@@ -306,8 +309,12 @@ class HgRepository(ForeignRepository):
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
         all_relevant_revisions = self.get_revision_graph(revision_id)
-        return manifest_to_inventory(self._hgrepo, hgid, log, manifest,
-            all_relevant_revisions, mapping)
+        pb = ui.ui_factory.nested_progress_bar()
+        try:
+            return manifest_to_inventory(self._hgrepo, hgid, log, manifest,
+                all_relevant_revisions, mapping, pb)
+        finally:
+            pb.finished()
 
     def get_revision_graph(self, revision_id=None):
         if revision_id is None:

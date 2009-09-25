@@ -1,8 +1,12 @@
 0.2.0		UNRELEASED
 
+ FEATURES
+
+  * Add progress bar in manifest converter. (Jelmer Vernooij)
+
  BUG FIXES
 
-  * Mark as compatible with Bazaar 2.1.
+  * Mark as compatible with Bazaar 2.1. (Jelmer Vernooij)
 
 0.1.0		2009-09-24
 

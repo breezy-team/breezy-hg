@@ -1,3 +1,6 @@
 - Call out to mercurial for consistency checking?
 - Obtain appropriate repository defaults in Branch.get_parent() and 
   Branch.get_push_location()
+- Set proper text parents during fetch
+- Remove empty directories during fetch
+- Support roundtripping into Mercurial

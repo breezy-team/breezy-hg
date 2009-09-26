@@ -254,6 +254,7 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         # little ugly, but works
         format = klass() 
         from bzrlib.transport.local import LocalTransport
+        lazy_load_mercurial()
         from mercurial import error as hg_errors
         try:
             format.open(transport)

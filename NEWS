@@ -11,6 +11,8 @@
   * Check for Mercurial version before attempting to import it.
     (#432100, Jelmer Vernooij)
 
+  * Deal with spaces in paths. (Jelmer Vernooij)
+
 0.1.0		2009-09-24
 
  Initial release.

@@ -29,6 +29,31 @@ from bzrlib import (
     foreign,
     )
 
+
+def escape_path(path):
+    return path.replace('_', '__').replace('/', '_s').replace(' ', '_w')
+
+
+def unescape_path(file_id):
+    ret = []
+    i = 0
+    while i < len(file_id):
+        if file_id[i] != '_':
+            ret.append(file_id[i])
+        else:
+            if file_id[i+1] == '_':
+                ret.append("_")
+            elif file_id[i+1] == 's':
+                ret.append("/")
+            elif file_id[i+1] == 'w':
+                ret.append(" ")
+            else:
+                raise AssertionError("unknown escape character %s" % file_id[i+1])
+            i += 1
+        i += 1
+    return "".join(ret)
+
+
 class ExperimentalHgMapping(foreign.VcsMapping):
     """Class that maps between Bazaar and Mercurial semantics."""
     experimental = True
@@ -50,13 +75,13 @@ class ExperimentalHgMapping(foreign.VcsMapping):
     @classmethod
     def generate_file_id(self, path):
         """Create a synthetic file_id for an hg file."""
-        return "hg:" + path.replace('/', ':')
+        return "hg:" + escape_path(path)
 
     @classmethod
     def parse_file_id(self, fileid):
         """Parse a file id."""
         # FIXME
-        return fileid[len("hg:"):].replace(':', '/')
+        return unescape_path(fileid[len("hg:"):])
 
     def export_revision(self, rev):
         user = rev.committer.encode("utf-8")

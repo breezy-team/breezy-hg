@@ -31,7 +31,7 @@ class ui(mercurial.ui.ui):
 
     def warn(self, *msg):
         for x in msg:
-            trace.warn("hg: %s" % x)
+            trace.warning("hg: %s" % x)
 
     def note(self, *msg):
         for x in msg:

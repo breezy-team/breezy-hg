@@ -31,10 +31,20 @@ from bzrlib import (
 
 
 def escape_path(path):
+    """Escape a path for use as a file id.
+
+    :param path: path to escape
+    :return: file id
+    """
     return path.replace('_', '__').replace('/', '_s').replace(' ', '_w')
 
 
 def unescape_path(file_id):
+    """Unescape a file id created with escape_path().
+    
+    :param file_id: File id to unescape
+    :return: Unescaped path
+    """
     ret = []
     i = 0
     while i < len(file_id):
@@ -48,7 +58,7 @@ def unescape_path(file_id):
             elif file_id[i+1] == 'w':
                 ret.append(" ")
             else:
-                raise AssertionError("unknown escape character %s" % file_id[i+1])
+                raise ValueError("unknown escape character %s" % file_id[i+1])
             i += 1
         i += 1
     return "".join(ret)
@@ -80,7 +90,8 @@ class ExperimentalHgMapping(foreign.VcsMapping):
     @classmethod
     def parse_file_id(self, fileid):
         """Parse a file id."""
-        # FIXME
+        if not fileid.startswith("hg:"):
+            raise ValueError
         return unescape_path(fileid[len("hg:"):])
 
     def export_revision(self, rev):

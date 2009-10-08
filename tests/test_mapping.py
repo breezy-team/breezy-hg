@@ -16,11 +16,12 @@
 
 from mercurial.node import (
     hex,
-    bin,
     )
 
 from bzrlib.plugins.hg.mapping import (
     ExperimentalHgMapping,
+    escape_path,
+    unescape_path,
     )
 from bzrlib import (
     errors,
@@ -49,5 +50,22 @@ class HgMappingTests(TestCase):
                 self.mapping.revision_id_bzr_to_foreign, "foo:bar")
 
     def test_generate_file_id(self):
-        self.assertEquals("hg:foo:bar",
+        self.assertEquals("hg:foo_sbar",
             self.mapping.generate_file_id("foo/bar"))
+
+
+class EscapePathTests(TestCase):
+
+    def test_unescape(self):
+        self.assertEquals("foo", unescape_path("foo"))
+        self.assertEquals("f oo", unescape_path("f_woo"))
+        self.assertEquals("f/oo", unescape_path("f_soo"))
+        self.assertEquals("f_oo", unescape_path("f__oo"))
+        self.assertRaises(ValueError, unescape_path, "f_oo")
+        self.assertEquals("foo _", unescape_path("foo_w__"))
+
+    def test_escape(self):
+        self.assertEquals("bar", escape_path("bar"))
+        self.assertEquals("bar_w", escape_path("bar "))
+        self.assertEquals("bar_sblie_s", escape_path("bar/blie/"))
+        self.assertEquals("bar____", escape_path("bar__"))

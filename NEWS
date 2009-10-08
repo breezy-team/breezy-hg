@@ -13,6 +13,8 @@
 
   * Deal with spaces in paths. (Jelmer Vernooij)
 
+  * Remove empty directories during fetch. (Jelmer Vernooij)
+
 0.1.0		2009-09-24
 
  Initial release.

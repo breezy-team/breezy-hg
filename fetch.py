@@ -45,7 +45,6 @@ from bzrlib.decorators import (
     needs_write_lock,
     )
 from bzrlib.inventory import (
-    Inventory,
     InventoryDirectory,
     InventoryFile,
     InventoryLink,
@@ -129,7 +128,7 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
     """
     # Set of directories that have been created in this delta
     directories = {}
-    potential_removable_directories = set()
+    potential_removable_directories = defaultdict(set)
     for path in set(basis_manifest.keys() + manifest.keys()):
         if (basis_manifest.get(path) == manifest.get(path) and 
             basis_flags.get(path) == flags.get(path)):
@@ -141,7 +140,7 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
             if file_id is None:
                 raise AssertionError("Removed file %r didn't exist in basis" % path)
             yield (path, None, file_id, None)
-            potential_removable_directories.add(os.path.dirname(path))
+            potential_removable_directories[os.path.dirname(path)].add(basis_inv[file_id].name)
         else:
             fileid = mapping.generate_file_id(path)
             parent_path, basename = os.path.split(path)
@@ -180,10 +179,16 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                     ie.symlink_target = lookup_symlink(
                         (fileid, ie.revision))
             yield (old_path, path, fileid, ie)
-    # FIXME: Remove empty directories
-    for path in sorted(potential_removable_directories, reverse=True):
+    # Remove empty directories
+    for path in sorted(potential_removable_directories.keys(), reverse=True):
+        file_id = basis_inv.path2id(path)
+        if path == "":
+            # Never consider removing the root :-)
+            continue
         # Is this directory really empty ?
-        pass # yield (path, None, basis_inv.path2id(path), None)
+        if set(basis_inv[file_id].children.keys()) == potential_removable_directories[path]:
+            yield (path, None, file_id, None)
+            potential_removable_directories[basis_inv.path2id(os.path.dirname(path))].add(basis_inv[file_id].name)
 
 
 def format_changeset(manifest, files, user, date, desc, extra):

@@ -406,10 +406,10 @@ class FromHgRepository(InterRepository):
                 key = iter(filetext_map[fileid][node]).next()
                 return self._get_target_fulltext(key)
             for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter, get_text):
-                for revision in filetext_map[fileid][hgkey]:
+                for revision, parents in filetext_map[fileid][hgkey].iteritems():
                     key = (fileid, revision)
                     record = FulltextContentFactory(key, None, osutils.sha_string(fulltext), fulltext)
-                    record.parents = () #FIXME?
+                    record.parents = parents
                     self._text_metadata[key] = (record.sha1, len(fulltext))
                     yield record
 
@@ -447,7 +447,7 @@ class FromHgRepository(InterRepository):
             rev = self._get_revision(revid)
             (manifest, user, (time, timezone), desc, extra) = \
                 mapping.export_revision(rev)
-            # FIXME: For now we always know that a manifest id was stored since 
+            # TODO: For now we always know that a manifest id was stored since 
             # we don't support roundtripping into Mercurial yet. When we do, 
             # we need a fallback mechanism to determine the manifest id.
             assert manifest is not None
@@ -467,17 +467,24 @@ class FromHgRepository(InterRepository):
             self._revisions[rev.revision_id] = rev
 
     def _unpack_manifests(self, chunkiter, mapping, pb):
+        """Unpack the manifest deltas.
+
+        :param chunkiter: Iterator over delta chunks for the manifest.
+        :param mapping: Bzr<->Hg mapping
+        :param pb: Progress bar
+        """
         def get_manifest_text(node):
             raise NotImplementedError(get_manifest_text)
-        filetext_map = defaultdict(lambda: defaultdict(set))
+        filetext_map = defaultdict(lambda: defaultdict(dict))
         for i, (hgkey, hgparents, manifest, flags) in enumerate(unpack_manifest_chunks(chunkiter, get_manifest_text)):
             pb.update("fetching manifests", i, len(self._revisions))
             for revid in self._manifest2rev_map[hgkey]:
                 for path in self._get_files(revid):
                     fileid = mapping.generate_file_id(path)
-                    if path in manifest:
+                    if not path in manifest:
                         # Path still has to actually exist..
-                        filetext_map[fileid][manifest[path]].add(revid)
+                        continue
+                    filetext_map[fileid][manifest[path]][revid] = () #FIXME
                 self._remember_manifests[hgparents[0]] += 1
         return filetext_map
 
@@ -516,7 +523,6 @@ class FromHgRepository(InterRepository):
 
     def get_target_heads(self):
         """Determine the heads in the target repository."""
-        # FIXME: This should be more efficient
         all_revs = self.target.all_revision_ids()
         parent_map = self.target.get_parent_map(all_revs)
         all_parents = set()

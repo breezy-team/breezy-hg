@@ -1,0 +1,27 @@
+Development
+===========
+
+Unit testing
+~~~~~~~~~~~~
+To run the bzr-hg testsuite, simply run 
+'bzr selftest --starting-with=bazaar.plugins.hg' or 
+run 'make check' in the top-level bzr-hg directory.
+
+Unavailable bzrlib API's
+~~~~~~~~~~~~~~~~~~~~~~~~
+When dealing with things that are only available in newer versions of bzr, 
+please mention in what Bazaar version they became available. This makes it 
+easy to clean up the code later, e.g.::
+
+	try:
+		from bzrlib.revspec import revspec_registry
+	except ImportError:
+		# Not available in Bazaar < 1.12
+	else:
+		revspec_registry.register_lazy("hg", "bzrlib.plugins.hg.revspec", 
+									   "RevisionSpec_hg")
+
+Coding Style, etc
+~~~~~~~~~~~~~~~~~
+Please refer to HACKING in the Bazaar source distribution.
+

@@ -4,6 +4,8 @@
 
   * Add progress bar in manifest converter. (Jelmer Vernooij)
 
+  * Support "bzr upgrade" in Mercurial working trees. (Jelmer Vernooij)
+
  BUG FIXES
 
   * Mark as compatible with Bazaar 2.1. (Jelmer Vernooij)

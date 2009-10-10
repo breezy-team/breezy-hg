@@ -181,7 +181,7 @@ class HgDir(bzrlib.bzrdir.BzrDir):
         return True
 
     def needs_format_conversion(self, format=None):
-        return True
+        return (format is not HgBzrDirFormat)
 
     def open_branch(self, ignored=None):
         """'crate' a branch for this dir."""
@@ -213,13 +213,30 @@ class HgDir(bzrlib.bzrdir.BzrDir):
 class HgToSomethingConverter(bzrlib.bzrdir.Converter):
     """A class to upgrade an hg dir to something else."""
 
+    def __init__(self, format):
+        self.format = format
+        if self.format is None:
+            self.format = bzrlib.bzrdir.BzrDirFormat.get_default_format()
+
+    def convert(self, bzrdir, pb):
+        source_repo = bzrdir.open_repository()
+        source_branch = bzrdir.open_branch()
+        target = self.format.initialize_on_transport(bzrdir.root_transport)
+        target_repo = target.create_repository()
+        target_repo.fetch(source_repo, pb=pb)
+        target_branch = target.create_branch()
+        target_branch.generate_revision_history(source_branch.last_revision())
+        target_wt = target.create_workingtree()
+        bzrdir.root_transport.delete_tree(".hg")
+        return target
+
 
 class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
     """The .hg directory control format."""
 
-    def get_converter(self):
+    def get_converter(self, format):
         """We should write a converter."""
-        return HgToSomethingConverter()
+        return HgToSomethingConverter(format)
 
     def get_format_description(self):
         return "Mercurial Branch"

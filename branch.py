@@ -131,7 +131,6 @@ class HgBranch(ForeignBranch):
 
     @needs_read_lock
     def last_revision(self):
-        # FIXME: Check for "lookup" capability?
         tip = self._hgrepo.lookup("tip")
         return self.mapping.revision_id_foreign_to_bzr(tip)
 

@@ -39,6 +39,9 @@ from bzrlib.repository import (
     InterRepository,
     )
 
+class NoPushSupport(errors.BzrError):
+    _fmt = "Push is not yet supported for bzr-hg. Try dpush instead."
+
 
 class HgBranchFormat(BranchFormat):
     """Mercurial Branch Format.
@@ -217,9 +220,12 @@ class FromHgBranch(InterBranch):
         inter = InterRepository.get(self.source.repository, 
                                     self.target.repository)
         inter.fetch(revision_id=stop_revision)
+        if overwrite:
+            req_base = None
+        else:
+            req_base = self.target.last_revision()
         self.target.generate_revision_history(self.source.last_revision(), 
-                                              self.target.last_revision(),
-                                              self.source)
+            req_base, self.source)
         result.new_revno, result.new_revid = self.target.last_revision_info()
         return result
 
@@ -239,4 +245,72 @@ class FromHgBranch(InterBranch):
         return result
 
 
+class HgBranchPushResult(BranchPushResult):
+
+    def _lookup_revno(self, revid):
+        assert isinstance(revid, str), "was %r" % revid
+        # Try in source branch first, it'll be faster
+        try:
+            return self.source_branch.revision_id_to_revno(revid)
+        except errors.NoSuchRevision:
+            # FIXME: Check using graph.find_distance_to_null() ?
+            return self.target_branch.revision_id_to_revno(revid)
+
+    @property
+    def old_revno(self):
+        return self._lookup_revno(self.old_revid)
+
+    @property
+    def new_revno(self):
+        return self._lookup_revno(self.new_revid)
+
+
+def dchangegroup(repo, revisions):
+    # FIXME
+    return [], {}
+
+
+class ToHgBranch(InterBranch):
+    """InterBranch implementation that pushes into Hg."""
+
+    @classmethod
+    def is_compatible(self, source, target):
+        return (not isinstance(source, HgBranch) and 
+                isinstance(target, HgBranch))
+
+    def update_revisions(self, *args, **kwargs):
+        raise NoPushSupport()
+
+    def push(self, overwrite=True, stop_revision=None, 
+             _override_hook_source_branch=None):
+        raise NoPushSupport()
+
+    def lossy_push(self, stop_revision=None):
+        result = HgBranchPushResult()
+        result.source_branch = self.source
+        result.target_branch = self.target
+        result.old_revid = self.target.last_revision()
+        if stop_revision is None:
+            stop_revision = self.source.last_revision()
+        # FIXME: Check for diverged branches
+        # FIXME: Find out what revisions to send
+        revs = []
+        cg, revidmap = dchangegroup(self.source, revs)
+        if revidmap != {}:
+            result.new_revid = revidmap[stop_revision]
+        else:
+            result.new_revid = result.old_revid
+        heads = [self.target.mapping.revision_id_bzr_to_foreign(result.new_revid)[0]]
+        remote = self.target.repository._hgrepo
+        if remote.capable('unbundle'):
+            remote.unbundle(cg, heads, None)
+        else:
+            remote.addchangegroup(cg, 'push', self.source.base)
+        if result.new_revid != result.old_revid:
+            self.target.generate_revision_history(revidmap[stop_revision])
+        result.revidmap = revidmap
+        return result
+
+
 InterBranch.register_optimiser(FromHgBranch)
+InterBranch.register_optimiser(ToHgBranch)

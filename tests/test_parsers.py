@@ -88,3 +88,17 @@ myfile
 Some
 commit
 message"""))
+
+    def test_extra(self):
+        self.assertEquals((mercurial.node.nullid, 
+                "Jelmer Vernooij <jelmer@samba.org>",
+                (1253260798.0, -7200), ["myfile"], "Some\ncommit\nmessage",
+                {"date": "extra"}), 
+                parse_changeset("""0000000000000000000000000000000000000000
+Jelmer Vernooij <jelmer@samba.org>
+1253260798 -7200 date:extra
+myfile
+
+Some
+commit
+message"""))

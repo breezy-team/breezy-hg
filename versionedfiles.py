@@ -21,6 +21,8 @@ from bzrlib.versionedfile import (
     VersionedFiles,
     )
 
+from collections import defaultdict
+
 
 class RevlogVersionedFile(VersionedFile):
     """Basic VersionedFile interface implementation that wraps a revlog."""
@@ -33,6 +35,7 @@ class RevlogVersionedFile(VersionedFile):
         for (key, ) in nodes:
             hgid, mapping = self._mapping.revision_id_bzr_to_foreign(key)
             node = self._revlog.rev(hgid)
+            # FIXME: Parents?
             yield FulltextContentFactory(key, None, None, self._revlog.read(node))
 
     def keys(self):
@@ -57,14 +60,17 @@ class RevlogVersionedFiles(VersionedFiles):
         path = self._mapping.parse_file_id(fileid)
         return self._opener(path)
 
-    def get_record_stream(self, nodes, ordered, include_delta_closure):
-        # FIXME: Sort by fileid ?
+    def get_record_stream(self, nodes, ordering, include_delta_closure):
+        # Sort by fileid
+        sorted = defaultdict(set)
         for (fileid, revision) in nodes:
+            sorted[fileid].add(revision)
+        for fileid, revisions in sorted.iteritems():
             revlog = self._get_revlog(fileid)
             vf = RevlogVersionedFile(revlog, self._mapping)
-            for x in vf.get_record_stream([(revision, )], ordered, 
-                                          include_delta_closure):
+            for x in vf.get_record_stream([(r, ) for r in revisions],
+                    'unordered', include_delta_closure):
                 x.key = (fileid, ) + x.key
+                if x.parents is not None:
+                    x.parents = tuple([(fileid, x) for x in x.parents])
                 yield x
-
-

@@ -45,9 +45,9 @@ def format_changeset(manifest, files, user, date, desc, extra):
     # revision text contain two "\n\n" sequences -> corrupt
     # repository since read cannot unpack the revision.
     if not user:
-        raise AssertionError("empty username")
+        raise ValueError("empty username")
     if "\n" in user:
-        raise AssertionError("username %s contains a newline" % repr(user))
+        raise ValueError("username %s contains a newline" % repr(user))
 
     # strip trailing whitespace and leading and trailing empty lines
     desc = '\n'.join([l.rstrip() for l in desc.splitlines()]).strip('\n')
@@ -56,7 +56,7 @@ def format_changeset(manifest, files, user, date, desc, extra):
     desc = mercurial.encoding.fromlocal(desc)
 
     if not isinstance(date, tuple):
-        raise AssertionError("date is not a tuple")
+        raise TypeError("date is not a tuple")
     parseddate = "%d %d" % date
     if extra and extra.get("branch") in ("default", ""):
         del extra["branch"]

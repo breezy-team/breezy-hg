@@ -40,6 +40,25 @@ message""",
                 (1253260798.0, -7200), "Some\ncommit\nmessage",
                 {}))
 
+    def test_invalid_author(self):
+        self.assertRaises(ValueError, format_changeset, 
+                mercurial.node.nullid, ["myfile"],
+                "",
+                (1253260798.0, -7200), "Some\ncommit\nmessage",
+                {})
+        self.assertRaises(ValueError, format_changeset, 
+                mercurial.node.nullid, ["myfile"],
+                "Jelmer\nVernooij",
+                (1253260798.0, -7200), "Some\ncommit\nmessage",
+                {})
+
+    def test_invalid_date(self):
+        self.assertRaises(TypeError, format_changeset, 
+                mercurial.node.nullid, ["myfile"],
+                "Jelmer Vernooij <jelmer@samba.org>",
+                1253260798, "Some\ncommit\nmessage",
+                {})
+
 
 class ParseChangesetTests(TestCase):
 

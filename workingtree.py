@@ -64,7 +64,11 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
     @needs_write_lock
     def commit(self, message, revprops=None, *args, **kwargs):
         # TODO: selected file lists -> match function
-        self._hgrepo.commit(message, extra=revprops)
+        if revprops is None:
+            extra = {}
+        else:
+            extra = revprops
+        self._hgrepo.commit(message, extra=extra)
 
     def _reset_data(self):
         """Reset all cached data."""

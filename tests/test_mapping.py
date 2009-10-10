@@ -53,6 +53,13 @@ class HgMappingTests(TestCase):
         self.assertEquals("hg:foo_sbar",
             self.mapping.generate_file_id("foo/bar"))
 
+    def test_parse_file_id(self):
+        self.assertEquals("foo/bar",
+            self.mapping.parse_file_id("hg:foo_sbar"))
+
+    def test_parse_file_id_invalid(self):
+        self.assertRaises(ValueError, self.mapping.parse_file_id, "bar")
+
 
 class EscapePathTests(TestCase):
 

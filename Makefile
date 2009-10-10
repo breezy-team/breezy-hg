@@ -31,7 +31,7 @@ $(TMP_PLUGINS_DIR)/hg: $(TMP_PLUGINS_DIR)
 	ln -sf .. $@
 
 check:: build-inplace $(TMP_PLUGINS_DIR)/hg
-	BZR_PLUGIN_PATH=$(TMP_PLUGINS_DIR) $(DEBUGGER) $(PYTHON) $(PYTHON_OPTIONS) $(BZR) selftest $(TEST_OPTIONS) --starting-with=bzrlib.plugins.hg $(TESTS)
+	BZR_PLUGIN_PATH=$(TMP_PLUGINS_DIR) $(DEBUGGER) $(PYTHON) $(PYTHON_OPTIONS) $(BZR) $(BZR_OPTIONS) selftest $(TEST_OPTIONS) --starting-with=bzrlib.plugins.hg $(TESTS)
 
 check-verbose::
 	$(MAKE) check TEST_OPTIONS=-v
@@ -52,3 +52,6 @@ tags::
 	$(CTAGS) -R .
 
 ctags:: tags
+
+coverage::
+	$(MAKE) check BZR_OPTIONS="--coverage ,coverage"

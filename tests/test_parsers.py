@@ -40,6 +40,20 @@ message""",
                 (1253260798.0, -7200), "Some\ncommit\nmessage",
                 {}))
 
+    def test_extra(self):
+        self.assertEquals("""0000000000000000000000000000000000000000
+Jelmer Vernooij <jelmer@samba.org>
+1253260798 -7200 extra:data\x00more:extra
+myfile
+
+Some
+commit
+message""",
+            format_changeset(mercurial.node.nullid, ["myfile"],
+                "Jelmer Vernooij <jelmer@samba.org>",
+                (1253260798.0, -7200), "Some\ncommit\nmessage",
+                {"extra": "data", "more":"extra"}))
+
     def test_invalid_author(self):
         self.assertRaises(ValueError, format_changeset, 
                 mercurial.node.nullid, ["myfile"],

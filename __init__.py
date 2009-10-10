@@ -290,9 +290,8 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
 
 bzrlib.bzrdir.BzrDirFormat.register_control_format(HgBzrDirFormat)
 
-bzrlib.bzrdir.format_registry.register("mercurial",
-    HgBzrDirFormat,
-    "Mercurial Repository. ", native=False, hidden=False)
+bzrlib.bzrdir.format_registry.register("hg",
+    HgBzrDirFormat, "Mercurial repository. ", native=False, hidden=False)
 
 
 def test_suite():

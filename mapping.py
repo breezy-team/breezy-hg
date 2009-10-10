@@ -102,7 +102,6 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         for name, value in rev.properties.iteritems():
             if name.startswith("hg:"):
                 extra[name[len("hg:"):]] = base64.b64decode(value)
-        del extra["manifest"]
         desc = rev.message.encode("utf-8")
         manifest = mercurial.node.bin(rev.properties['manifest'])
         return (manifest, user, (time, timezone), desc, extra)

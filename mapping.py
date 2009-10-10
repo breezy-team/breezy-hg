@@ -27,6 +27,7 @@ from mercurial.node import (
 from bzrlib import (
     errors,
     foreign,
+    revision as _mod_revision,
     )
 
 
@@ -74,10 +75,14 @@ class ExperimentalHgMapping(foreign.VcsMapping):
 
     @classmethod
     def revision_id_foreign_to_bzr(cls, revision_id):
+        if revision_id == mercurial.node.nullid:
+            return _mod_revision.NULL_REVISION
         return "%s:%s" % (cls.revid_prefix, hex(revision_id))
 
     @classmethod
     def revision_id_bzr_to_foreign(cls, revision_id):
+        if revision_id == _mod_revision.NULL_REVISION:
+            return mercurial.node.nullid
         if not revision_id.startswith("%s:" % cls.revid_prefix):
             raise errors.InvalidRevisionId(revision_id, cls)
         return bin(revision_id[len(cls.revid_prefix)+1:]), cls()

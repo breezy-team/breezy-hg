@@ -59,6 +59,7 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     but simply relies on the installed copy of mercurial to 
     support the repository format.
     """
+    rich_root_data = True
 
     def is_supported(self):
         return True

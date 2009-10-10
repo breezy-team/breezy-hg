@@ -132,6 +132,11 @@ class HgDir(bzrlib.bzrdir.BzrDir):
         self._hgrepo = hgrepo
         self._lockfiles = lockfiles
 
+    def backup_bzrdir(self):
+        self.root_transport.copy_tree(".hg", ".hg.backup")
+        return (self.root_transport.abspath(".hg"),
+                self.root_transport.abspath(".hg.backup"))
+
     def break_lock(self):
         """Mercurial locks never break."""
         raise NotImplementedError(self.break_lock)

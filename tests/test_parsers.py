@@ -102,3 +102,17 @@ myfile
 Some
 commit
 message"""))
+
+    def test_invalid_timezone(self):
+        self.assertEquals((mercurial.node.nullid, 
+                "Jelmer Vernooij <jelmer@samba.org>",
+                (1253260798.0, 0), ["myfile"], "Some\ncommit\nmessage",
+                {}), 
+                parse_changeset("""0000000000000000000000000000000000000000
+Jelmer Vernooij <jelmer@samba.org>
+1253260798 bla
+myfile
+
+Some
+commit
+message"""))

@@ -16,6 +16,14 @@
 
 """Push support."""
 
+from cStringIO import StringIO
+
 def dchangegroup(repo, revisions):
+    """Create a changegroup based on (a derivation) of a set of revisions.
+
+    :param repo: Bazaar repository to retrieve the revisions from
+    :param revisions: Iterable over the revision ids of the revisions to group
+    :return: changegroup string
+    """
     # FIXME
-    return [], {}
+    return StringIO(), {}

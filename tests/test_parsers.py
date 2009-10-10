@@ -16,7 +16,7 @@
 
 import mercurial
 
-from bzrlib.plugins.hg.fetch import (
+from bzrlib.plugins.hg.parsers import (
     format_changeset,
     parse_changeset,
     )

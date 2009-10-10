@@ -60,6 +60,14 @@ from bzrlib.versionedfile import (
     )
 
 
+from bzrlib.plugins.hg.parsers import (
+    format_changeset,
+    parse_changeset,
+    unpack_chunk_iter,
+    unpack_manifest_chunks,
+    )
+
+
 def inventory_create_directory(directories, basis_inv, other_inv, path,
                                mapping, revid):
     """Make sure a directory and its parents exist.
@@ -115,7 +123,7 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
     Does not take renames into account.
 
     :param mapping: Bzr<->Hg mapping to use
-    :param basis_inv: Basis (Bazaar) inventory (may be None if there are no parents)
+    :param basis_inv: Basis (Bazaar) inventory (None if there are no parents)
     :param other_inv: Optional merge parent inventory
     :param (basis_manifest, basis_flags): Manifest and flags matching basis 
         inventory.
@@ -128,7 +136,7 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
     """
     # Set of directories that have been created in this delta
     directories = {}
-    potential_removable_directories = defaultdict(set)
+    maybe_empty_dirs = defaultdict(set)
     for path in set(basis_manifest.keys() + manifest.keys()):
         if (basis_manifest.get(path) == manifest.get(path) and 
             basis_flags.get(path) == flags.get(path)):
@@ -140,7 +148,7 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
             if file_id is None:
                 raise AssertionError("Removed file %r didn't exist in basis" % path)
             yield (path, None, file_id, None)
-            potential_removable_directories[os.path.dirname(path)].add(basis_inv[file_id].name)
+            maybe_empty_dirs[os.path.dirname(path)].add(basis_inv[file_id].name)
         else:
             fileid = mapping.generate_file_id(path)
             parent_path, basename = os.path.split(path)
@@ -180,125 +188,15 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                         (fileid, ie.revision))
             yield (old_path, path, fileid, ie)
     # Remove empty directories
-    for path in sorted(potential_removable_directories.keys(), reverse=True):
+    for path in sorted(maybe_empty_dirs.keys(), reverse=True):
         file_id = basis_inv.path2id(path)
         if path == "":
             # Never consider removing the root :-)
             continue
         # Is this directory really empty ?
-        if set(basis_inv[file_id].children.keys()) == potential_removable_directories[path]:
+        if set(basis_inv[file_id].children.keys()) == maybe_empty_dirs[path]:
             yield (path, None, file_id, None)
-            potential_removable_directories[basis_inv.path2id(os.path.dirname(path))].add(basis_inv[file_id].name)
-
-
-def format_changeset(manifest, files, user, date, desc, extra):
-    """Serialize a Mercurial changeset.
-
-    :param manifest: Manifest ID for this changeset, as 20-byte string
-    :param files: Array of the files modified by this changeset
-    :param user: Name + email of the committer
-    :param date: Date of the commit
-    :param desc: Commit message
-    :param extra: Dictionary with extra revision properties
-    :return: String with formatted revision
-    """
-    user = user.strip()
-    # An empty username or a username with a "\n" will make the
-    # revision text contain two "\n\n" sequences -> corrupt
-    # repository since read cannot unpack the revision.
-    if not user:
-        raise AssertionError("empty username")
-    if "\n" in user:
-        raise AssertionError("username %s contains a newline" % repr(user))
-
-    # strip trailing whitespace and leading and trailing empty lines
-    desc = '\n'.join([l.rstrip() for l in desc.splitlines()]).strip('\n')
-
-    user = mercurial.encoding.fromlocal(user)
-    desc = mercurial.encoding.fromlocal(desc)
-
-    if not isinstance(date, tuple):
-        raise AssertionError("date is not a tuple")
-    parseddate = "%d %d" % date
-    if extra and extra.get("branch") in ("default", ""):
-        del extra["branch"]
-    if extra:
-        extra = mercurial.changelog.encodeextra(extra)
-        parseddate = "%s %s" % (parseddate, extra)
-    l = [mercurial.node.hex(manifest), user, parseddate] + \
-        sorted(files) + ["", desc]
-    return "\n".join(l)
-
-
-def parse_changeset(text):
-    """Parse a Mercurial changeset.
-    
-    :param text: Text to parse
-    :return: Tuple with (manifest, user, (time, timezone), files, desc, extra)
-    """
-    last = text.index("\n\n")
-    desc = mercurial.encoding.tolocal(text[last + 2:])
-    l = text[:last].split('\n')
-    manifest = mercurial.node.bin(l[0])
-    user = mercurial.encoding.tolocal(l[1])
-
-    extra_data = l[2].split(' ', 2)
-    if len(extra_data) != 3:
-        time = float(extra_data.pop(0))
-        try:
-            # various tools did silly things with the time zone field.
-            timezone = int(extra_data[0])
-        except:
-            timezone = 0
-        extra = {}
-    else:
-        time, timezone, extra = extra_data
-        time, timezone = float(time), int(timezone)
-        extra = mercurial.changelog.decodeextra(extra)
-    files = l[3:]
-    return (manifest, user, (time, timezone), files, desc, extra)
-
-
-def unpack_chunk_iter(chunk_iter, lookup_base):
-    """Unpack a series of Mercurial deltas.
-
-    :param chunk_iter: Iterator over chunks to unpack
-    :param lookup_base: Function to look up contents of 
-        bases for deltas.
-    :return: Iterator over (fulltext, node, (p1, p2)) tuples.
-    """
-    fulltext_cache = {}
-    base = None
-    for chunk in chunk_iter:
-        node, p1, p2, cs = struct.unpack("20s20s20s20s", chunk[:80])
-        if base is None:
-            base = p1
-        delta = buffer(chunk, 80)
-        del chunk
-        if base == mercurial.node.nullid:
-            textbase = ""
-        else:
-            try:
-                textbase = fulltext_cache[base]
-            except KeyError:
-                textbase = lookup_base(base)
-        fulltext = mercurial.mdiff.patches(textbase, [delta])
-        yield fulltext, node, (p1, p2)
-        fulltext_cache[node] = fulltext
-        base = node
-
-
-def parse_manifest(fulltext):
-    manifest = mercurial.manifest.manifestdict()
-    flags = {}
-    mercurial.parsers.parse_manifest(manifest, flags, fulltext)
-    return manifest, flags
-
-
-def unpack_manifest_chunks(chunkiter, lookup_base):
-    for (fulltext, hgkey, hgparents) in unpack_chunk_iter(chunkiter, lookup_base):
-        (manifest, flags) = parse_manifest(fulltext)
-        yield hgkey, hgparents, manifest, flags
+            maybe_empty_dirs[basis_inv.path2id(os.path.dirname(path))].add(basis_inv[file_id].name)
 
 
 def create_directory_texts(texts, invdelta):
@@ -356,7 +254,8 @@ class FromHgRepository(InterRepository):
                 ret.append(self._inventories[revid])
         return ret
 
-    def _import_manifest_delta(self, manifest, manifest_p1, flags, files, rev, mapping):
+    def _import_manifest_delta(self, manifest, manifest_p1, flags, files, rev, 
+                               mapping):
         def get_base(node):
             assert self._remember_manifests[node] > 0
             try:

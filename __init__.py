@@ -40,6 +40,9 @@ from bzrlib.foreign import (
     foreign_vcs_registry,
     )
 import bzrlib.lockable_files
+from bzrlib.send import (
+    format_registry as send_format_registry,
+    )
 
 LockWarner = bzrlib.lockable_files._LockWarner
 
@@ -293,6 +296,8 @@ bzrlib.bzrdir.BzrDirFormat.register_control_format(HgBzrDirFormat)
 bzrlib.bzrdir.format_registry.register("hg",
     HgBzrDirFormat, "Mercurial repository. ", native=False, hidden=False)
 
+send_format_registry.register_lazy('hg', 'bzrlib.plugins.hg.send',
+                                   'send_hg', 'Mecurial bundle format')
 
 def test_suite():
     from unittest import TestSuite, TestLoader

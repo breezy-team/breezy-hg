@@ -19,21 +19,18 @@
 #
 # InterHgRepository.findmissing is based on 
 #       mercurial.localrepo.localrepository.findcommonincoming
-# parse_changeset is based on
-#       mercurial.changelog.changelog.read
 #
 # Copyright 2005-2007 Matt Mackall <mpm@selenic.com>
 # Published under the GNU GPLv2 or later
 
 """Inter-repository operations involving Mercurial repositories."""
 
-from collections import defaultdict
+from collections import (
+    defaultdict,
+    )
 import itertools
-import mercurial.encoding
 import mercurial.node
-import mercurial.util
 import os
-import struct
 
 from bzrlib import (
     lru_cache,
@@ -58,7 +55,6 @@ from bzrlib.revision import (
 from bzrlib.versionedfile import (
     FulltextContentFactory,
     )
-
 
 from bzrlib.plugins.hg.parsers import (
     format_changeset,
@@ -136,6 +132,8 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
     """
     # Set of directories that have been created in this delta
     directories = {}
+    # Dictionary of directories that could have been made empty in this delta,
+    # with the set of removed children as value.
     maybe_empty_dirs = defaultdict(set)
     for path in set(basis_manifest.keys() + manifest.keys()):
         if (basis_manifest.get(path) == manifest.get(path) and 
@@ -164,9 +162,10 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                     yield e
             f = flags.get(path, "")
             if 'l' in f:
-                ie = InventoryLink(fileid, basename, parent_id)
+                entry_factory = InventoryLink
             else:
-                ie = InventoryFile(fileid, basename, parent_id)
+                entry_factory = InventoryFile
+            ie = entry_factory(fileid, basename, parent_id)
             ie.executable = ('x' in f)
             if path not in files:
                 # Not changed in this revision, so pick one of the parents
@@ -184,8 +183,7 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                 ie.text_sha1, ie.text_size = lookup_metadata(
                     (fileid, ie.revision))
                 if ie.kind == "symlink":
-                    ie.symlink_target = lookup_symlink(
-                        (fileid, ie.revision))
+                    ie.symlink_target = lookup_symlink((fileid, ie.revision))
             yield (old_path, path, fileid, ie)
     # Remove empty directories
     for path in sorted(maybe_empty_dirs.keys(), reverse=True):
@@ -266,7 +264,8 @@ class FromHgRepository(InterRepository):
                     del self._manifests[node]
                     del self._remember_manifests[node]
         parent_invs = self._get_inventories(rev.parent_ids)
-        assert len(rev.parent_ids) in (0, 1, 2)
+        if not len(rev.parent_ids) in (0, 1, 2):
+            raise AssertionError
         if len(rev.parent_ids) == 0:
             basis_inv = None
             other_inv = None
@@ -286,8 +285,7 @@ class FromHgRepository(InterRepository):
                 self._get_target_fulltext))
 
     def _get_target_fulltext(self, key):
-        stream = self.target.texts.get_record_stream([key],
-            "unordered", True)
+        stream = self.target.texts.get_record_stream([key], "unordered", True)
         return stream.next().get_bytes_as("fulltext")
 
     def _unpack_texts(self, cg, mapping, filetext_map, pb):
@@ -315,7 +313,8 @@ class FromHgRepository(InterRepository):
     def _add_inventories(self, manifestchunks, mapping, pb):
         total = len(self._revisions)
         # add the actual revisions
-        for i, (manifest_id, manifest_parents, manifest, flags) in enumerate(unpack_manifest_chunks(manifestchunks, None)):
+        for i, (manifest_id, manifest_parents, manifest, flags) in enumerate(
+                unpack_manifest_chunks(manifestchunks, None)):
             pb.update("adding inventories", i, total)
             for revid in self._manifest2rev_map[manifest_id]:
                 rev = self._get_revision(revid)
@@ -338,7 +337,8 @@ class FromHgRepository(InterRepository):
                 if self._remember_manifests[manifest_id] > 0:
                     self._manifests[manifest_id] = (manifest, flags)
         del self._remember_manifests[mercurial.node.nullid]
-        assert len([x for x,n in self._remember_manifests.iteritems() if n > 1]) == 0, "%r not empty" % self._remember_manifests
+        if len([x for x,n in self._remember_manifests.iteritems() if n > 1]) > 0:
+            raise AssertionError("%r not empty" % self._remember_manifests)
 
     def _unpack_changesets(self, chunkiter, mapping, pb):
         def get_hg_revision(hgid):
@@ -349,12 +349,13 @@ class FromHgRepository(InterRepository):
             # TODO: For now we always know that a manifest id was stored since 
             # we don't support roundtripping into Mercurial yet. When we do, 
             # we need a fallback mechanism to determine the manifest id.
-            assert manifest is not None
+            if manifest is None:
+                raise AssertionError
             files = self._get_files(revid)
-            return format_changeset(manifest, files, user, (time, timezone), desc,
-                                    extra)
-        for i, (fulltext, hgkey, hgparents) in enumerate(unpack_chunk_iter(chunkiter, 
-                get_hg_revision)):
+            return format_changeset(manifest, files, user, (time, timezone),
+                                    desc, extra)
+        for i, (fulltext, hgkey, hgparents) in enumerate(
+                unpack_chunk_iter(chunkiter, get_hg_revision)):
             pb.update("fetching changesets", i)
             (manifest, user, (time, timezone), files, desc, extra) = \
                 parse_changeset(fulltext)
@@ -375,7 +376,8 @@ class FromHgRepository(InterRepository):
         def get_manifest_text(node):
             raise NotImplementedError(get_manifest_text)
         filetext_map = defaultdict(lambda: defaultdict(dict))
-        for i, (hgkey, hgparents, manifest, flags) in enumerate(unpack_manifest_chunks(chunkiter, get_manifest_text)):
+        for i, (hgkey, hgparents, manifest, flags) in enumerate(
+                unpack_manifest_chunks(chunkiter, get_manifest_text)):
             pb.update("fetching manifests", i, len(self._revisions))
             for revid in self._manifest2rev_map[hgkey]:
                 for path in self._get_files(revid):
@@ -401,7 +403,8 @@ class FromHgRepository(InterRepository):
         finally:
             pb.finished()
         # Manifests
-        manifestchunks1, manifestchunks2 = itertools.tee(mercurial.changegroup.chunkiter(cg))
+        manifestchunks1, manifestchunks2 = itertools.tee(
+            mercurial.changegroup.chunkiter(cg))
         pb = ui.ui_factory.nested_progress_bar()
         try:
             filetext_map = self._unpack_manifests(manifestchunks1, mapping, pb)
@@ -410,7 +413,8 @@ class FromHgRepository(InterRepository):
         # Texts
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            self.target.texts.insert_record_stream(self._unpack_texts(cg, mapping, filetext_map, pb))
+            self.target.texts.insert_record_stream(
+                self._unpack_texts(cg, mapping, filetext_map, pb))
         finally:
             pb.finished()
         # Adding actual data

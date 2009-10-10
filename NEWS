@@ -6,6 +6,8 @@
 
   * Support "bzr upgrade" in Mercurial working trees. (Jelmer Vernooij)
 
+  * Support 'bzr send --format=hg' to send hg bundles. (Jelmer Vernooij)
+
  BUG FIXES
 
   * Mark as compatible with Bazaar 2.1. (Jelmer Vernooij)

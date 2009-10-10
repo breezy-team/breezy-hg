@@ -39,6 +39,10 @@ from bzrlib.repository import (
     InterRepository,
     )
 
+from bzrlib.plugins.hg.push import (
+    dchangegroup,
+    )
+
 class NoPushSupport(errors.BzrError):
     _fmt = "Push is not yet supported for bzr-hg. Try dpush instead."
 
@@ -263,11 +267,6 @@ class HgBranchPushResult(BranchPushResult):
     @property
     def new_revno(self):
         return self._lookup_revno(self.new_revid)
-
-
-def dchangegroup(repo, revisions):
-    # FIXME
-    return [], {}
 
 
 class ToHgBranch(InterBranch):

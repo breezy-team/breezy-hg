@@ -59,6 +59,9 @@ class HgBranchFormat(BranchFormat):
         """See BranchFormat.get_format_description()."""
         return "Mercurial Branch"
 
+    def network_name(self):
+        return "hg"
+
 
 class HgBranchConfig(object):
     """Access Branch Configuration data for an HgBranch.
@@ -118,6 +121,9 @@ class HgBranch(ForeignBranch):
         """Return default push location of this branch."""
         # TODO: Obtain "repository default"
         return None
+
+    def set_push_location(self, url):
+        self.get_config().set_parent(url)
 
     def get_config(self):
         """See Branch.get_config().

@@ -113,6 +113,9 @@ class HgLock(object):
         if token is not None:
             raise errors.TokenLockingNotSupported(self)
 
+    def break_lock(self):
+        pass
+
 
 class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
     """Hg specific lockable files abstraction."""

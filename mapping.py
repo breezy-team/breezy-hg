@@ -152,6 +152,11 @@ mapping_registry.register_lazy("hg-experimental", "bzrlib.plugins.hg.mapping",
 class ForeignHg(foreign.ForeignVcs):
     """Foreign Mercurial."""
 
+    @property
+    def branch_format(self):
+        from bzrlib.plugins.hg.branch import HgBranchFormat
+        return HgBranchFormat()
+
     def __init__(self):
         super(ForeignHg, self).__init__(mapping_registry)
 

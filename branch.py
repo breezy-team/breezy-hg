@@ -62,6 +62,10 @@ class HgBranchFormat(BranchFormat):
     def network_name(self):
         return "hg"
 
+    def get_foreign_tests_branch_factory(self):
+        from bzrlib.plugins.hg.tests.test_branch import ForeignTestsBranchFactory
+        return ForeignTestsBranchFactory()
+
 
 class HgBranchConfig(object):
     """Access Branch Configuration data for an HgBranch.
@@ -178,6 +182,10 @@ class InterHgBranch(InterBranch):
     """InterBranch for two native Mercurial branches."""
 
     @staticmethod
+    def _get_branch_formats_to_test():
+        return None, None
+
+    @staticmethod
     def is_compatible(source, target):
         """See InterBranch.is_compatible()."""
         return (isinstance(source, HgBranch) and isinstance(target, HgBranch))
@@ -213,6 +221,10 @@ InterBranch.register_optimiser(InterHgBranch)
 
 class FromHgBranch(InterBranch):
     """InterBranch pulling from a Mercurial branch."""
+
+    @staticmethod
+    def _get_branch_formats_to_test():
+        return None, None
 
     @staticmethod
     def is_compatible(source, target):
@@ -277,6 +289,10 @@ class HgBranchPushResult(BranchPushResult):
 
 class ToHgBranch(InterBranch):
     """InterBranch implementation that pushes into Hg."""
+
+    @staticmethod
+    def _get_branch_formats_to_test():
+        return None, None
 
     @classmethod
     def is_compatible(self, source, target):

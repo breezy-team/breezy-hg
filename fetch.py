@@ -191,13 +191,10 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                 ie.symlink_target = orig_inv[fileid].symlink_target
             else:
                 ie.revision = revid
+                ie.text_sha1, ie.text_size = lookup_metadata(
+                    (fileid, ie.revision))
                 if ie.kind == "symlink":
                     ie.symlink_target = lookup_symlink((fileid, ie.revision))
-                    ie.text_sha1 = None
-                    ie.text_size = None
-                else:
-                    ie.text_sha1, ie.text_size = lookup_metadata(
-                        (fileid, ie.revision))
             yield (old_path, path, fileid, ie)
     # Remove empty directories
     for path in sorted(maybe_empty_dirs.keys(), reverse=True):

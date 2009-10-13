@@ -31,6 +31,54 @@ from bzrlib import (
     )
 
 
+def files_from_delta(delta, inv, revid):
+    """Create a Mercurial-style 'files' set from a Bazaar tree delta.
+
+    :param delta: bzrlib.delta.TreeDelta instance
+    :param inv: Inventory
+    :param revid: Revision id
+    :return: Set with changed files
+    """
+    ret = set()
+    for change in delta.added + delta.removed + delta.modified:
+        (path, id, kind) = change[:3]
+        if kind not in ('file', 'symlink'):
+            continue
+        if inv[inv.path2id(path)].revision == revid:
+            ret.add(path)
+    for (path, id, old_kind, new_kind) in delta.kind_changed:
+        if old_kind in ('file', 'symlink') or new_kind in ('file', 'symlink'):
+            ret.add(path)
+    for (oldpath, newpath, id, kind, text_modified, meta_modified) in delta.renamed:
+        if kind in ('file', 'symlink'):
+            ret.update([oldpath, newpath])
+    return ret
+
+
+def manifest_and_flags_from_tree(tree, mapping, parent_manifests):
+    """Generate a manifest from a Bazaar tree.
+
+    :param tree: Tree
+    :param mapping: Bzr<->Hg mapping
+    :param parent_manifests: 2-tuple with manifests of tree's parents
+    """
+    def get_text_parents(path):
+        return tuple([m.get(path, mercurial.node.nullid) for m in parent_manifests])
+    manifest = {}
+    flags = {}
+    for path, entry in tree.inventory.iter_entries():
+        if entry.kind not in ('file', 'symlink'):
+            continue
+        if entry.kind == 'symlink':
+            flags[path] = 'l'
+            manifest[path] = hash(entry.symlink_target, *get_text_parents(path))
+        else:
+            if entry.executable:
+                flags[path] = 'x'
+            manifest[path] = hash(tree.get_file_text(entry.fileid), *get_text_parents(path))
+    return (manifest, flags)
+
+
 def escape_path(path):
     """Escape a path for use as a file id.
 

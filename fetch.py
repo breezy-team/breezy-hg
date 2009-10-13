@@ -56,36 +56,18 @@ from bzrlib.versionedfile import (
     FulltextContentFactory,
     )
 
+from bzrlib.plugins.hg.mapping import (
+    files_from_delta,
+    manifest_and_flags_from_tree,
+    )
+
 from bzrlib.plugins.hg.parsers import (
     format_changeset,
+    format_manifest,
     parse_changeset,
     unpack_chunk_iter,
     unpack_manifest_chunks,
     )
-
-
-def files_from_delta(delta, inv, revid):
-    """Create a Mercurial-style 'files' set from a Bazaar tree delta.
-
-    :param delta: bzrlib.delta.TreeDelta instance
-    :param inv: Inventory
-    :param revid: Revision id
-    :return: Set with changed files
-    """
-    ret = set()
-    for change in delta.added + delta.removed + delta.modified:
-        (path, id, kind) = change[:3]
-        if kind not in ('file', 'symlink'):
-            continue
-        if inv[inv.path2id(path)].revision == revid:
-            ret.add(path)
-    for (path, id, old_kind, new_kind) in delta.kind_changed:
-        if old_kind in ('file', 'symlink') or new_kind in ('file', 'symlink'):
-            ret.add(path)
-    for (oldpath, newpath, id, kind, text_modified, meta_modified) in delta.renamed:
-        if kind in ('file', 'symlink'):
-            ret.update([oldpath, newpath])
-    return ret
 
 
 def inventory_create_directory(directories, basis_inv, other_inv, path,
@@ -262,6 +244,11 @@ class FromHgRepository(InterRepository):
         except KeyError:
             return self.target.get_revision(revid)
 
+    def _get_manifest_and_flags(self, revid):
+        tree = self.target.revision_tree(revid)
+        return manifest_and_flags_from_tree(tree, self.source.get_mapping(),
+            None) 
+
     def _get_files(self, revid):
         try:
             return self._files[revid]
@@ -404,7 +391,8 @@ class FromHgRepository(InterRepository):
         :param pb: Progress bar
         """
         def get_manifest_text(node):
-            raise NotImplementedError(get_manifest_text)
+            revid = self._manifest2rev_map[node].next()
+            return format_manifest(*self._get_manifest_and_flags(revid))
         filetext_map = defaultdict(lambda: defaultdict(dict))
         for i, (hgkey, hgparents, manifest, flags) in enumerate(
                 unpack_manifest_chunks(chunkiter, get_manifest_text)):

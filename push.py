@@ -18,57 +18,55 @@
 
 from cStringIO import StringIO
 
-from itertools import izip
+import mercurial.node
+
+from bzrlib.plugins.hg.mapping import (
+    files_from_delta,
+    manifest_and_flags_from_tree,
+    )
+
+from bzrlib.plugins.hg.parsers import (
+    format_changeset,
+    format_manifest,
+    )
 
 
-def drevisions(repo, mapping, revids, files, manifests):
+def drevisions(repo, mapping, revids, files, manifest_ids):
     """Serialize a series of Bazaar revisions as Mercurial changesets.
 
     :param repo: Bazaar repository
     :param mapping: Bzr<->Hg Mapping
     :param revids: Iterable over revision ids
     :param files: Dictionary for looking up the set of changed files by revid
-    :param manifests: Dictionary for looking up the manifest id by revid
+    :param manifest_ids: Dictionary for looking up the manifest id by revid
     :return: Iterable over changeset fulltexts
     """
     for revid in revids:
         rev = repo.get_revision(revid)
-        (manifest, user, date, desc, extra) = mapping.export_revision(rev)
-        if manifest is None:
-            manifest = manifests[revid]
-        assert manifest == manifests[revid]
-        yield format_changeset(manifest, files, user, date, desc, extra)
+        (manifest_id, user, date, desc, extra) = mapping.export_revision(rev)
+        if manifest_id is None:
+            manifest_id = manifest_ids[revid]
+        assert manifest_id == manifest_ids[revid]
+        yield format_changeset(manifest_id, files, user, date, desc, extra)
 
 
-def dinventories(repo, mapping, revids, manifests, files):
-    def store_text(path, fulltext, (p1, p2)):
-        return hash(fulltext, p1, p2)
-    def get_text_parents(manifests, revids):
-        ret = [manifests[revid].get(path, mercurial.node.nullid) for revid in revids[:2]]
-        while len(ret) < 2:
-            ret.append(mercurial.node.nullid)
-        return tuple(ret)
+def dinventories(repo, mapping, revids, manifest_ids, files):
+    manifests = {}
+    def get_text_node(path, revid):
+        return manifests[revid][path]
     # TODO: Very naive and slow:
-    for revid, inv in izip(revids, repo.iter_inventories(revids)):
-        manifest = {}
-        flags = {}
-        for path, entry in inv.iter_entries():
-            if entry.kind not in ('file', 'symlink'):
-                continue
-            if entry.revision == revid:
-                files[revid].add(path)
-            if entry.kind == 'symlink':
-                flags[path] = 'l'
-                manifest[path] = store_text(path, entry.symlink_target, 
-                    get_text_parents(manifests, path, repo.revision_parents(revid)))
-            else:
-                if entry.executable:
-                    flags[path] = 'x'
-                record = repo.texts.get_record_stream([(entry.fileid, entry.revision)], 
-                    'unordered', True).next()
-                manifest[path] = store_text(path, record.get_bytes_as('fulltext'), 
-                    get_text_parents(manifests, path, repo.revision_parents(revid)))
-        manifests[revid] = manifest
+    for tree in repo.revision_trees(revids):
+        (manifest, flags) = manifest_and_flags_from_tree(tree, mapping, get_text_node)
+        revid = tree.get_revision_id()
+        manifests[revid] = (manifest, flags)
+        # TODO: This refetches the inventory and base inventory while that's not necessary:
+        delta = repo.get_revision_delta(revid)
+        files[revid] = files_from_delta(delta, tree.inventory, revid)
+        text = format_manifest(manifest, flags)
+        parents = [manifest_ids.get(p, mercurial.node.nullid) for p in repo.revision_parents(revid)[:2]]
+        while len(parents) < 2:
+            parents.append(mercurial.node.nullid)
+        manifest_ids[revid] = hex(text, parents[0], parents[1])
 
 
 def dchangegroup(repo, mapping, revids):
@@ -78,11 +76,11 @@ def dchangegroup(repo, mapping, revids):
     :param revids: Iterable over the revision ids of the revisions to group
     :return: changegroup string
     """
-    dinventories(repo, mapping, revids)
-          
-    # FIXME: walk over inventories
-    #  - add manifest
-    #  - keep track of what files to fetch
-    # Generate changesets
-    drevisions(repo, mapping, revids, files, manifests)
+    files = {}
+    manifest_ids = {}
+    manifests = list(dinventories(repo, mapping, revids, manifest_ids, files))
+    changesets = drevisions(repo, mapping, revids, files, manifest_ids)
+    # TODO: yield 00changeset.i
+    # TODO: yield 00manifest.i
+    # TODO: yield contents
     return StringIO(), {}

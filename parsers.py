@@ -98,6 +98,23 @@ def parse_changeset(text):
     return (manifest, user, (time, timezone), files, desc, extra)
 
 
+def pack_chunk_iter(entries):
+    """Create a chained series of Mercurial deltas.
+
+    :param entries: Iterator over (fulltext, (p1, p2)) tuples.
+    :return: iterator over delta chunks
+    """
+    cs = mercurial.node.nullid
+    textbase = ""
+    for (fulltext, (p1, p2)) in entries:
+        node = hash(fulltext, p1, p2)
+        chunk = struct.pack("20s20s20s20s", node, p1, p2, cs) +\
+                mercurial.mdiff.bdiff(textbase, fulltext)
+        yield chunk
+        cs = node
+        textbase = fulltext
+
+
 def unpack_chunk_iter(chunk_iter, lookup_base):
     """Unpack a series of Mercurial deltas.
 
@@ -151,3 +168,10 @@ def unpack_manifest_chunks(chunkiter, lookup_base):
                                                           lookup_base):
         (manifest, flags) = parse_manifest(fulltext)
         yield hgkey, hgparents, manifest, flags
+
+
+def format_manifest(manifest, flags):
+    lines = []
+    for path, node in manifest.iteritems():
+        line = path + "\0" + mercurial.node.bin(node) + flags.get(path, "") + "\n"
+    return "".join(lines)

@@ -80,6 +80,13 @@ class HgBranchConfig(object):
     def get_parent(self):
         return self._ui.config("paths", "default")
 
+    def get_child_submit_format(self):
+        """Return the preferred format of submissions to this branch."""
+        ret = self.get_config().get_user_option("child_submit_format")
+        if ret is not None:
+            return ret
+        return "hg"
+
     def set_parent(self, url):
         self._ui.setconfig("paths", "default", url)
 

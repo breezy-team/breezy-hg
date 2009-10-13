@@ -75,7 +75,7 @@ def manifest_and_flags_from_tree(tree, mapping, parent_manifests):
         else:
             if entry.executable:
                 flags[path] = 'x'
-            manifest[path] = hash(tree.get_file_text(entry.fileid), *get_text_parents(path))
+            manifest[path] = hash(tree.get_file_text(entry.file_id), *get_text_parents(path))
     return (manifest, flags)
 
 

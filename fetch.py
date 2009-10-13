@@ -56,9 +56,12 @@ from bzrlib.versionedfile import (
     FulltextContentFactory,
     )
 
-from bzrlib.plugins.hg.mapping import (
-    files_from_delta,
-    manifest_and_flags_from_tree,
+from bzrlib.plugins.hg.idmap import (
+    MemoryIdmap,
+    )
+
+from bzrlib.plugins.hg.overlay import (
+    MercurialRepositoryOverlay,
     )
 
 from bzrlib.plugins.hg.parsers import (
@@ -224,6 +227,8 @@ class FromHgRepository(InterRepository):
 
     def __init__(self, source, target):
         InterRepository.__init__(self, source, target)
+        self._target_overlay = MercurialRepositoryOverlay(self.target, self.source.get_mapping(), 
+                                                          MemoryIdmap())
         self._inventories = lru_cache.LRUCache(25)
         self._revisions = {}
         self._files = {}
@@ -243,20 +248,6 @@ class FromHgRepository(InterRepository):
             return self._revisions[revid]
         except KeyError:
             return self.target.get_revision(revid)
-
-    def _get_manifest_and_flags(self, revid):
-        tree = self.target.revision_tree(revid)
-        return manifest_and_flags_from_tree(tree, self.source.get_mapping(),
-            None) 
-
-    def _get_files(self, revid):
-        try:
-            return self._files[revid]
-        except KeyError:
-            delta = self.target.get_revision_delta(revid)
-            inv = self.target.get_inventory(revid)
-            return files_from_delta(delta, inv, revid)
-                
 
     def _get_inventories(self, revision_ids):
         ret = []
@@ -331,7 +322,7 @@ class FromHgRepository(InterRepository):
         total = len(self._revisions)
         # add the actual revisions
         for i, (manifest_id, manifest_parents, manifest, flags) in enumerate(
-                unpack_manifest_chunks(manifestchunks, None)):
+                unpack_manifest_chunks(manifestchunks, self._get_manifest_text)):
             pb.update("adding inventories", i, total)
             for revid in self._manifest2rev_map[manifest_id]:
                 rev = self._get_revision(revid)
@@ -356,6 +347,12 @@ class FromHgRepository(InterRepository):
         del self._remember_manifests[mercurial.node.nullid]
         if len([x for x,n in self._remember_manifests.iteritems() if n > 1]) > 0:
             raise AssertionError("%r not empty" % self._remember_manifests)
+
+    def _get_files(self, revid):
+        try:
+            return self._files[revid]
+        except KeyError:
+            return self._target_overlay.get_files_by_revid(revid)
 
     def _unpack_changesets(self, chunkiter, mapping, pb):
         def get_hg_revision(hgid):
@@ -383,6 +380,10 @@ class FromHgRepository(InterRepository):
             self._manifest2rev_map[manifest].add(key)
             self._revisions[rev.revision_id] = rev
 
+    def _get_manifest_text(self, node):
+        (manifest, flags) = self._target_overlay.get_manifest_and_flags(node)
+        return format_manifest(manifest, flags)
+
     def _unpack_manifests(self, chunkiter, mapping, pb):
         """Unpack the manifest deltas.
 
@@ -390,12 +391,9 @@ class FromHgRepository(InterRepository):
         :param mapping: Bzr<->Hg mapping
         :param pb: Progress bar
         """
-        def get_manifest_text(node):
-            revid = self._manifest2rev_map[node].next()
-            return format_manifest(*self._get_manifest_and_flags(revid))
         filetext_map = defaultdict(lambda: defaultdict(dict))
         for i, (hgkey, hgparents, manifest, flags) in enumerate(
-                unpack_manifest_chunks(chunkiter, get_manifest_text)):
+                unpack_manifest_chunks(chunkiter, self._get_manifest_text)):
             pb.update("fetching manifests", i, len(self._revisions))
             for revid in self._manifest2rev_map[hgkey]:
                 for path in self._get_files(revid):

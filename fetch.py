@@ -110,7 +110,7 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
         # Root directory doesn't have a parent id
         ret = []
         parent_id = None
-    fileid = mapping.generate_file_id(path)
+    fileid = mapping.generate_file_id(path.encode("utf-8"))
     ie = InventoryDirectory(fileid, os.path.basename(path), parent_id)
     ie.revision = revid
     ret.append((None, path, fileid, ie))
@@ -144,12 +144,13 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
     # Dictionary of directories that could have been made empty in this delta,
     # with the set of removed children as value.
     maybe_empty_dirs = defaultdict(set)
-    for path in set(basis_manifest.keys() + manifest.keys()):
-        if (basis_manifest.get(path) == manifest.get(path) and 
-            basis_flags.get(path) == flags.get(path)):
+    for utf8_path in set(basis_manifest.keys() + manifest.keys()):
+        if (basis_manifest.get(utf8_path) == manifest.get(utf8_path) and 
+            basis_flags.get(utf8_path) == flags.get(utf8_path)):
             continue
+        path = utf8_path.decode("utf-8")
         # Does it still exist in manifest ?
-        if path not in manifest:
+        if utf8_path not in manifest:
             # File removed
             file_id = basis_inv.path2id(path)
             if file_id is None:
@@ -157,7 +158,8 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
             yield (path, None, file_id, None)
             maybe_empty_dirs[os.path.dirname(path)].add(basis_inv[file_id].name)
         else:
-            fileid = mapping.generate_file_id(path)
+            assert type(utf8_path) is str
+            fileid = mapping.generate_file_id(utf8_path)
             parent_path, basename = os.path.split(path)
             if basis_inv is not None and basis_inv.has_filename(path):
                 old_path = path
@@ -169,17 +171,17 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                     basis_inv, other_inv, parent_path, mapping, revid)
                 for e in extra:
                     yield e
-            f = flags.get(path, "")
+            f = flags.get(utf8_path, "")
             if 'l' in f:
                 entry_factory = InventoryLink
             else:
                 entry_factory = InventoryFile
             ie = entry_factory(fileid, basename, parent_id)
             ie.executable = ('x' in f)
-            if path not in files:
+            if utf8_path not in files:
                 # Not changed in this revision, so pick one of the parents
-                if (manifest.get(path) == basis_manifest.get(path) and 
-                    flags.get(path) == basis_flags.get(path)):
+                if (manifest.get(utf8_path) == basis_manifest.get(utf8_path) and 
+                    flags.get(utf8_path) == basis_flags.get(utf8_path)):
                     orig_inv = basis_inv
                 else:
                     orig_inv = other_inv
@@ -189,15 +191,18 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                 ie.symlink_target = orig_inv[fileid].symlink_target
             else:
                 ie.revision = revid
-                ie.text_sha1, ie.text_size = lookup_metadata(
-                    (fileid, ie.revision))
                 if ie.kind == "symlink":
                     ie.symlink_target = lookup_symlink((fileid, ie.revision))
+                    ie.text_sha1 = None
+                    ie.text_size = None
+                else:
+                    ie.text_sha1, ie.text_size = lookup_metadata(
+                        (fileid, ie.revision))
             yield (old_path, path, fileid, ie)
     # Remove empty directories
     for path in sorted(maybe_empty_dirs.keys(), reverse=True):
         file_id = basis_inv.path2id(path)
-        if path == "":
+        if path == u"":
             # Never consider removing the root :-)
             continue
         # Is this directory really empty ?
@@ -265,11 +270,15 @@ class FromHgRepository(InterRepository):
         def get_base(node):
             assert self._remember_manifests[node] > 0
             try:
-                return self._manifests[node]
+                if node in self._manifests:
+                    return self._manifests[node]
+                else:
+                    return self._target_overlay.get_manifest_and_flags(node)
             finally:
                 self._remember_manifests[node] -= 1
                 if self._remember_manifests[node] == 0:
-                    del self._manifests[node]
+                    if node in self._manifests:
+                        del self._manifests[node]
                     del self._remember_manifests[node]
         parent_invs = self._get_inventories(rev.parent_ids)
         if not len(rev.parent_ids) in (0, 1, 2):
@@ -311,7 +320,11 @@ class FromHgRepository(InterRepository):
                 key = iter(filetext_map[fileid][node]).next()
                 return self._get_target_fulltext(key)
             for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter, get_text):
-                for revision, parents in filetext_map[fileid][hgkey].iteritems():
+                for revision, (kind, parents) in filetext_map[fileid][hgkey].iteritems():
+                    if kind == "symlink":
+                        fulltext = ""
+                    else:
+                        assert kind == "file"
                     key = (fileid, revision)
                     record = FulltextContentFactory(key, None, osutils.sha_string(fulltext), fulltext)
                     record.parents = parents
@@ -397,11 +410,16 @@ class FromHgRepository(InterRepository):
             pb.update("fetching manifests", i, len(self._revisions))
             for revid in self._manifest2rev_map[hgkey]:
                 for path in self._get_files(revid):
+                    assert type(path) is str
                     fileid = mapping.generate_file_id(path)
                     if not path in manifest:
                         # Path still has to actually exist..
                         continue
-                    filetext_map[fileid][manifest[path]][revid] = () #FIXME
+                    if 'l' in flags.get(path, ""):
+                        kind = "symlink"
+                    else:
+                        kind = "file"
+                    filetext_map[fileid][manifest[path]][revid] = (kind, ()) # FIXME: parents
                 self._remember_manifests[hgparents[0]] += 1
         return filetext_map
 

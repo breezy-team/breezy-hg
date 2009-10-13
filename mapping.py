@@ -23,6 +23,9 @@ from mercurial.node import (
     hex,
     bin,
     )
+from mercurial.revlog import (
+    hash as hghash,
+    )
 
 from bzrlib import (
     errors,
@@ -55,27 +58,35 @@ def files_from_delta(delta, inv, revid):
     return ret
 
 
-def manifest_and_flags_from_tree(tree, mapping, parent_manifests):
+def manifest_and_flags_from_tree(tree, mapping, parent_node_lookup):
     """Generate a manifest from a Bazaar tree.
 
     :param tree: Tree
     :param mapping: Bzr<->Hg mapping
-    :param parent_manifests: 2-tuple with manifests of tree's parents
+    :param parent_node_lookup: 2-tuple with functions to look up the nodes 
+        of paths in the tree's parents
     """
     def get_text_parents(path):
-        return tuple([m.get(path, mercurial.node.nullid) for m in parent_manifests])
+        ret = []
+        for lookup in parent_node_lookup:
+            try:
+                ret.append(lookup(path))
+            except KeyError:
+                ret.append(mercurial.node.nullid)
+        return tuple(ret)
     manifest = {}
     flags = {}
     for path, entry in tree.inventory.iter_entries():
         if entry.kind not in ('file', 'symlink'):
             continue
+        utf8_path = path.encode("utf-8")
         if entry.kind == 'symlink':
-            flags[path] = 'l'
-            manifest[path] = hash(entry.symlink_target, *get_text_parents(path))
+            flags[utf8_path] = 'l'
+            manifest[utf8_path] = hghash(entry.symlink_target, *get_text_parents(path))
         else:
             if entry.executable:
-                flags[path] = 'x'
-            manifest[path] = hash(tree.get_file_text(entry.file_id), *get_text_parents(path))
+                flags[utf8_path] = 'x'
+            manifest[utf8_path] = hghash(tree.get_file_text(entry.file_id), *get_text_parents(path))
     return (manifest, flags)
 
 

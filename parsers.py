@@ -29,6 +29,10 @@ import mercurial.encoding
 import mercurial.node
 import struct
 
+from mercurial.revlog import (
+    hash as hghash,
+    )
+
 
 def format_changeset(manifest, files, user, date, desc, extra):
     """Serialize a Mercurial changeset.
@@ -107,7 +111,7 @@ def pack_chunk_iter(entries):
     cs = mercurial.node.nullid
     textbase = ""
     for (fulltext, (p1, p2)) in entries:
-        node = hash(fulltext, p1, p2)
+        node = hghash(fulltext, p1, p2)
         chunk = struct.pack("20s20s20s20s", node, p1, p2, cs) +\
                 mercurial.mdiff.bdiff(textbase, fulltext)
         yield chunk
@@ -172,6 +176,11 @@ def unpack_manifest_chunks(chunkiter, lookup_base):
 
 def format_manifest(manifest, flags):
     lines = []
-    for path, node in manifest.iteritems():
-        line = path + "\0" + mercurial.node.bin(node) + flags.get(path, "") + "\n"
+    for path in sorted(manifest.keys()):
+        node = manifest[path]
+        assert type(path) is str
+        assert type(node) is str and len(node) in (20, 40)
+        if len(node) == 20:
+            node = mercurial.node.hex(node)
+        lines.append("%s\0%s%s\n" % (path, node, flags.get(path, "")))
     return "".join(lines)

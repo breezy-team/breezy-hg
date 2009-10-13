@@ -52,20 +52,24 @@ def drevisions(repo, mapping, revids, files, manifest_ids):
 
 def dinventories(repo, mapping, revids, manifest_ids, files):
     manifests = {}
-    def get_text_node(path, revid):
-        return manifests[revid][path]
     # TODO: Very naive and slow:
     for tree in repo.revision_trees(revids):
-        (manifest, flags) = manifest_and_flags_from_tree(tree, mapping, get_text_node)
+        rev = repo.get_revision(revids)
         revid = tree.get_revision_id()
+        node_parents = []
+        lookup_text_node = []
+        for parent in rev.parent_ids[:2]:
+            node_parents.append(manifest_ids.get(parent, mercurial.node.nullid))
+            lookup_text_node.append(manifests[parent].__getitem__)
+        while len(node_parents) < 2:
+            node_parents.append(mercurial.node.nullid)
+            lookup_text_node.append(lambda path: mercurial.node.nullid)
+        (manifest, flags) = manifest_and_flags_from_tree(tree, mapping, lookup_text_node)
         manifests[revid] = (manifest, flags)
         # TODO: This refetches the inventory and base inventory while that's not necessary:
         delta = repo.get_revision_delta(revid)
         files[revid] = files_from_delta(delta, tree.inventory, revid)
         text = format_manifest(manifest, flags)
-        parents = [manifest_ids.get(p, mercurial.node.nullid) for p in repo.revision_parents(revid)[:2]]
-        while len(parents) < 2:
-            parents.append(mercurial.node.nullid)
         manifest_ids[revid] = hex(text, parents[0], parents[1])
 
 

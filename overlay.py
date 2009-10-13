@@ -16,11 +16,13 @@
 
 """Overlay that allows accessing a Bazaar repository like a Mercurial one."""
 
+import mercurial.node
 
 from bzrlib.plugins.hg.mapping import (
     files_from_delta,
     manifest_and_flags_from_tree,
     )
+
 
 class MercurialRepositoryOverlay(object):
     """Overlay that allows accessing some Mercurialisque properties from a Bazaar repo."""
@@ -37,9 +39,11 @@ class MercurialRepositoryOverlay(object):
         for revid in todo:
             rev = self.repo.get_revision(revid)
             try:
-                self.idmap.insert_manifest(rev.properties['manifest'], revid)
+                manifest_id = rev.properties['manifest']
             except KeyError:
-                pass
+                pass # no 'manifest' property present
+            else:
+                self.idmap.insert_manifest(manifest_id, revid)
 
     def get_files_by_revid(self, revid):
         try:
@@ -51,7 +55,15 @@ class MercurialRepositoryOverlay(object):
 
     def get_manifest_and_flags_by_revid(self, revid):
         tree = self.repo.revision_tree(revid)
-        return manifest_and_flags_from_tree(tree, self.mapping, None) 
+        lookup_text_node = []
+        rev = self.repo.get_revision(revid)
+        for p in rev.parent_ids[:2]:
+            parent_manifest = self.get_manifest_and_flags_by_revid(p)[0]
+            lookup_text_node.append(parent_manifest.__getitem__)
+        while len(lookup_text_node) < 2:
+            lookup_text_node.append(lambda path: mercurial.node.nullid)
+        return manifest_and_flags_from_tree(tree, self.mapping, 
+            lookup_text_node) 
 
     def get_manifest_and_flags(self, manifest_id):
         revid = self.lookup_revision_by_manifest_id(manifest_id)

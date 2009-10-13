@@ -26,6 +26,9 @@ from mercurial import (
     changegroup,
     )
 
+from bzrlib.plugins.hg.mapping import (
+    default_mapping,
+    )
 from bzrlib.plugins.hg.push import (
     dchangegroup,
     )
@@ -50,7 +53,8 @@ class HgMergeDirective(merge_directive._BaseMergeDirective):
             repository.fetch(submit_branch.repository, submit_revision_id)
             graph = repository.get_graph()
             todo = graph.find_difference(submit_revision_id, revision_id)[1]
-            cg, revidmap = dchangegroup(repository, todo)
+            cg, revidmap = dchangegroup(repository, 
+                getattr(submit_branch, "mapping", default_mapping), todo)
             fn = changegroup.writebundle(cg, None, BUNDLE_TYPE)
             f = open(fn, 'r')
             try:

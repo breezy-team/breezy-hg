@@ -300,7 +300,7 @@ class ToHgBranch(InterBranch):
         # FIXME: Check for diverged branches
         # FIXME: Find out what revisions to send
         revs = []
-        cg, revidmap = dchangegroup(self.source, revs)
+        cg, revidmap = dchangegroup(self.source, self.target.mapping, revs)
         if revidmap != {}:
             result.new_revid = revidmap[stop_revision]
         else:

@@ -17,6 +17,9 @@
 """Push support."""
 
 from cStringIO import StringIO
+from collections import (
+    defaultdict,
+    )
 
 from mercurial.changegroup import (
     chunkheader,
@@ -27,6 +30,7 @@ from mercurial.revlog import (
     )
 
 from bzrlib.plugins.hg.mapping import (
+    as_hg_parents,
     files_from_delta,
     manifest_and_flags_from_tree,
     )
@@ -56,18 +60,12 @@ def drevisions(repo, mapping, revids, files, manifest_ids, overlay):
         if manifest_id is None:
             manifest_id = manifest_ids[revid]
         assert manifest_id == manifest_ids[revid]
-        try:
-            p1 = overlay.lookup_changeset_id_by_revid(rev.parent_ids[0])[0]
-        except IndexError:
-            p1 = mercurial.node.nullid
-        try:
-            p2 = overlay.lookup_changeset_id_by_revid(rev.parent_ids[1])[0]
-        except IndexError:
-            p2 = mercurial.node.nullid
-        yield format_changeset(manifest_id, files, user, date, desc, extra), (p1, p2)
+        ps = as_hg_parents(rev.parent_ids, 
+                lambda x: overlay.lookup_changeset_id_by_revid(x)[0])
+        yield format_changeset(manifest_id, files, user, date, desc, extra), ps
 
 
-def dinventories(repo, mapping, revids, manifest_ids, files, overlay):
+def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts):
     def lookup_manifest_id(revid):
         try:
             return manifest_ids[revid]
@@ -83,29 +81,45 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay):
     for tree in repo.revision_trees(revids):
         revid = tree.get_revision_id()
         rev = repo.get_revision(revid)
-        node_parents = []
         lookup_text_node = []
         for parent in rev.parent_ids[:2]:
-            node_parents.append(lookup_manifest_id(parent))
             lookup_text_node.append(get_manifest(lookup_manifest_id(parent))[0].__getitem__)
-        while len(node_parents) < 2:
-            node_parents.append(mercurial.node.nullid)
+        while len(lookup_text_node) < 2:
             lookup_text_node.append(lambda path: mercurial.node.nullid)
         (manifest, flags) = manifest_and_flags_from_tree(tree, mapping, lookup_text_node)
         manifests[revid] = (manifest, flags)
-        # TODO: This refetches the inventory and base inventory while that's not necessary:
+        # TODO: This refetches the inventory and base inventory while that's not necessary,
+        # they're already fetched by the .revision_trees() call above. -- JRV20091014
         delta = repo.get_revision_delta(revid)
         files[revid] = files_from_delta(delta, tree.inventory, revid)
+        for p in files[revid]:
+            fileid = tree.inventory.path2id(p)
+            if fileid is not None:
+                texts[p].add((fileid, tree.inventory[fileid].revision))
         text = format_manifest(manifest, flags)
+        node_parents = as_hg_parents(rev.parent_ids, lookup_manifest_id)
         manifest_ids[revid] = hghash(text, node_parents[0], node_parents[1])
-        yield text, tuple(node_parents)
+        yield text, node_parents
+
+
+def text_contents(vfs, path, keys, overlay):
+    def text_as_node((fileid, revision)):
+        (manifest, flags) = overlay.get_manifest_and_flags_by_revid(revision)
+        return manifest[path]
+    for record in vfs.get_record_stream(keys, 'topological', True):
+        fulltext = record.get_bytes_as('fulltext')
+        yield fulltext, as_hg_parents(record.parents, text_as_node)
+
+
+def write_chunk(f, buffer):
+    f.write(chunkheader(len(buffer)))
+    f.write(buffer)
 
 
 def write_delta_chunks(f, entries):
     for blob in pack_chunk_iter(entries):
-        f.write(chunkheader(len(blob)))
-        f.write(blob)
-    f.write(chunkheader(0))
+        write_chunk(f, blob)
+    write_chunk(f, "")
 
 
 def dchangegroup(repo, mapping, revids):
@@ -119,15 +133,20 @@ def dchangegroup(repo, mapping, revids):
     overlay = get_overlay(repo, mapping)
     files = {}
     manifest_ids = {}
-    manifests = list(dinventories(repo, mapping, revids, manifest_ids, files, overlay))
+    texts = defaultdict(set)
+    manifests = list(dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts))
     # 00changeset.i
     write_delta_chunks(ret, drevisions(repo, mapping, revids, files, manifest_ids, overlay))
     del files
     del manifest_ids
     # 00manifest.i
     write_delta_chunks(ret, manifests)
+    del manifests
     # texts
-    # TODO: yield contents
-    ret.write(chunkheader(0))
+    for path, keys in texts.iteritems():
+        # FIXME: Mangle path in the same way that mercurial does
+        write_chunk(ret, path)
+        write_delta_chunks(ret, text_contents(repo.texts, path, keys, overlay))
+    write_chunk(ret, "")
     ret.seek(0)
     return ret, {}

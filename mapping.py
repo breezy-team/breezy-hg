@@ -33,6 +33,17 @@ from bzrlib import (
     revision as _mod_revision,
     )
 
+def as_hg_parents(parents, lookup_revid):
+    ret = []
+    for p in parents[:2]:
+        try:
+            ret.append(lookup_revid(p))
+        except KeyError:
+            ret.append(mercurial.node.nullid)
+    while len(ret) < 2:
+        ret.append(mercurial.node.nullid)
+    return tuple(ret)
+
 
 def files_from_delta(delta, inv, revid):
     """Create a Mercurial-style 'files' set from a Bazaar tree delta.

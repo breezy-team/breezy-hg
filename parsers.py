@@ -112,7 +112,10 @@ def pack_chunk_iter(entries):
     cs = mercurial.node.nullid
     textbase = ""
     for (fulltext, (p1, p2)) in entries:
+        assert len(p1) == 20
+        assert len(p2) == 20
         node = hghash(fulltext, p1, p2)
+        assert len(node) == 20
         chunk = struct.pack("20s20s20s20s", node, p1, p2, cs) +\
                 mercurial.mdiff.bdiff.bdiff(textbase, fulltext)
         yield chunk

@@ -105,6 +105,9 @@ class MercurialRepositoryOverlay(object):
         rev = self.repo.get_revision(revid)
         return mercurial.node.bin(rev.properties['manifest'])
 
+    def lookup_changeset_id_by_revid(self, revid):
+        return self.mapping.revision_id_bzr_to_foreign(revid)
+
     def has_hgids(self, ids):
         """Check whether the specified Mercurial ids are present.
         
@@ -116,5 +119,3 @@ class MercurialRepositoryOverlay(object):
         return set([
             self.mapping.revision_id_bzr_to_foreign(revid)[0]
             for revid in self.repo.has_revisions(revids)])
-
-

@@ -108,12 +108,13 @@ def pack_chunk_iter(entries):
     :param entries: Iterator over (fulltext, (p1, p2)) tuples.
     :return: iterator over delta chunks
     """
+    # TODO: Let caller pass in an actual valid parent text.
     cs = mercurial.node.nullid
     textbase = ""
     for (fulltext, (p1, p2)) in entries:
         node = hghash(fulltext, p1, p2)
         chunk = struct.pack("20s20s20s20s", node, p1, p2, cs) +\
-                mercurial.mdiff.bdiff(textbase, fulltext)
+                mercurial.mdiff.bdiff.bdiff(textbase, fulltext)
         yield chunk
         cs = node
         textbase = fulltext

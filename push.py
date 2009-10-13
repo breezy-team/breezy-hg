@@ -18,8 +18,13 @@
 
 from cStringIO import StringIO
 
+from mercurial.changegroup import (
+    chunkheader,
+    )
 import mercurial.node
-from mercurial.revlog import hash as hghash
+from mercurial.revlog import (
+    hash as hghash,
+    )
 
 from bzrlib.plugins.hg.mapping import (
     files_from_delta,
@@ -31,10 +36,11 @@ from bzrlib.plugins.hg.overlay import (
 from bzrlib.plugins.hg.parsers import (
     format_changeset,
     format_manifest,
+    pack_chunk_iter,
     )
 
 
-def drevisions(repo, mapping, revids, files, manifest_ids):
+def drevisions(repo, mapping, revids, files, manifest_ids, overlay):
     """Serialize a series of Bazaar revisions as Mercurial changesets.
 
     :param repo: Bazaar repository
@@ -50,7 +56,15 @@ def drevisions(repo, mapping, revids, files, manifest_ids):
         if manifest_id is None:
             manifest_id = manifest_ids[revid]
         assert manifest_id == manifest_ids[revid]
-        yield format_changeset(manifest_id, files, user, date, desc, extra)
+        try:
+            p1 = overlay.lookup_changeset_id_by_revid(rev.parent_ids[0])[0]
+        except IndexError:
+            p1 = mercurial.node.nullid
+        try:
+            p2 = overlay.lookup_changeset_id_by_revid(rev.parent_ids[1])[0]
+        except IndexError:
+            p2 = mercurial.node.nullid
+        yield format_changeset(manifest_id, files, user, date, desc, extra), (p1, p2)
 
 
 def dinventories(repo, mapping, revids, manifest_ids, files, overlay):
@@ -84,7 +98,14 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay):
         files[revid] = files_from_delta(delta, tree.inventory, revid)
         text = format_manifest(manifest, flags)
         manifest_ids[revid] = hghash(text, node_parents[0], node_parents[1])
-        yield text
+        yield text, tuple(node_parents)
+
+
+def write_delta_chunks(f, entries):
+    for blob in pack_chunk_iter(entries):
+        f.write(chunkheader(len(blob)))
+        f.write(blob)
+    f.write(chunkheader(0))
 
 
 def dchangegroup(repo, mapping, revids):
@@ -94,12 +115,19 @@ def dchangegroup(repo, mapping, revids):
     :param revids: Iterable over the revision ids of the revisions to group
     :return: changegroup string
     """
+    ret = StringIO()
     overlay = get_overlay(repo, mapping)
     files = {}
     manifest_ids = {}
     manifests = list(dinventories(repo, mapping, revids, manifest_ids, files, overlay))
-    changesets = drevisions(repo, mapping, revids, files, manifest_ids)
-    # TODO: yield 00changeset.i
-    # TODO: yield 00manifest.i
+    # 00changeset.i
+    write_delta_chunks(ret, drevisions(repo, mapping, revids, files, manifest_ids, overlay))
+    del files
+    del manifest_ids
+    # 00manifest.i
+    write_delta_chunks(ret, manifests)
+    # texts
     # TODO: yield contents
-    return StringIO(), {}
+    ret.write(chunkheader(0))
+    ret.seek(0)
+    return ret, {}

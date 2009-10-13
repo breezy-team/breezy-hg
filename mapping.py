@@ -108,7 +108,10 @@ class ExperimentalHgMapping(foreign.VcsMapping):
             if name.startswith("hg:"):
                 extra[name[len("hg:"):]] = base64.b64decode(value)
         desc = rev.message.encode("utf-8")
-        manifest = mercurial.node.bin(rev.properties['manifest'])
+        try:
+            manifest = mercurial.node.bin(rev.properties['manifest'])
+        except KeyError:
+            manifest = None
         return (manifest, user, (time, timezone), desc, extra)
 
     def import_revision(self, revid, hgrevid, hgparents, manifest, user,

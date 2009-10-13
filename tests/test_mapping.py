@@ -1,4 +1,5 @@
 # Copyright (C) 2009 Jelmer Vernooij <jelmer@samba.org>
+# -*- encoding: utf-8 -*-
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,6 +15,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+import base64
+
 from mercurial.node import (
     hex,
     )
@@ -25,6 +28,9 @@ from bzrlib.plugins.hg.mapping import (
     )
 from bzrlib import (
     errors,
+    )
+from bzrlib.revision import (
+    Revision,
     )
 from bzrlib.tests import (
     TestCase,
@@ -76,3 +82,26 @@ class EscapePathTests(TestCase):
         self.assertEquals("bar_w", escape_path("bar "))
         self.assertEquals("bar_sblie_s", escape_path("bar/blie/"))
         self.assertEquals("bar____", escape_path("bar__"))
+
+
+class ExportRevisionTests(TestCase):
+
+    def setUp(self):
+        TestCase.setUp(self)
+        self.mapping = ExperimentalHgMapping()
+
+    def test_export(self):
+        rev = Revision("myrevid")
+        rev.committer = u"Jelmer <foo>"
+        rev.message = u"ürk"
+        rev.timestamp = 432432
+        rev.timezone = 0
+        rev.properties = {
+                "something": u"else",
+                "hg:foo": base64.b64encode("bar")}
+        (manifest, user, (time, timezone), desc, extra) = \
+            self.mapping.export_revision(rev)
+        self.assertEquals("Jelmer <foo>", user)
+        self.assertEquals(None, manifest)
+        self.assertEquals("ürk", desc)
+        self.assertEquals({"foo": "bar"}, extra)

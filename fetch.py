@@ -64,6 +64,30 @@ from bzrlib.plugins.hg.parsers import (
     )
 
 
+def files_from_delta(delta, inv, revid):
+    """Create a Mercurial-style 'files' set from a Bazaar tree delta.
+
+    :param delta: bzrlib.delta.TreeDelta instance
+    :param inv: Inventory
+    :param revid: Revision id
+    :return: Set with changed files
+    """
+    ret = set()
+    for change in delta.added + delta.removed + delta.modified:
+        (path, id, kind) = change[:3]
+        if kind not in ('file', 'symlink'):
+            continue
+        if inv[inv.path2id(path)].revision == revid:
+            ret.add(path)
+    for (path, id, old_kind, new_kind) in delta.kind_changed:
+        if old_kind in ('file', 'symlink') or new_kind in ('file', 'symlink'):
+            ret.add(path)
+    for (oldpath, newpath, id, kind, text_modified, meta_modified) in delta.renamed:
+        if kind in ('file', 'symlink'):
+            ret.update([oldpath, newpath])
+    return ret
+
+
 def inventory_create_directory(directories, basis_inv, other_inv, path,
                                mapping, revid):
     """Make sure a directory and its parents exist.
@@ -239,7 +263,13 @@ class FromHgRepository(InterRepository):
             return self.target.get_revision(revid)
 
     def _get_files(self, revid):
-        return self._files[revid]
+        try:
+            return self._files[revid]
+        except KeyError:
+            delta = self.target.get_revision_delta(revid)
+            inv = self.target.get_inventory(revid)
+            return files_from_delta(delta, inv, revid)
+                
 
     def _get_inventories(self, revision_ids):
         ret = []

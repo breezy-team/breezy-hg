@@ -61,7 +61,7 @@ from bzrlib.plugins.hg.idmap import (
     )
 
 from bzrlib.plugins.hg.overlay import (
-    MercurialRepositoryOverlay,
+    get_overlay,
     )
 
 from bzrlib.plugins.hg.parsers import (
@@ -229,8 +229,7 @@ class FromHgRepository(InterRepository):
 
     def __init__(self, source, target):
         InterRepository.__init__(self, source, target)
-        self._target_overlay = MercurialRepositoryOverlay(self.target, self.source.get_mapping(), 
-                                                          MemoryIdmap())
+        self._target_overlay = get_overlay(self.target, self.source.get_mapping())
         self._inventories = lru_cache.LRUCache(25)
         self._revisions = {}
         self._files = {}
@@ -474,30 +473,6 @@ class FromHgRepository(InterRepository):
             return [mapping.revision_id_bzr_to_foreign(revision_id)[0]]
         return self.source._hgrepo.heads()
 
-    def has_hgid(self, id):
-        """Check whether a Mercurial revision id is present in the target.
-        
-        :param id: Mercurial ID
-        :return: boolean
-        """
-        if id == mercurial.node.nullid:
-            return True
-        if len(self.has_hgids([id])) == 1:
-            return True
-        return False
-
-    def has_hgids(self, ids):
-        """Check whether the specified Mercurial ids are present.
-        
-        :param ids: Mercurial revision ids
-        :return: Set with the revisions that were present
-        """
-        mapping = self.source.get_mapping()
-        revids = set([mapping.revision_id_foreign_to_bzr(h) for h in ids])
-        return set([
-            mapping.revision_id_bzr_to_foreign(revid) 
-            for revid in self.target.has_revisions(revids)])
-
     def findmissing(self, heads):
         """Find the set of ancestors of heads missing from target.
         
@@ -505,7 +480,7 @@ class FromHgRepository(InterRepository):
 
         Based on mercurial.localrepo.localrepository.findcommonincoming
         """
-        unknowns = set(heads) - self.has_hgids(heads)
+        unknowns = set(heads) - self._target_overlay.has_hgids(heads)
         if not unknowns:
             return []
         seen = set()
@@ -533,19 +508,19 @@ class FromHgRepository(InterRepository):
                 elif n in seenbranch:
                     trace.mutter("branch already found")
                     continue
-                elif n[1] and self.has_hgid(n[1]): # do we know the base?
+                elif n[1] and self._target_overlay.has_hgid(n[1]): # do we know the base?
                     trace.mutter("found incomplete branch %s:%s", 
                         mercurial.node.short(n[0]), mercurial.node.short(n[1]))
                     search.append(n[0:2]) # schedule branch range for scanning
                     seenbranch.add(n)
                 else:
                     if n[1] not in seen and n[1] not in fetch:
-                        if self.has_hgid(n[2]) and self.has_hgid(n[3]):
+                        if self._target_overlay.has_hgid(n[2]) and self._target_overlay.has_hgid(n[3]):
                             trace.mutter("found new changeset %s",
                                          mercurial.node.short(n[1]))
                             fetch.add(n[1]) # earliest unknowns
                     for p in n[2:4]:
-                        if p not in req and not self.has_hgid(p):
+                        if p not in req and not self._target_overlay.has_hgid(p):
                             r.append(p)
                             req.add(p)
                 seen.add(n[0])
@@ -568,7 +543,7 @@ class FromHgRepository(InterRepository):
                 for i in l:
                     trace.mutter("narrowing %d:%d %s", f, len(l),
                                  mercurial.node.short(i))
-                    if self.has_hgid(i):
+                    if self._target_overlay.has_hgid(i):
                         if f <= 2:
                             trace.mutter("found new branch changeset %s",
                                          mercurial.node.short(p))

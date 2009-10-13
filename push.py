@@ -19,12 +19,15 @@
 from cStringIO import StringIO
 
 import mercurial.node
+from mercurial.revlog import hash as hghash
 
 from bzrlib.plugins.hg.mapping import (
     files_from_delta,
     manifest_and_flags_from_tree,
     )
-
+from bzrlib.plugins.hg.overlay import (
+    get_overlay,
+    )
 from bzrlib.plugins.hg.parsers import (
     format_changeset,
     format_manifest,
@@ -50,17 +53,27 @@ def drevisions(repo, mapping, revids, files, manifest_ids):
         yield format_changeset(manifest_id, files, user, date, desc, extra)
 
 
-def dinventories(repo, mapping, revids, manifest_ids, files):
+def dinventories(repo, mapping, revids, manifest_ids, files, overlay):
+    def lookup_manifest_id(revid):
+        try:
+            return manifest_ids[revid]
+        except KeyError:
+            return overlay.lookup_manifest_id_by_revid(revid)
+    def get_manifest(manifest_id):
+        try:
+            return manifests[manifest_id]
+        except KeyError:
+            return overlay.get_manifest_and_flags(manifest_id)
     manifests = {}
     # TODO: Very naive and slow:
     for tree in repo.revision_trees(revids):
-        rev = repo.get_revision(revids)
         revid = tree.get_revision_id()
+        rev = repo.get_revision(revid)
         node_parents = []
         lookup_text_node = []
         for parent in rev.parent_ids[:2]:
-            node_parents.append(manifest_ids.get(parent, mercurial.node.nullid))
-            lookup_text_node.append(manifests[parent].__getitem__)
+            node_parents.append(lookup_manifest_id(parent))
+            lookup_text_node.append(get_manifest(lookup_manifest_id(parent))[0].__getitem__)
         while len(node_parents) < 2:
             node_parents.append(mercurial.node.nullid)
             lookup_text_node.append(lambda path: mercurial.node.nullid)
@@ -70,7 +83,8 @@ def dinventories(repo, mapping, revids, manifest_ids, files):
         delta = repo.get_revision_delta(revid)
         files[revid] = files_from_delta(delta, tree.inventory, revid)
         text = format_manifest(manifest, flags)
-        manifest_ids[revid] = hex(text, parents[0], parents[1])
+        manifest_ids[revid] = hghash(text, node_parents[0], node_parents[1])
+        yield text
 
 
 def dchangegroup(repo, mapping, revids):
@@ -80,9 +94,10 @@ def dchangegroup(repo, mapping, revids):
     :param revids: Iterable over the revision ids of the revisions to group
     :return: changegroup string
     """
+    overlay = get_overlay(repo, mapping)
     files = {}
     manifest_ids = {}
-    manifests = list(dinventories(repo, mapping, revids, manifest_ids, files))
+    manifests = list(dinventories(repo, mapping, revids, manifest_ids, files, overlay))
     changesets = drevisions(repo, mapping, revids, files, manifest_ids)
     # TODO: yield 00changeset.i
     # TODO: yield 00manifest.i

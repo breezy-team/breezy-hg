@@ -18,10 +18,17 @@
 
 import mercurial.node
 
+from bzrlib.plugins.hg.idmap import (
+    MemoryIdmap,
+    )
 from bzrlib.plugins.hg.mapping import (
     files_from_delta,
     manifest_and_flags_from_tree,
     )
+
+
+def get_overlay(bzr_repo, mapping):
+    return MercurialRepositoryOverlay(bzr_repo, mapping, MemoryIdmap())
 
 
 class MercurialRepositoryOverlay(object):
@@ -81,3 +88,33 @@ class MercurialRepositoryOverlay(object):
         except KeyError:
             self._update_idmap()
             return self.idmap.lookup_revision_by_manifest_id(manifest_id)
+
+    def has_hgid(self, id):
+        """Check whether a Mercurial revision id is present in the repo.
+        
+        :param id: Mercurial ID
+        :return: boolean
+        """
+        if id == mercurial.node.nullid:
+            return True
+        if len(self.has_hgids([id])) == 1:
+            return True
+        return False
+
+    def lookup_manifest_id_by_revid(self, revid):
+        rev = self.repo.get_revision(revid)
+        return mercurial.node.bin(rev.properties['manifest'])
+
+    def has_hgids(self, ids):
+        """Check whether the specified Mercurial ids are present.
+        
+        :param ids: Mercurial revision ids
+        :return: Set with the revisions that were present
+        """
+        # TODO: What about round-tripped revisions?
+        revids = set([self.mapping.revision_id_foreign_to_bzr(h) for h in ids])
+        return set([
+            self.mapping.revision_id_bzr_to_foreign(revid)[0]
+            for revid in self.repo.has_revisions(revids)])
+
+

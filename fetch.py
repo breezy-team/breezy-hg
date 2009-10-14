@@ -224,9 +224,9 @@ def create_directory_texts(texts, invdelta):
     texts.insert_record_stream(stream)
 
 
-def check_roundtrips(repository, mapping, revid, files, manifest, flags, 
-                     manifest_parents,
-                     inventory=None):
+def check_roundtrips(repository, mapping, revid, expected_files, 
+                     expected_manifest, expected_flags, 
+                     manifest_parents, inventory=None):
     from bzrlib.plugins.hg.mapping import (
         files_from_delta,
         manifest_and_flags_from_tree,
@@ -234,14 +234,23 @@ def check_roundtrips(repository, mapping, revid, files, manifest, flags,
     if inventory is None:
         inventory = repository.get_inventory(revid)
     delta = repository.get_revision_delta(revid)
-    assert sorted(files) == sorted(files_from_delta(delta, inventory, revid))
+    files = files_from_delta(delta, inventory, revid)
+    assert sorted(expected_files) == sorted(files)
     tree = repository.revision_tree(revid)
     lookup = []
     for m, f in manifest_parents[:2]:
         lookup.append(m.__getitem__)
     while len(lookup) < 2:
         lookup.append({}.__getitem__)
-    assert (manifest, flags) == manifest_and_flags_from_tree(tree, mapping, lookup)
+    (manifest, flags) = manifest_and_flags_from_tree(tree, mapping, lookup)
+    assert set(manifest.keys()) == set(expected_manifest.keys()), \
+            "Different contents in manifests: %r, %r" % (manifest.keys(), expected_manifest.keys())
+    assert set(flags.keys()) == set(expected_flags.keys()), \
+            "Different flags: %r, %r" % (flags, expected_flags)
+    for path in manifest:
+        assert manifest[path] == expected_manifest[path], "Different version %s: %s, %s" % (path, mercurial.node.hex(manifest[path]), mercurial.node.hex(expected_manifest[path]))
+    for path in flags:
+        assert expected_flags[path] == flags[path], "Different flags for %s: %s != %s" % (path, expected_flags[path], flags[path])
 
 
 class FromHgRepository(InterRepository):

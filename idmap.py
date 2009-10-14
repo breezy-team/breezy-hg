@@ -17,6 +17,12 @@
 """Access to a map between Bazaar and Mercurial ids."""
 
 import mercurial.node
+import os
+import threading
+
+from bzrlib import (
+    trace,
+    )
 
 
 class Idmap(object):
@@ -53,3 +59,62 @@ class MemoryIdmap(Idmap):
         if len(manifest_id) == 40:
             manifest_id = mercurial.node.bin(manifest_id)
         self._manifest_to_revid[manifest_id] = revid
+
+
+_mapdbs = threading.local()
+def mapdbs():
+    """Get a cache for this thread's db connections."""
+    try:
+        return _mapdbs.cache
+    except AttributeError:
+        _mapdbs.cache = {}
+        return _mapdbs.cache
+
+
+TDB_MAP_VERSION = 1
+TDB_HASH_SIZE = 50000
+
+
+class TdbIdmap(Idmap):
+    """Idmap that stores in tdb.
+
+    format:
+    manifest/<manifest_id> -> revid
+    """
+
+    def __init__(self, path=None):
+        self.path = path
+        if path is None:
+            self.db = {}
+        else:
+            import tdb
+            if not mapdbs().has_key(path):
+                mapdbs()[path] = tdb.Tdb(path, TDB_HASH_SIZE, tdb.DEFAULT, 
+                                          os.O_RDWR|os.O_CREAT)
+            self.db = mapdbs()[path]    
+        if not "version" in self.db:
+            self.db["version"] = str(TDB_MAP_VERSION)
+        else:
+            if int(self.db["version"]) != TDB_MAP_VERSION:
+                trace.warning("SHA Map is incompatible (%s -> %d), rebuilding database.",
+                              self.db["version"], TDB_MAP_VERSION)
+                self.db.clear()
+            self.db["version"] = str(TDB_MAP_VERSION)
+
+    def get_files_by_revid(self, revid):
+        raise KeyError(revid)
+
+    def lookup_revision_by_manifest_id(self, manifest_id):
+        return self.db["manifest/" + manifest_id]
+
+    def revids(self):
+        ret = set()
+        for k, v in self.db.iteritems():
+            if k.startswith("manifest/"):
+                ret.add(v)
+        return ret
+
+    def insert_manifest(self, manifest_id, revid):
+        if len(manifest_id) == 40:
+            manifest_id = mercurial.node.bin(manifest_id)
+        self.db["manifest/" + manifest_id] = revid

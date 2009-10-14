@@ -236,11 +236,7 @@ def check_roundtrips(repository, mapping, revid, expected_files,
     files = files_from_delta(delta, inventory, revid)
     assert expected_files == files
     tree = repository.revision_tree(revid)
-    lookup = []
-    for m, f in manifest_parents[:2]:
-        lookup.append(m.__getitem__)
-    while len(lookup) < 2:
-        lookup.append({}.__getitem__)
+    lookup = [m.__getitem__ for m, f in manifest_parents[:2]]
     (manifest, flags) = manifest_and_flags_from_tree(tree, mapping, lookup)
     assert set(manifest.keys()) == set(expected_manifest.keys()), \
             "Different contents in manifests: %r, %r" % (manifest.keys(), expected_manifest.keys())

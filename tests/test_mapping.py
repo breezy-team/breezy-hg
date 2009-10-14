@@ -109,7 +109,7 @@ class ExportRevisionTests(TestCase):
         self.assertEquals("Jelmer <foo>", user)
         self.assertEquals(None, manifest)
         self.assertEquals("ürk", desc)
-        self.assertEquals({"foo": "bar"}, extra)
+        self.assertEquals({"bzr:something": "else", "foo": "bar"}, extra)
 
 
 class FlagsKindTests(TestCase):

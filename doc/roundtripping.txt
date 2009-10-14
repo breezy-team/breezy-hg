@@ -1,0 +1,9 @@
+Semantics in Bazaar that can not be mapped to equivalents in Mercurial and 
+will be have to be stowed somewhere else:
+- revision ids (revision property?)
+- octopus merges (revision property?)
+- whitespace in commit messages (revision property, fancily encoded?)
+- file ids
+
+Mercurial does support custom revision properties, but it might not be a very good idea to 
+stow all this data there, in particular the file ids.

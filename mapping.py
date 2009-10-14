@@ -47,6 +47,12 @@ def flags_kind(flags, path):
 
 
 def as_hg_parents(parents, lookup_revid):
+    """Convert a list of Bazaar parent revision ids to Mercurial parents.
+
+    :param parents: Iterable over the Bazaar parent revision ids
+    :param lookup_revid: Callback converting a revid to a Mercurial id
+    :return: 2-tuple with Mercurial parents
+    """
     ret = []
     for p in parents[:2]:
         try:
@@ -59,6 +65,12 @@ def as_hg_parents(parents, lookup_revid):
 
 
 def as_bzr_parents(parents, lookup_id):
+    """Convert a 2-tuple with Mercurial parents to a list of Bazaar parents.
+
+    :param parents: 2-tuple with Mercurial parents
+    :param lookup_id: Callback for looking up a revision id by Mercurial id
+    :return: List of revision ids
+    """
     assert len(parents) == 2
     if parents[0] == mercurial.node.nullid:
         if parents[1] == mercurial.node.nullid:
@@ -170,12 +182,14 @@ class ExperimentalHgMapping(foreign.VcsMapping):
 
     @classmethod
     def revision_id_foreign_to_bzr(cls, revision_id):
+        """See VcsMapping.revision_id_foreign_to_bzr."""
         if revision_id == mercurial.node.nullid:
             return _mod_revision.NULL_REVISION
         return "%s:%s" % (cls.revid_prefix, hex(revision_id))
 
     @classmethod
     def revision_id_bzr_to_foreign(cls, revision_id):
+        """See VcsMapping.revision_id_foreign_to_bzr."""
         if revision_id == _mod_revision.NULL_REVISION:
             return mercurial.node.nullid
         if not revision_id.startswith("%s:" % cls.revid_prefix):
@@ -258,6 +272,7 @@ class ForeignHg(foreign.ForeignVcs):
 
     @classmethod
     def show_foreign_revid(cls, foreign_revid):
+        """See ForeignVcs.show_foreign_revid."""
         return { "hg commit": hex(foreign_revid) }
 
 

@@ -349,8 +349,6 @@ class FromHgRepository(InterRepository):
                 for revision, (kind, parents) in filetext_map[fileid][hgkey].iteritems():
                     if kind == "symlink":
                         fulltext = ""
-                    else:
-                        assert kind == "file"
                     key = (fileid, revision)
                     record = FulltextContentFactory(key, None, osutils.sha_string(fulltext), fulltext)
                     record.parents = parents
@@ -592,13 +590,11 @@ class FromHgRepository(InterRepository):
     def copy_content(self, revision_id=None, basis=None):
         """See InterRepository.copy_content. Partial implementation of that.
 
-        To date the revision_id and basis parameters are not supported.
+        To date the basis parameter is not supported.
         """
-        if revision_id is not None:
-            raise AssertionError("revision_id not supported")
         if basis is not None:
             trace.mutter('Ignoring basis argument %r', basis)
-        self.target.fetch(self.source)
+        self.target.fetch(self.source, revision_id=revision_id)
 
     @needs_write_lock
     def fetch(self, revision_id=None, pb=None, find_ghosts=False, 

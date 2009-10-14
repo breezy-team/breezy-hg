@@ -368,7 +368,7 @@ class FromHgRepository(InterRepository):
                 rev = self._get_revision(revid)
                 files = self._get_files(rev.revision_id)
                 del self._files[rev.revision_id]
-                if rev.parent_ids == []:
+                if rev.parent_ids == ():
                     basis_revid = NULL_REVISION
                 else:
                     basis_revid = rev.parent_ids[0]

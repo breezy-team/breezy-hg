@@ -24,6 +24,7 @@ from mercurial.node import (
 
 from bzrlib.plugins.hg.mapping import (
     ExperimentalHgMapping,
+    as_bzr_parents,
     as_hg_parents,
     escape_path,
     flags_kind,
@@ -33,6 +34,7 @@ from bzrlib import (
     errors,
     )
 from bzrlib.revision import (
+    NULL_REVISION,
     Revision,
     )
 from bzrlib.tests import (
@@ -136,3 +138,19 @@ class AsHgParentsTests(TestCase):
         m = { "reva": "a"*20 }
         self.assertEquals(("a"*20, nullid), 
             as_hg_parents(["reva"], m.__getitem__))
+
+
+class AsBzrParentsTests(TestCase):
+
+    def test_empty(self):
+        self.assertEquals((), as_bzr_parents((nullid, nullid), None))
+
+    def test_first_null(self):
+        m = {"a" * 20: "reva"}
+        self.assertEquals((NULL_REVISION, "reva"), 
+                as_bzr_parents((nullid, "a" * 20), m.__getitem__))
+
+    def test_second_null(self):
+        m = {"a" * 20: "reva"}
+        self.assertEquals(("reva",), 
+                as_bzr_parents(("a" * 20, nullid), m.__getitem__))

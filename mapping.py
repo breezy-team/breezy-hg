@@ -58,6 +58,20 @@ def as_hg_parents(parents, lookup_revid):
     return tuple(ret)
 
 
+def as_bzr_parents(parents, lookup_id):
+    assert len(parents) == 2
+    if parents[0] == mercurial.node.nullid:
+        if parents[1] == mercurial.node.nullid:
+            return ()
+        else:
+            return (_mod_revision.NULL_REVISION, lookup_id(parents[1]))
+    else:
+        ret = [lookup_id(parents[0])]
+        if parents[1] != mercurial.node.nullid:
+            ret.append(lookup_id(parents[1]))
+        return tuple(ret)
+
+
 def files_from_delta(delta, inv, revid):
     """Create a Mercurial-style 'files' set from a Bazaar tree delta.
 
@@ -200,11 +214,7 @@ class ExperimentalHgMapping(foreign.VcsMapping):
     def import_revision(self, revid, hgrevid, hgparents, manifest, user,
                         (time, timezone), desc, extra):
         result = foreign.ForeignRevision(hgrevid, self, revid)
-        result.parent_ids = []
-        if hgparents[0] != mercurial.node.nullid:
-            result.parent_ids.append(self.revision_id_foreign_to_bzr(hgparents[0]))
-        if hgparents[1] != mercurial.node.nullid:
-            result.parent_ids.append(self.revision_id_foreign_to_bzr(hgparents[1]))
+        result.parent_ids = as_bzr_parents(hgparents, self.revision_id_foreign_to_bzr)
         result.message = desc.decode("utf-8")
         result.inventory_sha1 = ""
         result.timezone = -timezone

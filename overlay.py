@@ -84,6 +84,8 @@ class MercurialRepositoryOverlay(object):
             lookup_text_node) 
 
     def get_manifest_and_flags(self, manifest_id):
+        if manifest_id == mercurial.node.nullid:
+            return {}, {}
         revid = self.lookup_revision_by_manifest_id(manifest_id)
         return self.get_manifest_and_flags_by_revid(revid)
 

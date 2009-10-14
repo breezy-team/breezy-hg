@@ -84,6 +84,11 @@ class MercurialRepositoryOverlay(object):
             lookup_text_node) 
 
     def get_manifest_and_flags(self, manifest_id):
+        """Return manifest by manifest id.
+
+        :param manifest_id: 20-byte Mercurial revlog id
+        :return: Tuple with manifest dictionary and flags dictionary
+        """
         if manifest_id == mercurial.node.nullid:
             return {}, {}
         revid = self.lookup_revision_by_manifest_id(manifest_id)

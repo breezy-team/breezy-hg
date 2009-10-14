@@ -341,6 +341,7 @@ class HgRepository(ForeignRepository):
 
 
 class HgLocalRepository(HgRepository):
+    """Local Mercurial repository."""
 
     def get_parent_map(self, revids):
         ret = {}
@@ -348,6 +349,7 @@ class HgLocalRepository(HgRepository):
             if revid == NULL_REVISION:
                 ret[revid] = ()
             else:
+                # TODO: Handle round-tripped revisions
                 hg_ref, mapping = mapping_registry.revision_id_bzr_to_foreign(revid)
                 parents = []
                 for r in self._hgrepo.changelog.parents(hg_ref):
@@ -360,6 +362,7 @@ class HgLocalRepository(HgRepository):
         return [self.get_revision(r) for r in revids]
 
     def get_revision(self, revision_id):
+        # TODO: Handle round-tripped revisions
         try:
             hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
         except errors.InvalidRevisionId:
@@ -369,6 +372,7 @@ class HgLocalRepository(HgRepository):
         return mapping.import_revision(revision_id, hgrevid, hgparents, hgchange[0], hgchange[1], hgchange[2], hgchange[4], hgchange[5])
 
     def has_revision(self, revision_id):
+        # TODO: Handle round-tripped revisions
         try:
             return mapping_registry.revision_id_bzr_to_foreign(revision_id)[0] in self._hgrepo.changelog.nodemap
         except errors.InvalidRevisionId:

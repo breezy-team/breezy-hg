@@ -57,10 +57,9 @@ from bzrlib.versionedfile import (
     FulltextContentFactory,
     )
 
-from bzrlib.plugins.hg.idmap import (
-    MemoryIdmap,
+from bzrlib.plugins.hg.mapping import (
+    flags_kind,
     )
-
 from bzrlib.plugins.hg.overlay import (
     get_overlay,
     )
@@ -225,7 +224,7 @@ def create_directory_texts(texts, invdelta):
 
 
 def check_roundtrips(repository, mapping, revid, expected_files, 
-                     expected_manifest, expected_flags, 
+                     (expected_manifest, expected_flags), 
                      manifest_parents, inventory=None):
     from bzrlib.plugins.hg.mapping import (
         files_from_delta,
@@ -361,9 +360,10 @@ class FromHgRepository(InterRepository):
     def _add_inventories(self, manifestchunks, mapping, pb):
         total = len(self._revisions)
         # add the actual revisions
-        for i, (manifest_id, manifest_parents, csid, manifest, flags) in enumerate(
+        for i, (manifest_id, manifest_parents, csid, (manifest, flags)) in enumerate(
                 unpack_manifest_chunks(manifestchunks, self._target_overlay.get_manifest_text)):
             pb.update("adding inventories", i, total)
+            assert len(self._manifest2rev_map[manifest_id]) == 1
             for revid in self._manifest2rev_map[manifest_id]:
                 rev = self._get_revision(revid)
                 files = self._get_files(rev.revision_id)
@@ -386,7 +386,7 @@ class FromHgRepository(InterRepository):
                     self._manifests[manifest_id] = (manifest, flags)
                 if 'check' in debug.debug_flags:
                     check_roundtrips(self.target, mapping, rev.revision_id, 
-                        files, manifest, flags, 
+                        files, (manifest, flags), 
                         [self._get_manifest_and_flags(x) for x in manifest_parents],
                         inventory=new_inv,
                         )
@@ -434,7 +434,7 @@ class FromHgRepository(InterRepository):
         :param pb: Progress bar
         """
         filetext_map = defaultdict(lambda: defaultdict(dict))
-        for i, (hgkey, hgparents, csid, manifest, flags) in enumerate(
+        for i, (hgkey, hgparents, csid, (manifest, flags)) in enumerate(
                 unpack_manifest_chunks(chunkiter, self._target_overlay.get_manifest_text)):
             pb.update("fetching manifests", i, len(self._revisions))
             for revid in self._manifest2rev_map[hgkey]:
@@ -444,10 +444,7 @@ class FromHgRepository(InterRepository):
                     if not path in manifest:
                         # Path still has to actually exist..
                         continue
-                    if 'l' in flags.get(path, ""):
-                        kind = "symlink"
-                    else:
-                        kind = "file"
+                    kind = flags_kind(flags, path)
                     filetext_map[fileid][manifest[path]][revid] = (kind, ()) # FIXME: parents
                 self._remember_manifests[hgparents[0]] += 1
         return filetext_map

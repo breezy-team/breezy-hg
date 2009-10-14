@@ -33,6 +33,19 @@ from bzrlib import (
     revision as _mod_revision,
     )
 
+
+def flags_kind(flags, path):
+    """Determine the Bazaar file kind from the Mercurial flags for a path.
+
+    :param flags: Mercurial flags dictionary
+    :param path: Path
+    :return: kind (either 'file' or 'symlink')
+    """
+    if 'l' in flags.get(path, ""):
+        return 'symlink'
+    return 'file'
+
+
 def as_hg_parents(parents, lookup_revid):
     ret = []
     for p in parents[:2]:

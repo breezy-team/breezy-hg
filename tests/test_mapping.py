@@ -19,11 +19,14 @@ import base64
 
 from mercurial.node import (
     hex,
+    nullid,
     )
 
 from bzrlib.plugins.hg.mapping import (
     ExperimentalHgMapping,
+    as_hg_parents,
     escape_path,
+    flags_kind,
     unescape_path,
     )
 from bzrlib import (
@@ -105,3 +108,31 @@ class ExportRevisionTests(TestCase):
         self.assertEquals(None, manifest)
         self.assertEquals("ürk", desc)
         self.assertEquals({"foo": "bar"}, extra)
+
+
+class FlagsKindTests(TestCase):
+
+    def test_link(self):
+        self.assertEquals('symlink', flags_kind({"bar": "l"}, "bar"))
+
+    def test_other(self):
+        self.assertEquals('file', flags_kind({"bar": "t"}, "bar"))
+
+    def test_file(self):
+        self.assertEquals('file', flags_kind({}, "bar"))
+
+
+class AsHgParentsTests(TestCase):
+
+    def test_empty(self):
+        self.assertEquals((nullid, nullid), as_hg_parents([], None))
+
+    def test_octopus(self):
+        m = { "reva": "a"*20, "revb": "b"*20, "revc": "c"*20 }
+        self.assertEquals(("a"*20, "b"*20), 
+            as_hg_parents(["reva", "revb", "revc"], m.__getitem__))
+
+    def test_one(self):
+        m = { "reva": "a"*20 }
+        self.assertEquals(("a"*20, nullid), 
+            as_hg_parents(["reva"], m.__getitem__))

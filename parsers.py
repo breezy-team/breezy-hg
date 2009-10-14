@@ -178,7 +178,7 @@ def unpack_manifest_chunks(chunkiter, lookup_base):
     for (fulltext, hgkey, hgparents, cs) in unpack_chunk_iter(chunkiter, 
                                                           lookup_base):
         (manifest, flags) = parse_manifest(fulltext)
-        yield hgkey, hgparents, cs, manifest, flags
+        yield hgkey, hgparents, cs, (manifest, flags)
 
 
 def format_manifest(manifest, flags):

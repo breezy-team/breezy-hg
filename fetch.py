@@ -234,7 +234,7 @@ def check_roundtrips(repository, mapping, revid, expected_files,
         inventory = repository.get_inventory(revid)
     delta = repository.get_revision_delta(revid)
     files = files_from_delta(delta, inventory, revid)
-    assert sorted(expected_files) == sorted(files)
+    assert expected_files == files
     tree = repository.revision_tree(revid)
     lookup = []
     for m, f in manifest_parents[:2]:

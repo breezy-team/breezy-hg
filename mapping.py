@@ -93,7 +93,7 @@ def files_from_delta(delta, inv, revid):
     for (oldpath, newpath, id, kind, text_modified, meta_modified) in delta.renamed:
         if kind in ('file', 'symlink'):
             ret.update([oldpath, newpath])
-    return ret
+    return sorted(ret)
 
 
 def manifest_and_flags_from_tree(tree, mapping, parent_node_lookup):

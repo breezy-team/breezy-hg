@@ -115,13 +115,11 @@ def manifest_and_flags_from_tree(tree, mapping, parent_node_lookup):
     manifest = {}
     flags = {}
     for path, entry in tree.inventory.iter_entries():
-        if entry.kind not in ('file', 'symlink'):
-            continue
         utf8_path = path.encode("utf-8")
         if entry.kind == 'symlink':
             flags[utf8_path] = 'l'
             manifest[utf8_path] = hghash(entry.symlink_target, *get_text_parents(path))
-        else:
+        elif entry.kind == 'file':
             if entry.executable:
                 flags[utf8_path] = 'x'
             manifest[utf8_path] = hghash(tree.get_file_text(entry.file_id), *get_text_parents(path))
@@ -196,7 +194,9 @@ class ExperimentalHgMapping(foreign.VcsMapping):
             raise ValueError
         return unescape_path(fileid[len("hg:"):])
 
-    def export_revision(self, rev):
+    def export_revision(self, rev, lossy=True):
+        if not lossy:
+            raise NotImplementedError("non-lossy exports not yet supported")
         user = rev.committer.encode("utf-8")
         time = rev.timestamp
         timezone = -rev.timezone
@@ -204,6 +204,8 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         for name, value in rev.properties.iteritems():
             if name.startswith("hg:"):
                 extra[name[len("hg:"):]] = base64.b64decode(value)
+            else:
+                extra["bzr:"+name] = value
         desc = rev.message.encode("utf-8")
         try:
             manifest = mercurial.node.bin(rev.properties['manifest'])
@@ -224,7 +226,10 @@ class ExperimentalHgMapping(foreign.VcsMapping):
                 'manifest': mercurial.node.hex(manifest)
                 }
         for name, value in extra.iteritems():
-            result.properties["hg:" + name] = base64.b64encode(value)
+            if name.startswith("bzr:"):
+                result.properties[name[len("bzr:")]] = value
+            else:
+                result.properties["hg:" + name] = base64.b64encode(value)
         return result
 
 

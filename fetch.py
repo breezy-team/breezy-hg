@@ -66,7 +66,6 @@ from bzrlib.plugins.hg.overlay import (
 
 from bzrlib.plugins.hg.parsers import (
     format_changeset,
-    format_manifest,
     parse_changeset,
     unpack_chunk_iter,
     unpack_manifest_chunks,
@@ -298,8 +297,7 @@ class FromHgRepository(InterRepository):
                 self._get_target_fulltext))
 
     def _get_target_fulltext(self, key):
-        stream = self.target.texts.get_record_stream([key], "unordered", True)
-        return stream.next().get_bytes_as("fulltext")
+        return "".join(self.target.iter_files_bytes([key + (None,)]).next()[1])
 
     def _unpack_texts(self, cg, mapping, filetext_map, pb):
         i = 0
@@ -315,7 +313,7 @@ class FromHgRepository(InterRepository):
             def get_text(node):
                 key = iter(filetext_map[fileid][node]).next()
                 return self._get_target_fulltext(key)
-            for fulltext, hgkey, hgparents in unpack_chunk_iter(chunkiter, get_text):
+            for fulltext, hgkey, hgparents, csid in unpack_chunk_iter(chunkiter, get_text):
                 for revision, (kind, parents) in filetext_map[fileid][hgkey].iteritems():
                     if kind == "symlink":
                         fulltext = ""
@@ -330,8 +328,8 @@ class FromHgRepository(InterRepository):
     def _add_inventories(self, manifestchunks, mapping, pb):
         total = len(self._revisions)
         # add the actual revisions
-        for i, (manifest_id, manifest_parents, manifest, flags) in enumerate(
-                unpack_manifest_chunks(manifestchunks, self._get_manifest_text)):
+        for i, (manifest_id, manifest_parents, csid, manifest, flags) in enumerate(
+                unpack_manifest_chunks(manifestchunks, self._target_overlay.get_manifest_text)):
             pb.update("adding inventories", i, total)
             for revid in self._manifest2rev_map[manifest_id]:
                 rev = self._get_revision(revid)
@@ -377,7 +375,7 @@ class FromHgRepository(InterRepository):
             files = self._get_files(revid)
             return format_changeset(manifest, files, user, (time, timezone),
                                     desc, extra)
-        for i, (fulltext, hgkey, hgparents) in enumerate(
+        for i, (fulltext, hgkey, hgparents, csid) in enumerate(
                 unpack_chunk_iter(chunkiter, get_hg_revision)):
             pb.update("fetching changesets", i)
             (manifest, user, (time, timezone), files, desc, extra) = \
@@ -389,10 +387,6 @@ class FromHgRepository(InterRepository):
             self._manifest2rev_map[manifest].add(key)
             self._revisions[rev.revision_id] = rev
 
-    def _get_manifest_text(self, node):
-        (manifest, flags) = self._target_overlay.get_manifest_and_flags(node)
-        return format_manifest(manifest, flags)
-
     def _unpack_manifests(self, chunkiter, mapping, pb):
         """Unpack the manifest deltas.
 
@@ -401,8 +395,8 @@ class FromHgRepository(InterRepository):
         :param pb: Progress bar
         """
         filetext_map = defaultdict(lambda: defaultdict(dict))
-        for i, (hgkey, hgparents, manifest, flags) in enumerate(
-                unpack_manifest_chunks(chunkiter, self._get_manifest_text)):
+        for i, (hgkey, hgparents, csid, manifest, flags) in enumerate(
+                unpack_manifest_chunks(chunkiter, self._target_overlay.get_manifest_text)):
             pb.update("fetching manifests", i, len(self._revisions))
             for revid in self._manifest2rev_map[hgkey]:
                 for path in self._get_files(revid):

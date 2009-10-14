@@ -105,18 +105,21 @@ def parse_changeset(text):
 def pack_chunk_iter(entries):
     """Create a chained series of Mercurial deltas.
 
-    :param entries: Iterator over (fulltext, (p1, p2)) tuples.
+    :param entries: Iterator over (fulltext, (p1, p2), link) tuples.
     :return: iterator over delta chunks
     """
     # TODO: Let caller pass in an actual valid parent text.
     cs = mercurial.node.nullid
-    textbase = ""
-    for (fulltext, (p1, p2)) in entries:
+    try:
+        textbase = entries.next()[0]
+    except StopIteration:
+        textbase = ""
+    for (fulltext, (p1, p2), link) in entries:
         assert len(p1) == 20
         assert len(p2) == 20
         node = hghash(fulltext, p1, p2)
         assert len(node) == 20
-        chunk = struct.pack("20s20s20s20s", node, p1, p2, cs) +\
+        chunk = struct.pack("20s20s20s20s", node, p1, p2, link) +\
                 mercurial.mdiff.bdiff.bdiff(textbase, fulltext)
         yield chunk
         cs = node
@@ -129,12 +132,12 @@ def unpack_chunk_iter(chunk_iter, lookup_base):
     :param chunk_iter: Iterator over chunks to unpack
     :param lookup_base: Function to look up contents of 
         bases for deltas.
-    :return: Iterator over (fulltext, node, (p1, p2)) tuples.
+    :return: Iterator over (fulltext, node, (p1, p2), link) tuples.
     """
     fulltext_cache = {}
     base = None
     for chunk in chunk_iter:
-        node, p1, p2, cs = struct.unpack("20s20s20s20s", chunk[:80])
+        node, p1, p2, link = struct.unpack("20s20s20s20s", chunk[:80])
         if base is None:
             base = p1
         delta = buffer(chunk, 80)
@@ -147,7 +150,7 @@ def unpack_chunk_iter(chunk_iter, lookup_base):
             except KeyError:
                 textbase = lookup_base(base)
         fulltext = mercurial.mdiff.patches(textbase, [delta])
-        yield fulltext, node, (p1, p2)
+        yield fulltext, node, (p1, p2), link
         fulltext_cache[node] = fulltext
         base = node
 
@@ -172,10 +175,10 @@ def unpack_manifest_chunks(chunkiter, lookup_base):
 
     Yields tuples with key, parents, manifest and flags dictionary
     """
-    for (fulltext, hgkey, hgparents) in unpack_chunk_iter(chunkiter, 
+    for (fulltext, hgkey, hgparents, cs) in unpack_chunk_iter(chunkiter, 
                                                           lookup_base):
         (manifest, flags) = parse_manifest(fulltext)
-        yield hgkey, hgparents, manifest, flags
+        yield hgkey, hgparents, cs, manifest, flags
 
 
 def format_manifest(manifest, flags):

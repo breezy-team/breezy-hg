@@ -25,6 +25,9 @@ from bzrlib.plugins.hg.mapping import (
     files_from_delta,
     manifest_and_flags_from_tree,
     )
+from bzrlib.plugins.hg.parsers import (
+    format_manifest,
+    )
 
 
 def get_overlay(bzr_repo, mapping):
@@ -59,6 +62,14 @@ class MercurialRepositoryOverlay(object):
             delta = self.repo.get_revision_delta(revid)
             inv = self.repo.get_inventory(revid)
             return files_from_delta(delta, inv, revid)
+
+    def get_manifest_text(self, manifest_id):
+        revid = self.lookup_revision_by_manifest_id(manifest_id)
+        return self.get_manifest_text_by_revid(revid) 
+
+    def get_manifest_text_by_revid(self, revid):
+        (manifest, flags) = self.get_manifest_and_flags_by_revid(revid)
+        return format_manifest(manifest, flags)
 
     def get_manifest_and_flags_by_revid(self, revid):
         tree = self.repo.revision_tree(revid)

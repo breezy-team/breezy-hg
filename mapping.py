@@ -117,6 +117,7 @@ def manifest_and_flags_from_tree(tree, mapping, parent_node_lookup):
         of paths in the tree's parents
     """
     def get_text_parents(path):
+        assert type(path) == str
         ret = []
         for lookup in parent_node_lookup:
             try:
@@ -127,14 +128,21 @@ def manifest_and_flags_from_tree(tree, mapping, parent_node_lookup):
     manifest = {}
     flags = {}
     for path, entry in tree.inventory.iter_entries():
+        was_changed = (entry.revision == tree.get_revision_id())
         utf8_path = path.encode("utf-8")
         if entry.kind == 'symlink':
             flags[utf8_path] = 'l'
-            manifest[utf8_path] = hghash(entry.symlink_target, *get_text_parents(path))
+            if was_changed:
+                manifest[utf8_path] = hghash(entry.symlink_target, *get_text_parents(utf8_path))
+            else:
+                manifest[utf8_path] = parent_node_lookup[0](utf8_path)
         elif entry.kind == 'file':
             if entry.executable:
                 flags[utf8_path] = 'x'
-            manifest[utf8_path] = hghash(tree.get_file_text(entry.file_id), *get_text_parents(path))
+            if was_changed:
+                manifest[utf8_path] = hghash(tree.get_file_text(entry.file_id), *get_text_parents(utf8_path))
+            else:
+                manifest[utf8_path] = parent_node_lookup[0](utf8_path)
     return (manifest, flags)
 
 

@@ -42,6 +42,8 @@ from bzrlib.plugins.hg.mapping import (
     mapping_registry,
     )
 from bzrlib.plugins.hg.versionedfiles import (
+    ChangelogVersionedFile,
+    ManifestVersionedFile,
     RevlogVersionedFile,
     RevlogVersionedFiles,
     )
@@ -81,6 +83,24 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
     :param mapping: Mapping to use
     :param pb: Progress bar
     :return: Inventory object
+
+    how this works:
+    we grab the manifest for revision_id
+    we create an Inventory
+    for each file in the manifest we:
+        * if the dirname of the file is not in the inventory, we add it
+          recursively, with an id of the path with / replaced by :, and a 
+          prefix of 'hg:'. The directory gets a last-modified value of the
+          topologically oldest file.revision value under it in the 
+          inventory. In the event of multiple revisions with no topological
+          winner - that is where there is more than one root, alpha-sorting
+          is used as a tie-break.
+        * use the files revlog to get the 'linkrev' of the file which 
+          takes us to the revision id that introduced that revision. That
+          revision becomes the revision_id in the inventory
+        * check for executable status in the manifest flags
+        * add an entry for the file, of type file, executable if needed,
+          and an id of 'hg:path' with / replaced by :.
     """
     ancestry_cache = {}
     result = Inventory()
@@ -260,11 +280,11 @@ class HgRepository(ForeignRepository):
         self._serializer = None
         self.signatures = None
         if self._hgrepo.local():
-            self.revisions = RevlogVersionedFile(self._hgrepo.changelog, 
+            self.revisions = ChangelogVersionedFile(self._hgrepo.changelog, 
                                                  self.get_mapping())
-            self.inventories = RevlogVersionedFile(self._hgrepo.manifest,
+            self.inventories = ManifestVersionedFile(self, self._hgrepo.manifest,
                                                    self.get_mapping())
-            self.texts = RevlogVersionedFiles(self._hgrepo.file,
+            self.texts = RevlogVersionedFiles(self, self._hgrepo.file,
                                               self.get_mapping())
         else:
             self.revisions = None
@@ -286,26 +306,6 @@ class HgRepository(ForeignRepository):
         return default_mapping # for now
 
     def get_inventory(self, revision_id):
-        """Synthesize a bzr inventory from an hg manifest...
-
-        how this works:
-        we grab the manifest for revision_id
-        we create an Inventory
-        for each file in the manifest we:
-            * if the dirname of the file is not in the inventory, we add it
-              recursively, with an id of the path with / replaced by :, and a 
-              prefix of 'hg:'. The directory gets a last-modified value of the
-              topologically oldest file.revision value under it in the 
-              inventory. In the event of multiple revisions with no topological
-              winner - that is where there is more than one root, alpha-sorting
-              is used as a tie-break.
-            * use the files revlog to get the 'linkrev' of the file which 
-              takes us to the revision id that introduced that revision. That
-              revision becomes the revision_id in the inventory
-            * check for executable status in the manifest flags
-            * add an entry for the file, of type file, executable if needed,
-              and an id of 'hg:path' with / replaced by :.
-        """
         hgid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
@@ -349,8 +349,7 @@ class HgLocalRepository(HgRepository):
             if revid == NULL_REVISION:
                 ret[revid] = ()
             else:
-                # TODO: Handle round-tripped revisions
-                hg_ref, mapping = mapping_registry.revision_id_bzr_to_foreign(revid)
+                hg_ref, mapping = self.lookup_revision_id(revid)
                 parents = []
                 for r in self._hgrepo.changelog.parents(hg_ref):
                     if r != mercurial.node.nullid:
@@ -361,10 +360,13 @@ class HgLocalRepository(HgRepository):
     def get_revisions(self, revids):
         return [self.get_revision(r) for r in revids]
 
-    def get_revision(self, revision_id):
+    def lookup_revision_id(self, revision_id):
         # TODO: Handle round-tripped revisions
+        return mapping_registry.revision_id_bzr_to_foreign(revision_id)
+
+    def get_revision(self, revision_id):
         try:
-            hgrevid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
+            hgrevid, mapping = self.lookup_revision_id(revision_id)
         except errors.InvalidRevisionId:
             raise errors.NoSuchRevision(revision_id)
         hgchange = self._hgrepo.changelog.read(hgrevid)
@@ -372,9 +374,8 @@ class HgLocalRepository(HgRepository):
         return mapping.import_revision(revision_id, hgrevid, hgparents, hgchange[0], hgchange[1], hgchange[2], hgchange[4], hgchange[5])
 
     def has_revision(self, revision_id):
-        # TODO: Handle round-tripped revisions
         try:
-            return mapping_registry.revision_id_bzr_to_foreign(revision_id)[0] in self._hgrepo.changelog.nodemap
+            return self.lookup_revision_id(revision_id)[0] in self._hgrepo.changelog.nodemap
         except errors.InvalidRevisionId:
             return False
 

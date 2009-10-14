@@ -33,6 +33,7 @@ import mercurial.node
 import os
 
 from bzrlib import (
+    debug,
     lru_cache,
     osutils,
     trace,
@@ -223,6 +224,26 @@ def create_directory_texts(texts, invdelta):
     texts.insert_record_stream(stream)
 
 
+def check_roundtrips(repository, mapping, revid, files, manifest, flags, 
+                     manifest_parents,
+                     inventory=None):
+    from bzrlib.plugins.hg.mapping import (
+        files_from_delta,
+        manifest_and_flags_from_tree,
+        )
+    if inventory is None:
+        inventory = repository.get_inventory(revid)
+    delta = repository.get_revision_delta(revid)
+    assert sorted(files) == sorted(files_from_delta(delta, inventory, revid))
+    tree = repository.revision_tree(revid)
+    lookup = []
+    for m, f in manifest_parents[:2]:
+        lookup.append(m.__getitem__)
+    while len(lookup) < 2:
+        lookup.append({}.__getitem__)
+    assert (manifest, flags) == manifest_and_flags_from_tree(tree, mapping, lookup)
+
+
 class FromHgRepository(InterRepository):
     """Hg to any repository actions."""
 
@@ -260,15 +281,18 @@ class FromHgRepository(InterRepository):
                 ret.append(self._inventories[revid])
         return ret
 
+    def _get_manifest_and_flags(self, node):
+        if node in self._manifests:
+            return self._manifests[node]
+        else:
+            return self._target_overlay.get_manifest_and_flags(node)
+
     def _import_manifest_delta(self, manifest, manifest_p1, flags, files, rev, 
                                mapping):
         def get_base(node):
             assert self._remember_manifests[node] > 0
             try:
-                if node in self._manifests:
-                    return self._manifests[node]
-                else:
-                    return self._target_overlay.get_manifest_and_flags(node)
+                return self._get_manifest_and_flags(node)
             finally:
                 self._remember_manifests[node] -= 1
                 if self._remember_manifests[node] == 0:
@@ -351,6 +375,12 @@ class FromHgRepository(InterRepository):
                 del self._revisions[rev.revision_id]
                 if self._remember_manifests[manifest_id] > 0:
                     self._manifests[manifest_id] = (manifest, flags)
+                if 'check' in debug.debug_flags:
+                    check_roundtrips(self.target, mapping, rev.revision_id, 
+                        files, manifest, flags, 
+                        [self._get_manifest_and_flags(x) for x in manifest_parents],
+                        inventory=new_inv,
+                        )
         del self._remember_manifests[mercurial.node.nullid]
         if len([x for x,n in self._remember_manifests.iteritems() if n > 1]) > 0:
             raise AssertionError("%r not empty" % self._remember_manifests)

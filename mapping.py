@@ -30,6 +30,7 @@ from mercurial.revlog import (
 from bzrlib import (
     errors,
     foreign,
+    osutils,
     revision as _mod_revision,
     )
 
@@ -97,7 +98,7 @@ def files_from_delta(delta, inv, revid):
         (path, id, kind) = change[:3]
         if kind not in ('file', 'symlink'):
             continue
-        if inv[inv.path2id(path)].revision == revid:
+        if not id in inv or inv[id].revision == revid:
             ret.add(path)
     for (path, id, old_kind, new_kind) in delta.kind_changed:
         if old_kind in ('file', 'symlink') or new_kind in ('file', 'symlink'):
@@ -108,9 +109,10 @@ def files_from_delta(delta, inv, revid):
     return sorted(ret)
 
 
-def manifest_and_flags_from_tree(tree, mapping, parent_node_lookup):
+def manifest_and_flags_from_tree(parent_trees, tree, mapping, parent_node_lookup):
     """Generate a manifest from a Bazaar tree.
 
+    :param parent_trees: Parent trees
     :param tree: Tree
     :param mapping: Bzr<->Hg mapping
     :param parent_node_lookup: 2-tuple with functions to look up the nodes 
@@ -125,24 +127,39 @@ def manifest_and_flags_from_tree(tree, mapping, parent_node_lookup):
             except KeyError:
                 ret.append(mercurial.node.nullid)
         return tuple(ret)
+    def find_matching_entry(path, text_sha1):
+        for i, ptree in enumerate(parent_trees):
+            fid = ptree.inventory.path2id(path)
+            if fid is None:
+                continue
+            prev_entry = ptree.inventory[fid]
+            if prev_entry.kind == 'file' and prev_entry.text_sha1 == text_sha1:
+                return i
+            if prev_entry.kind == 'symlink' and osutils.sha_string(prev_entry.symlink_target) == text_sha1:
+                return i
+        return None
     manifest = {}
     flags = {}
     for path, entry in tree.inventory.iter_entries():
-        was_changed = (entry.revision == tree.get_revision_id())
+        if entry.kind == 'symlink':
+            this_sha1 = osutils.sha_string(entry.symlink_target)
+        else:
+            this_sha1 = entry.text_sha1
+        prev_entry = find_matching_entry(path, this_sha1)
         utf8_path = path.encode("utf-8")
         if entry.kind == 'symlink':
             flags[utf8_path] = 'l'
-            if was_changed:
+            if prev_entry is None:
                 manifest[utf8_path] = hghash(entry.symlink_target, *get_text_parents(utf8_path))
             else:
-                manifest[utf8_path] = parent_node_lookup[0](utf8_path)
+                manifest[utf8_path] = parent_node_lookup[prev_entry](utf8_path)
         elif entry.kind == 'file':
             if entry.executable:
                 flags[utf8_path] = 'x'
-            if was_changed:
+            if prev_entry is None:
                 manifest[utf8_path] = hghash(tree.get_file_text(entry.file_id), *get_text_parents(utf8_path))
             else:
-                manifest[utf8_path] = parent_node_lookup[0](utf8_path)
+                manifest[utf8_path] = parent_node_lookup[prev_entry](utf8_path)
     return (manifest, flags)
 
 

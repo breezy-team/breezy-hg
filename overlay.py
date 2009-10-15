@@ -18,6 +18,10 @@
 
 import mercurial.node
 
+from bzrlib import (
+    revision as _mod_revision,
+    )
+
 from bzrlib.plugins.hg.idmap import (
     MemoryIdmap,
     )
@@ -75,12 +79,13 @@ class MercurialRepositoryOverlay(object):
         tree = self.repo.revision_tree(revid)
         lookup_text_node = []
         rev = self.repo.get_revision(revid)
+        base_tree = list(self.repo.revision_trees(rev.parent_ids[:2]))
         for p in rev.parent_ids[:2]:
             parent_manifest = self.get_manifest_and_flags_by_revid(p)[0]
             lookup_text_node.append(parent_manifest.__getitem__)
         while len(lookup_text_node) < 2:
             lookup_text_node.append(lambda path: mercurial.node.nullid)
-        return manifest_and_flags_from_tree(tree, self.mapping, 
+        return manifest_and_flags_from_tree(base_tree, tree, self.mapping, 
             lookup_text_node) 
 
     def get_manifest_and_flags(self, manifest_id):

@@ -232,12 +232,19 @@ def check_roundtrips(repository, mapping, revid, expected_files,
         )
     if inventory is None:
         inventory = repository.get_inventory(revid)
-    delta = repository.get_revision_delta(revid)
+    tree = repository.revision_tree(revid)
+    rev = repository.get_revision(revid)
+    parent_trees = list(repository.revision_trees(rev.parent_ids[:2]))
+    try:
+        base_tree = parent_trees[0]
+    except IndexError:
+        base_tree = repository.revision_tree(NULL_REVISION)
+    delta = tree.changes_from(base_tree)
     files = files_from_delta(delta, inventory, revid)
     assert expected_files == files
-    tree = repository.revision_tree(revid)
     lookup = [m.__getitem__ for m, f in manifest_parents[:2]]
-    (manifest, flags) = manifest_and_flags_from_tree(tree, mapping, lookup)
+    (manifest, flags) = manifest_and_flags_from_tree(parent_trees, tree, 
+        mapping, lookup)
     assert set(manifest.keys()) == set(expected_manifest.keys()), \
             "Different contents in manifests: %r, %r" % (manifest.keys(), expected_manifest.keys())
     assert set(flags.keys()) == set(expected_flags.keys()), \
@@ -260,6 +267,7 @@ class FromHgRepository(InterRepository):
         self._remember_manifests = defaultdict(lambda: 0)
         self._manifests = {}
         self._text_metadata = {}
+        self._symlink_targets = {}
         # Map mapping manifest ids to bzr revision ids
         self._manifest2rev_map = defaultdict(set)
 
@@ -322,10 +330,17 @@ class FromHgRepository(InterRepository):
                 basis_inv, other_inv, (basis_manifest, basis_flags),
                 (manifest, flags), rev.revision_id, files, 
                 self._text_metadata.__getitem__,
-                self._get_target_fulltext))
+                self._symlink_targets.__getitem__))
 
     def _get_target_fulltext(self, key):
-        return "".join(self.target.iter_files_bytes([key + (None,)]).next()[1])
+        if key in self._symlink_targets:
+            return self._symlink_targets[key]
+        ret = "".join(self.target.iter_files_bytes([key + (None,)]).next()[1])
+        if ret == "": # could be a symlink
+            ie = self.target.get_inventory(key[1])[key[0]]
+            if ie.kind == "symlink":
+                return ie.symlink_target
+        return ret
 
     def _unpack_texts(self, cg, mapping, filetext_map, pb):
         i = 0
@@ -343,9 +358,10 @@ class FromHgRepository(InterRepository):
                 return self._get_target_fulltext(key)
             for fulltext, hgkey, hgparents, csid in unpack_chunk_iter(chunkiter, get_text):
                 for revision, (kind, parents) in filetext_map[fileid][hgkey].iteritems():
-                    if kind == "symlink":
-                        fulltext = ""
                     key = (fileid, revision)
+                    if kind == "symlink":
+                        self._symlink_targets[key] = fulltext
+                        fulltext = ""
                     record = FulltextContentFactory(key, None, osutils.sha_string(fulltext), fulltext)
                     record.parents = parents
                     self._text_metadata[key] = (record.sha1, len(fulltext))

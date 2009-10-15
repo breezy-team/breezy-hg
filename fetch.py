@@ -155,11 +155,14 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
             if file_id is None:
                 raise AssertionError("Removed file %r didn't exist in basis" % path)
             yield (path, None, file_id, None)
-            maybe_empty_dirs[os.path.dirname(path)].add(basis_inv[file_id].name)
+            dirname = os.path.dirname(path)
+            if maybe_empty_dirs[dirname] is not None:
+                maybe_empty_dirs[dirname].add(basis_inv[file_id].name)
         else:
             assert type(utf8_path) is str
             fileid = mapping.generate_file_id(utf8_path)
             parent_path, basename = os.path.split(path)
+            maybe_empty_dirs[parent_path] = None
             if basis_inv is not None and basis_inv.has_filename(path):
                 old_path = path
                 parent_id = basis_inv.path2id(parent_path)
@@ -197,6 +200,9 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
             yield (old_path, path, fileid, ie)
     # Remove empty directories
     for path in sorted(maybe_empty_dirs.keys(), reverse=True):
+        if maybe_empty_dirs[path] is None:
+            # Was vetoed
+            continue
         file_id = basis_inv.path2id(path)
         if path == u"":
             # Never consider removing the root :-)
@@ -373,7 +379,6 @@ class FromHgRepository(InterRepository):
         for i, (manifest_id, manifest_parents, csid, (manifest, flags)) in enumerate(
                 unpack_manifest_chunks(manifestchunks, self._target_overlay.get_manifest_text)):
             pb.update("adding inventories", i, total)
-            assert len(self._manifest2rev_map[manifest_id]) == 1
             for revid in self._manifest2rev_map[manifest_id]:
                 rev = self._get_revision(revid)
                 files = self._get_files(rev.revision_id)
@@ -520,7 +525,7 @@ class FromHgRepository(InterRepository):
 
         Based on mercurial.localrepo.localrepository.findcommonincoming
         """
-        unknowns = set(heads) - self._target_overlay.has_hgids(heads)
+        unknowns = list(set(heads) - self._target_overlay.has_hgids(heads))
         if not unknowns:
             return []
         seen = set()

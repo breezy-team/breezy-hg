@@ -18,10 +18,6 @@
 
 import mercurial.node
 
-from bzrlib import (
-    revision as _mod_revision,
-    )
-
 from bzrlib.plugins.hg.idmap import (
     MemoryIdmap,
     )
@@ -68,7 +64,7 @@ class MercurialRepositoryOverlay(object):
             return files_from_delta(delta, inv, revid)
 
     def get_manifest_text(self, manifest_id):
-        revid = self.lookup_revision_by_manifest_id(manifest_id)
+        revid = self._lookup_revision_by_manifest_id(manifest_id)
         return self.get_manifest_text_by_revid(revid) 
 
     def get_manifest_text_by_revid(self, revid):
@@ -96,7 +92,7 @@ class MercurialRepositoryOverlay(object):
         """
         if manifest_id == mercurial.node.nullid:
             return {}, {}
-        revid = self.lookup_revision_by_manifest_id(manifest_id)
+        revid = self._lookup_revision_by_manifest_id(manifest_id)
         return self.get_manifest_and_flags_by_revid(revid)
 
     def lookup_revision_by_changeset_id(self, changeset_id):
@@ -105,7 +101,7 @@ class MercurialRepositoryOverlay(object):
             return bzr_revid
         return self.idmap.lookup_revision(changeset_id)
 
-    def lookup_revision_by_manifest_id(self, manifest_id):
+    def _lookup_revision_by_manifest_id(self, manifest_id):
         try:
             return self.idmap.lookup_revision_by_manifest_id(manifest_id)
         except KeyError:

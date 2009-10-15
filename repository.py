@@ -33,6 +33,9 @@ from bzrlib.osutils import (
     sha_strings,
     )
 import bzrlib.repository
+from bzrlib.revision import (
+    NULL_REVISION,
+    )
 
 from bzrlib.plugins.hg.mapping import (
     default_mapping,
@@ -308,11 +311,11 @@ class HgRepository(ForeignRepository):
         hgid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
-        all_relevant_revisions = self.get_ancestry(revision_id)
+        all_relevant_revisions = self.get_ancestry(revision_id)[1:] + [NULL_REVISION]
         pb = ui.ui_factory.nested_progress_bar()
         try:
             inv = manifest_to_inventory(self._hgrepo, hgid, log, manifest,
-                all_relevant_revisions, mapping, pb)
+                self.get_parent_map(all_relevant_revisions), mapping, pb)
             inv.revision_id = revision_id
             return inv
         finally:

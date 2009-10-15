@@ -32,6 +32,7 @@ from bzrlib import (
     foreign,
     osutils,
     revision as _mod_revision,
+    trace,
     )
 
 
@@ -248,7 +249,12 @@ class ExperimentalHgMapping(foreign.VcsMapping):
             elif name.startswith("hg:"):
                 extra[name[len("hg:"):]] = base64.b64decode(value)
             else:
-                extra["bzr:"+name] = value.encode("utf-8")
+                extra["bzr:revprop:"+name] = value.encode("utf-8")
+        if not lossy:
+            extra["bzr:mapping"] = str(self)
+            extra["bzr:revision-id"] = rev.revision_id
+            if len(rev.parent_ids) > 2:
+                extra["bzr:extra-parents"] = " ".join(rev.parent_ids[2:])
         desc = rev.message.encode("utf-8")
         return (manifest, user, (time, timezone), desc, extra)
 
@@ -265,8 +271,14 @@ class ExperimentalHgMapping(foreign.VcsMapping):
                 'manifest': mercurial.node.hex(manifest)
                 }
         for name, value in extra.iteritems():
-            if name.startswith("bzr:"):
-                result.properties[name[len("bzr:")]] = value.decode("utf-8")
+            if name.startswith("bzr:revprop:"):
+                result.properties[name[len("bzr:revprop:")]] = value.decode("utf-8")
+            elif name == "bzr:extra-parents":
+                result.parent_ids += tuple(value.split(" "))
+            elif name == "bzr:revision-id":
+                assert value == result.revision_id
+            elif name.startswith("bzr:"):
+                trace.mutter("unknown bzr extra %s: %r", name, value)
             else:
                 result.properties["hg:" + name] = base64.b64encode(value)
         return result

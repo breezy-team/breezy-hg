@@ -128,7 +128,15 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts):
 def text_contents(repo, get_changelog_id, path, keys, overlay):
     def text_as_node((fileid, revision)):
         return overlay.lookup_text_node_by_revid_and_path(revision, path)
+    base_reported = False
     for record in repo.texts.get_record_stream(keys, 'topological', True):
+        if not base_reported:
+            if record.parents:
+                base_text = repo.texts.get_record_stream([record.parents[0]], 'unordered', True).next().get_bytes_as('fulltext')
+            else:
+                base_text = ""
+            yield base_text, None, None
+            base_reported = True
         fulltext = record.get_bytes_as('fulltext')
         yield (fulltext, as_hg_parents(record.parents, text_as_node), 
                get_changelog_id(record.key[1]))

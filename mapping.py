@@ -109,6 +109,23 @@ def files_from_delta(delta, inv, revid):
     return sorted(ret)
 
 
+def entry_sha1(entry):
+    if entry.kind == 'symlink':
+        return osutils.sha_string(entry.symlink_target)
+    else:
+        return entry.text_sha1
+
+
+def find_matching_entry(parent_trees, path, text_sha1):
+    for i, ptree in enumerate(parent_trees):
+        fid = ptree.inventory.path2id(path)
+        if fid is None:
+            continue
+        if entry_sha1(ptree.inventory[fid]) == text_sha1:
+            return i
+    return None
+
+
 def manifest_and_flags_from_tree(parent_trees, tree, mapping, parent_node_lookup):
     """Generate a manifest from a Bazaar tree.
 
@@ -127,39 +144,23 @@ def manifest_and_flags_from_tree(parent_trees, tree, mapping, parent_node_lookup
             except KeyError:
                 ret.append(mercurial.node.nullid)
         return tuple(ret)
-    def find_matching_entry(path, text_sha1):
-        for i, ptree in enumerate(parent_trees):
-            fid = ptree.inventory.path2id(path)
-            if fid is None:
-                continue
-            prev_entry = ptree.inventory[fid]
-            if prev_entry.kind == 'file' and prev_entry.text_sha1 == text_sha1:
-                return i
-            if prev_entry.kind == 'symlink' and osutils.sha_string(prev_entry.symlink_target) == text_sha1:
-                return i
-        return None
     manifest = {}
     flags = {}
     for path, entry in tree.inventory.iter_entries():
-        if entry.kind == 'symlink':
-            this_sha1 = osutils.sha_string(entry.symlink_target)
-        else:
-            this_sha1 = entry.text_sha1
-        prev_entry = find_matching_entry(path, this_sha1)
+        this_sha1 = entry_sha1(entry)
+        prev_entry = find_matching_entry(parent_trees, path, this_sha1)
         utf8_path = path.encode("utf-8")
         if entry.kind == 'symlink':
             flags[utf8_path] = 'l'
             if prev_entry is None:
                 manifest[utf8_path] = hghash(entry.symlink_target, *get_text_parents(utf8_path))
-            else:
-                manifest[utf8_path] = parent_node_lookup[prev_entry](utf8_path)
         elif entry.kind == 'file':
             if entry.executable:
                 flags[utf8_path] = 'x'
             if prev_entry is None:
                 manifest[utf8_path] = hghash(tree.get_file_text(entry.file_id), *get_text_parents(utf8_path))
-            else:
-                manifest[utf8_path] = parent_node_lookup[prev_entry](utf8_path)
+        if entry.kind in ('file', 'symlink') and prev_entry is not None:
+            manifest[utf8_path] = parent_node_lookup[prev_entry](utf8_path)
     return (manifest, flags)
 
 

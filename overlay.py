@@ -17,15 +17,25 @@
 """Overlay that allows accessing a Bazaar repository like a Mercurial one."""
 
 import mercurial.node
+from mercurial.revlog import (
+    hash as hghash,
+    )
+
+from bzrlib import (
+    errors,
+    ui,
+    )
 
 from bzrlib.plugins.hg.idmap import (
     MemoryIdmap,
     )
 from bzrlib.plugins.hg.mapping import (
+    as_hg_parents,
     files_from_delta,
     manifest_and_flags_from_tree,
     )
 from bzrlib.plugins.hg.parsers import (
+    format_changeset,
     format_manifest,
     )
 
@@ -41,19 +51,28 @@ class MercurialRepositoryOverlay(object):
         self.repo = repo
         self.mapping = mapping
         self.idmap = idmap
+        self._update_idmap()
 
     def _update_idmap(self):
         present_revids = self.idmap.revids()
         todo = set(self.repo.all_revision_ids()) - present_revids
         revs = self.repo.get_revisions(todo)
-        for revid in todo:
-            rev = self.repo.get_revision(revid)
-            try:
-                manifest_id = rev.properties['manifest']
-            except KeyError:
-                pass # no 'manifest' property present
-            else:
-                self.idmap.insert_manifest(manifest_id, revid)
+        graph = self.repo.get_graph()
+        pb = ui.ui_factory.nested_progress_bar()
+        try:
+            for i, revid in enumerate(graph.iter_topo_order(todo)):
+                pb.update("updating cache", i, len(todo))
+                rev = self.repo.get_revision(revid)
+                try:
+                    manifest_id = rev.properties['manifest']
+                except KeyError:
+                    manifest_text = self.get_manifest_text_by_revid(revid)
+                    manifest_id = hghash(manifest_text, *as_hg_parents(rev.parent_ids[:2], self.lookup_manifest_id_by_revid))
+                    pass # no 'manifest' property present
+                else:
+                    self.idmap.insert_manifest(manifest_id, revid)
+        finally:
+            pb.finished()
 
     def get_files_by_revid(self, revid):
         try:
@@ -82,7 +101,7 @@ class MercurialRepositoryOverlay(object):
         while len(lookup_text_node) < 2:
             lookup_text_node.append(lambda path: mercurial.node.nullid)
         return manifest_and_flags_from_tree(base_tree, tree, self.mapping, 
-            lookup_text_node) 
+                lookup_text_node)[:2]
 
     def get_manifest_and_flags(self, manifest_id):
         """Return manifest by manifest id.
@@ -114,11 +133,7 @@ class MercurialRepositoryOverlay(object):
         :param id: Mercurial ID
         :return: boolean
         """
-        if id == mercurial.node.nullid:
-            return True
-        if len(self.has_hgids([id])) == 1:
-            return True
-        return False
+        return (len(self.has_hgids([id])) == 1)
 
     def lookup_text_node_by_revid_and_path(self, revid, path):
         (manifest, flags) = self.get_manifest_and_flags_by_revid(revid)
@@ -128,7 +143,21 @@ class MercurialRepositoryOverlay(object):
         rev = self.repo.get_revision(revid)
         return mercurial.node.bin(rev.properties['manifest'])
 
+    def get_changeset_text_by_revid(self, revid):
+        rev = self.repo.get_revision(revid)
+        (manifest, user, (time, timezone), desc, extra) = \
+            mapping.export_revision(rev)
+        if manifest is None:
+            # Manifest not in the revision, look it up
+            # This could potentially be very expensive, but no way around 
+            # that...
+            manifest = self.lookup_manifest_id_by_revid(revid)
+        files = self.get_files_by_revid(revid)
+        return format_changeset(manifest, files, user, (time, timezone),
+                                desc, extra)
+
     def lookup_changeset_id_by_revid(self, revid):
+        # TODO: Handle roundtripping
         return self.mapping.revision_id_bzr_to_foreign(revid)
 
     def has_hgids(self, ids):

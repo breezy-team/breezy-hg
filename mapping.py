@@ -165,7 +165,7 @@ def manifest_and_flags_from_tree(parent_trees, tree, mapping, parent_node_lookup
         if entry.kind in ('file', 'symlink') and prev_entry is not None:
             manifest[utf8_path] = parent_node_lookup[prev_entry](utf8_path)
         if ((mapping.generate_file_id(utf8_path) != entry.file_id or entry.kind == 'directory') and 
-            (parent_trees == [] or parent_trees[0].inventory.id2path(entry.file_id) != path)):
+            (parent_trees == [] or parent_trees[0].inventory.path2id(path) != entry.file_id)):
             unusual_fileids[utf8_path] = entry.file_id
     return (manifest, flags, unusual_fileids)
 
@@ -286,7 +286,7 @@ class ExperimentalHgMapping(foreign.VcsMapping):
             elif name == "bzr-extra-parents":
                 result.parent_ids += tuple(value.split(" "))
             elif name == "bzr-revision-id":
-                assert value == result.revision_id
+                result.revision_id = value
             elif name == "bzr-fileids":
                 fileids = dict(bencode.bdecode(value))
             elif name.startswith("bzr-"):

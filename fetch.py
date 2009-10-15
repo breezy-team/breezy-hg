@@ -58,14 +58,14 @@ from bzrlib.versionedfile import (
     )
 
 from bzrlib.plugins.hg.mapping import (
+    files_from_delta,
     flags_kind,
+    manifest_and_flags_from_tree,
     )
 from bzrlib.plugins.hg.overlay import (
     get_overlay,
     )
-
 from bzrlib.plugins.hg.parsers import (
-    format_changeset,
     parse_changeset,
     unpack_chunk_iter,
     unpack_manifest_chunks,
@@ -104,7 +104,7 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
         return ([(None, path, other_fileid, ie)], other_fileid)
     if path != "":
         ret, parent_id = inventory_create_directory(directories, basis_inv, 
-                            other_inv, os.path.dirname(path), lookup_file_id, revid)
+            other_inv, os.path.dirname(path), lookup_file_id, revid)
     else:
         # Root directory doesn't have a parent id
         ret = []
@@ -223,8 +223,7 @@ def create_directory_texts(texts, invdelta):
     stream = []
     for (old_path, new_path, fileid, ie) in invdelta:
         if old_path is None and ie.kind == "directory":
-            record = FulltextContentFactory((fileid, ie.revision), (), None,
-                                            "")
+            record = FulltextContentFactory((fileid, ie.revision), (), None, "")
             record.parents = ()
             stream.append(record)
     texts.insert_record_stream(stream)
@@ -243,10 +242,6 @@ def check_roundtrips(repository, mapping, revid, expected_files,
     :param manifest_parents: Manifests of the parents of revision
     :param inventory: Optional inventory for revid, if the caller already had it
     """
-    from bzrlib.plugins.hg.mapping import (
-        files_from_delta,
-        manifest_and_flags_from_tree,
-        )
     if inventory is None:
         inventory = repository.get_inventory(revid)
     tree = repository.revision_tree(revid)
@@ -399,7 +394,7 @@ class FromHgRepository(InterRepository):
             pb.update("adding inventories", i, total)
             for revid in self._manifest2rev_map[manifest_id]:
                 rev = self._get_revision(revid)
-                files = self._get_files(rev.revision_id)
+                files = self._files[rev.revision_id]
                 del self._files[rev.revision_id]
                 if rev.parent_ids == ():
                     basis_revid = NULL_REVISION
@@ -408,6 +403,7 @@ class FromHgRepository(InterRepository):
                 basis_inv, invdelta = self._import_manifest_delta(
                     manifest, manifest_parents[0], flags, files, 
                     rev, mapping)
+                # FIXME: Add empty directories
                 create_directory_texts(self.target.texts, invdelta)
                 (validator, new_inv) = self.target.add_inventory_by_delta(
                     basis_revid, invdelta, rev.revision_id, rev.parent_ids, 
@@ -427,36 +423,21 @@ class FromHgRepository(InterRepository):
         if len([x for x,n in self._remember_manifests.iteritems() if n > 1]) > 0:
             raise AssertionError("%r not empty" % self._remember_manifests)
 
-    def _get_files(self, revid):
-        try:
-            return self._files[revid]
-        except KeyError:
-            return self._target_overlay.get_files_by_revid(revid)
-
     def _unpack_changesets(self, chunkiter, mapping, pb):
         def get_hg_revision(hgid):
             revid = mapping.revision_id_foreign_to_bzr(hgid)
-            rev = self._get_revision(revid)
-            (manifest, user, (time, timezone), desc, extra) = \
-                mapping.export_revision(rev)
-            # TODO: For now we always know that a manifest id was stored since 
-            # we don't support roundtripping into Mercurial yet. When we do, 
-            # we need a fallback mechanism to determine the manifest id.
-            if manifest is None:
-                raise AssertionError
-            files = self._get_files(revid)
-            return format_changeset(manifest, files, user, (time, timezone),
-                                    desc, extra)
+            return self._target_overlay.get_changeset_text_by_revid(revid)
+
         for i, (fulltext, hgkey, hgparents, csid) in enumerate(
                 unpack_chunk_iter(chunkiter, get_hg_revision)):
             pb.update("fetching changesets", i)
             (manifest, user, (time, timezone), files, desc, extra) = \
                 parse_changeset(fulltext)
             key = mapping.revision_id_foreign_to_bzr(hgkey)
-            self._files[key] = files
             rev, fileids = mapping.import_revision(key, hgkey,
                 hgparents, manifest, user, (time, timezone), desc, extra)
-            self._manifest2rev_map[manifest].add(key)
+            self._files[rev.revision_id] = files
+            self._manifest2rev_map[manifest].add(rev.revision_id)
             self._revisions[rev.revision_id] = rev
 
     def _unpack_manifests(self, chunkiter, mapping, pb):
@@ -471,7 +452,7 @@ class FromHgRepository(InterRepository):
                 unpack_manifest_chunks(chunkiter, self._target_overlay.get_manifest_text)):
             pb.update("fetching manifests", i, len(self._revisions))
             for revid in self._manifest2rev_map[hgkey]:
-                for path in self._get_files(revid):
+                for path in self._files[revid]:
                     assert type(path) is str
                     fileid = mapping.generate_file_id(path)
                     if not path in manifest:

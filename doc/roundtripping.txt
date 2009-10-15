@@ -1,6 +1,28 @@
-Semantics in Bazaar that can not be mapped to equivalents in Mercurial and 
-will be have to be stowed somewhere else:
-- revision ids (revision property)
-- octopus merges (store parents > 2 in revision property and turn them 
-				  into ghosts)
-- file ids (store 'unusual' file ids in a revision property, bencoded?)
+Mapping
+
+Luckily the semantics of Bazaar and Mercurial are pretty similar. The 
+main differences in their models that matter for bzr-hg when roundtripping are: 
+
+ - Bazaar has pseudo-random strings to identify revisions, Mercurial has 
+   20-byte hashes
+ - Mercurial does not support ghosts
+ - Mercurial does not support more than 2 parents for a revision
+ - Mercurial does not have the concept of file ids
+
+Fortunately both support custom properties stored in the revision. bzr-hg 
+will use this to stow any data that can not be mapped to Mercurial semantics.
+
+The revision id will be stored in a Mercurial revision property named 
+``bzr:revision-id``.
+
+For versioning purposes a revision property named ``bzr:mapping`` will be set 
+to the name of the mapping that is being used.
+
+Any parents beyond ghosts and after the second parent will have their revision 
+id stored in ``bzr:extra-parents``, separated by spaces. These parents will 
+most probably end up as ghosts (since we have no way to have Mercurial fetch 
+them), but that should not be a problem.
+
+File ids for newly introduced files that do not match the mapping's path-based
+file id generation mechanism will be stored in a ``bzr:file-ids`` property, 
+sorted() by path and bencoded.

@@ -73,7 +73,7 @@ from bzrlib.plugins.hg.parsers import (
 
 
 def inventory_create_directory(directories, basis_inv, other_inv, path,
-                               mapping, revid):
+                               lookup_file_id, revid):
     """Make sure a directory and its parents exist.
 
     :param directories: Dictionary with directories that have already been 
@@ -83,7 +83,7 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
     :param other_inv: Optional other inventory that could have introduced 
         directories
     :param path: Path of the directory
-    :param mapping: Bzr<->Hg mapping to use
+    :param lookup_file_id: Lookup file id
     :param revid: Revision id to use when creating new inventory entries
     :return: Tuple with inventory delta and file id of the specified path.
     """
@@ -104,12 +104,12 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
         return ([(None, path, other_fileid, ie)], other_fileid)
     if path != "":
         ret, parent_id = inventory_create_directory(directories, basis_inv, 
-                            other_inv, os.path.dirname(path), mapping, revid)
+                            other_inv, os.path.dirname(path), lookup_file_id, revid)
     else:
         # Root directory doesn't have a parent id
         ret = []
         parent_id = None
-    fileid = mapping.generate_file_id(path.encode("utf-8"))
+    fileid = lookup_file_id(path.encode("utf-8"))
     ie = InventoryDirectory(fileid, os.path.basename(path), parent_id)
     ie.revision = revid
     ret.append((None, path, fileid, ie))
@@ -117,7 +117,7 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
     return ret, fileid
 
 
-def manifest_to_inventory_delta(mapping, basis_inv, other_inv, 
+def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv, 
                                 (basis_manifest, basis_flags),
                                 (manifest, flags), 
                                 revid, files, lookup_metadata,
@@ -126,7 +126,7 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
 
     Does not take renames into account.
 
-    :param mapping: Bzr<->Hg mapping to use
+    :param lookup_file_id: Lookup a file id
     :param basis_inv: Basis (Bazaar) inventory (None if there are no parents)
     :param other_inv: Optional merge parent inventory
     :param (basis_manifest, basis_flags): Manifest and flags matching basis 
@@ -162,7 +162,7 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                 maybe_empty_dirs[dirname].add(basis_inv[file_id].name)
         else:
             assert type(utf8_path) is str
-            fileid = mapping.generate_file_id(utf8_path)
+            fileid = lookup_file_id(utf8_path)
             parent_path, basename = os.path.split(path)
             maybe_empty_dirs[parent_path] = None
             if basis_inv is not None and basis_inv.has_filename(path):
@@ -172,7 +172,7 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
                 old_path = None
                 # Make sure parent exists
                 extra, parent_id = inventory_create_directory(directories, 
-                    basis_inv, other_inv, parent_path, mapping, revid)
+                    basis_inv, other_inv, parent_path, lookup_file_id, revid)
                 for e in extra:
                     yield e
             f = flags.get(utf8_path, "")
@@ -343,7 +343,7 @@ class FromHgRepository(InterRepository):
                 other_inv = parent_invs[1]
             else:
                 other_inv = None
-        return basis_inv, list(manifest_to_inventory_delta(mapping, 
+        return basis_inv, list(manifest_to_inventory_delta(mapping.generate_file_id, 
                 basis_inv, other_inv, (basis_manifest, basis_flags),
                 (manifest, flags), rev.revision_id, files, 
                 self._text_metadata.__getitem__,

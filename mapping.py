@@ -28,6 +28,7 @@ from mercurial.revlog import (
     )
 
 from bzrlib import (
+    bencode,
     errors,
     foreign,
     osutils,
@@ -235,7 +236,7 @@ class ExperimentalHgMapping(foreign.VcsMapping):
             raise ValueError
         return unescape_path(fileid[len("hg:"):])
 
-    def export_revision(self, rev, lossy=True):
+    def export_revision(self, rev, lossy=True, fileids={}):
         if not lossy:
             raise NotImplementedError("non-lossy exports not yet supported")
         user = rev.committer.encode("utf-8")
@@ -255,6 +256,8 @@ class ExperimentalHgMapping(foreign.VcsMapping):
             extra["bzr:revision-id"] = rev.revision_id
             if len(rev.parent_ids) > 2:
                 extra["bzr:extra-parents"] = " ".join(rev.parent_ids[2:])
+            if fileids:
+                extra["bzr:fileids"] = bencode.bencode(sorted(fileids.items()))
         desc = rev.message.encode("utf-8")
         return (manifest, user, (time, timezone), desc, extra)
 
@@ -270,6 +273,7 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         result.properties = {
                 'manifest': mercurial.node.hex(manifest)
                 }
+        fileids = {}
         for name, value in extra.iteritems():
             if name.startswith("bzr:revprop:"):
                 result.properties[name[len("bzr:revprop:")]] = value.decode("utf-8")
@@ -277,11 +281,13 @@ class ExperimentalHgMapping(foreign.VcsMapping):
                 result.parent_ids += tuple(value.split(" "))
             elif name == "bzr:revision-id":
                 assert value == result.revision_id
+            elif name == "bzr:fileids":
+                fileids = dict(bencode.bdecode(value))
             elif name.startswith("bzr:"):
                 trace.mutter("unknown bzr extra %s: %r", name, value)
             else:
                 result.properties["hg:" + name] = base64.b64encode(value)
-        return result
+        return result, fileids
 
 
 class HgMappingRegistry(foreign.VcsMappingRegistry):

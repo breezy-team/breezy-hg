@@ -444,7 +444,7 @@ class FromHgRepository(InterRepository):
                 parse_changeset(fulltext)
             key = mapping.revision_id_foreign_to_bzr(hgkey)
             self._files[key] = files
-            rev = mapping.import_revision(key, hgkey,
+            rev, fileids = mapping.import_revision(key, hgkey,
                 hgparents, manifest, user, (time, timezone), desc, extra)
             self._manifest2rev_map[manifest].add(key)
             self._revisions[rev.revision_id] = rev

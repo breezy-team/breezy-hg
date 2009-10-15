@@ -293,7 +293,7 @@ class HgRepository(ForeignRepository):
         # This class isn't deprecated
         pass
 
-    def _check(self, revision_ids):
+    def _check(self, revision_ids, callback_refs, check_repo):
         # TODO: Call out to mercurial for consistency checking?
         return bzrlib.branch.BranchCheckResult(self)
 

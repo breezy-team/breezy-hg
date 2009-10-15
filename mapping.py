@@ -241,16 +241,15 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         time = rev.timestamp
         timezone = -rev.timezone
         extra = {}
+        manifest = None
         for name, value in rev.properties.iteritems():
-            if name.startswith("hg:"):
+            if name == 'manifest':
+                manifest = mercurial.node.bin(value)
+            elif name.startswith("hg:"):
                 extra[name[len("hg:"):]] = base64.b64decode(value)
             else:
                 extra["bzr:"+name] = value.encode("utf-8")
         desc = rev.message.encode("utf-8")
-        try:
-            manifest = mercurial.node.bin(rev.properties['manifest'])
-        except KeyError:
-            manifest = None
         return (manifest, user, (time, timezone), desc, extra)
 
     def import_revision(self, revid, hgrevid, hgparents, manifest, user,

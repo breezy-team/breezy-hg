@@ -138,7 +138,8 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
         and length for a node by (fileid, revision) tuple.
     :param lookup_symlink: Function to lookup symlink target.
     """
-    # Set of directories that have been created in this delta
+    # Set of directories that have been created in this delta, their file id
+    # as value.
     directories = {}
     # Dictionary of directories that could have been made empty in this delta,
     # with the set of removed children as value.
@@ -220,7 +221,7 @@ def create_directory_texts(texts, invdelta):
     stream = []
     for (old_path, new_path, fileid, ie) in invdelta:
         if old_path is None and ie.kind == "directory":
-            record = FulltextContentFactory((fileid, ie.revision), None, None,
+            record = FulltextContentFactory((fileid, ie.revision), (), None,
                                             "")
             record.parents = ()
             stream.append(record)

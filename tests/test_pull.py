@@ -115,7 +115,7 @@ class TestPulling(TestCaseWithTransport):
     def test_initial_revision_from_changelog(self):
         converted_rev = self.tree.branch.repository.get_revision(self.revidone)
         self.assertEqual((), converted_rev.parent_ids)
-        self.assertEqual({"hg:branch": base64.b64encode("default"),
+        self.assertEqual({"hg:extra:branch": base64.b64encode("default"),
             'manifest': '18b146e67ed06c840bc37906f14f232a6139e4a4'},
             converted_rev.properties)
         self.assertEqual('foo', converted_rev.message)
@@ -130,7 +130,7 @@ class TestPulling(TestCaseWithTransport):
     def test_non_initial_revision_from_changelog(self):
         converted_rev = self.tree.branch.repository.get_revision(self.revidtwo)
         self.assertEqual((self.revidone,), converted_rev.parent_ids)
-        self.assertEqual({"hg:branch": base64.b64encode("default"),
+        self.assertEqual({"hg:extra:branch": base64.b64encode("default"),
             'manifest': '23f1837a1232d834ec828ba402711f2a81f1403e'},
             converted_rev.properties)
         self.assertEqual('bar', converted_rev.message)

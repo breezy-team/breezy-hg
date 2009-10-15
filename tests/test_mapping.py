@@ -103,13 +103,13 @@ class ExportRevisionTests(TestCase):
         rev.timezone = 0
         rev.properties = {
                 "something": u"else",
-                "hg:foo": base64.b64encode("bar")}
+                "hg:extra:foo": base64.b64encode("bar")}
         (manifest, user, (time, timezone), desc, extra) = \
             self.mapping.export_revision(rev)
         self.assertEquals("Jelmer <foo>", user)
         self.assertEquals(None, manifest)
         self.assertEquals("ürk", desc)
-        self.assertEquals({"bzr:revprop:something": "else", "foo": "bar"}, 
+        self.assertEquals({"bzr-revprop-something": "else", "foo": "bar"}, 
                           extra)
 
 

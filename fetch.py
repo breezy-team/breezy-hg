@@ -209,7 +209,9 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
         # Is this directory really empty ?
         if set(basis_inv[file_id].children.keys()) == maybe_empty_dirs[path]:
             yield (path, None, file_id, None)
-            maybe_empty_dirs[os.path.dirname(path)].add(basis_inv[file_id].name)
+            dirname = os.path.dirname(path)
+            if maybe_empty_dirs[dirname] is not None:
+                maybe_empty_dirs[dirname].add(basis_inv[file_id].name)
 
 
 def create_directory_texts(texts, invdelta):

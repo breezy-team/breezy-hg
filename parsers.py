@@ -145,7 +145,7 @@ def unpack_chunk_iter(chunk_iter, lookup_base):
                 textbase = fulltext_cache[base]
             except KeyError:
                 textbase = lookup_base(base)
-        fulltext = mercurial.mdiff.patches(textbase, [delta])
+        fulltext = mercurial.mdiff.patch(textbase, delta)
         yield fulltext, node, (p1, p2), link
         fulltext_cache[node] = fulltext
         base = node

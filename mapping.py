@@ -208,6 +208,9 @@ class ExperimentalHgMapping(foreign.VcsMapping):
     def __init__(self):
         super(ExperimentalHgMapping, self).__init__(foreign_hg)
 
+    def __str__(self):
+        return self.revid_prefix
+
     @classmethod
     def revision_id_foreign_to_bzr(cls, revision_id):
         """See VcsMapping.revision_id_foreign_to_bzr."""
@@ -237,8 +240,6 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         return unescape_path(fileid[len("hg:"):])
 
     def export_revision(self, rev, lossy=True, fileids={}):
-        if not lossy:
-            raise NotImplementedError("non-lossy exports not yet supported")
         user = rev.committer.encode("utf-8")
         time = rev.timestamp
         timezone = -rev.timezone
@@ -247,11 +248,11 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         for name, value in rev.properties.iteritems():
             if name == 'manifest':
                 manifest = mercurial.node.bin(value)
-            elif name.startswith("hg:"):
-                extra[name[len("hg:"):]] = base64.b64decode(value)
+            elif name.startswith("hg:extra:"):
+                extra[name[len("hg:extra:"):]] = base64.b64decode(value)
             else:
                 extra["bzr:revprop:"+name] = value.encode("utf-8")
-        if not lossy:
+        if not lossy and not rev.revision_id.startswith(self.revid_prefix + ":"):
             extra["bzr:mapping"] = str(self)
             extra["bzr:revision-id"] = rev.revision_id
             if len(rev.parent_ids) > 2:
@@ -286,7 +287,7 @@ class ExperimentalHgMapping(foreign.VcsMapping):
             elif name.startswith("bzr:"):
                 trace.mutter("unknown bzr extra %s: %r", name, value)
             else:
-                result.properties["hg:" + name] = base64.b64encode(value)
+                result.properties["hg:extra:" + name] = base64.b64encode(value)
         return result, fileids
 
 

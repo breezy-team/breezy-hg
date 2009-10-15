@@ -296,13 +296,41 @@ class ToHgBranch(InterBranch):
         return (not isinstance(source, HgBranch) and 
                 isinstance(target, HgBranch))
 
-    def update_revisions(self, *args, **kwargs):
-        raise NoPushSupport()
+    def _push_helper(self, stop_revision=None, overwrite=False,
+            lossy=False):
+        graph = self.source.repository.get_graph()
+        if stop_revision is None:
+            stop_revision = self.source.last_revision()
+        revs = graph.find_difference(self.target.last_revision(), 
+                                     stop_revision)[1]
+        cg, revidmap = dchangegroup(self.source.repository, 
+                                    self.target.mapping, revs, lossy=lossy)
+        heads = [revidmap[stop_revision]]
+        remote = self.target.repository._hgrepo
+        if remote.capable('unbundle'):
+            remote.unbundle(cg, heads, None)
+        else:
+            remote.addchangegroup(cg, 'push', self.source.base)
+            # TODO: Set heads
+        if lossy:
+            return dict((k, self.target.mapping.revision_id_foreign_to_bzr(v)) for (k, v) in revidmap.iteritems())
 
+    @needs_read_lock
     def push(self, overwrite=True, stop_revision=None, 
              _override_hook_source_branch=None):
-        raise NoPushSupport()
+        result = HgBranchPushResult()
+        result.source_branch = self.source
+        result.target_branch = self.target
+        result.old_revid = self.target.last_revision()
+        if stop_revision is None:
+            stop_revision = self.source.last_revision()
+        self._push_helper(stop_revision=stop_revision, overwrite=overwrite,
+            lossy=False)
+        # FIXME: Check for diverged branches
+        result.new_revid = stop_revision
+        return result
 
+    @needs_read_lock
     def lossy_push(self, stop_revision=None):
         result = HgBranchPushResult()
         result.source_branch = self.source
@@ -310,22 +338,13 @@ class ToHgBranch(InterBranch):
         result.old_revid = self.target.last_revision()
         if stop_revision is None:
             stop_revision = self.source.last_revision()
-        # FIXME: Check for diverged branches
-        # FIXME: Find out what revisions to send
-        revs = []
-        cg, revidmap = dchangegroup(self.source, self.target.mapping, revs)
-        if revidmap != {}:
-            result.new_revid = revidmap[stop_revision]
+        if stop_revision != result.old_revid:
+            revidmap = self._push_helper(stop_revision=stop_revision, 
+                lossy=True)
+            result.new_revid = revidmap.get(stop_revision, result.old_revid)
         else:
             result.new_revid = result.old_revid
-        heads = [self.target.mapping.revision_id_bzr_to_foreign(result.new_revid)[0]]
-        remote = self.target.repository._hgrepo
-        if remote.capable('unbundle'):
-            remote.unbundle(cg, heads, None)
-        else:
-            remote.addchangegroup(cg, 'push', self.source.base)
-        if result.new_revid != result.old_revid:
-            self.target.generate_revision_history(revidmap[stop_revision])
+        # FIXME: Check for diverged branches
         result.revidmap = revidmap
         return result
 

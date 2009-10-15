@@ -300,6 +300,9 @@ class HgRepository(ForeignRepository):
     def make_working_trees(self):
         return True # Do bare repositories exist at all in Mercurial?
 
+    def has_signature_for_revision_id(self, revision):
+        return False
+
     def get_mapping(self):
         return default_mapping # for now
 

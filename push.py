@@ -53,7 +53,7 @@ from bzrlib.plugins.hg.util import (
 
 
 def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
-               overlay):
+               overlay, fileids={}, lossy=True):
     """Serialize a series of Bazaar revisions as Mercurial changesets.
 
     :param repo: Bazaar repository
@@ -65,7 +65,8 @@ def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
     """
     for revid in revids:
         rev = repo.get_revision(revid)
-        (manifest_id, user, date, desc, extra) = mapping.export_revision(rev)
+        (manifest_id, user, date, desc, extra) = mapping.export_revision(rev, 
+            lossy=lossy, fileids=fileids.get(revid, {}))
         if manifest_id is None:
             manifest_id = manifest_ids[revid]
         if revid in manifest_ids and manifest_id != manifest_ids[revid]:
@@ -153,7 +154,7 @@ def write_delta_chunks(f, entries):
     write_chunk(f, "")
 
 
-def dchangegroup(repo, mapping, revids):
+def dchangegroup(repo, mapping, revids, lossy=True):
     """Create a changegroup based on (a derivation) of a set of revisions.
 
     :param repo: Bazaar repository to retrieve the revisions from
@@ -169,9 +170,10 @@ def dchangegroup(repo, mapping, revids):
     graph = repo.get_graph()
     revids = list(graph.iter_topo_order(revids))
     todo = [repo.get_parent_map([revids[0]])[revids[0]][0]] + revids # add base text revid
+    fileids = {} #FIXME: fill in file ids when lossy=False
     manifests = list(dinventories(repo, mapping, todo, manifest_ids, files, overlay, texts))
     # 00changelog.i
-    write_delta_chunks(ret, drevisions(repo, mapping, todo, files, changelog_ids, manifest_ids, overlay))
+    write_delta_chunks(ret, drevisions(repo, mapping, todo, files, changelog_ids, manifest_ids, overlay, fileids=fileids, lossy=lossy))
     del files
     del manifest_ids
     # 00manifest.i
@@ -185,4 +187,4 @@ def dchangegroup(repo, mapping, revids):
                            path, keys, overlay))
     write_chunk(ret, "")
     ret.seek(0)
-    return ret, {}
+    return ret, changelog_ids

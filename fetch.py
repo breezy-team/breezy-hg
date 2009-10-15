@@ -258,18 +258,26 @@ def check_roundtrips(repository, mapping, revid, expected_files,
         base_tree = repository.revision_tree(NULL_REVISION)
     delta = tree.changes_from(base_tree)
     files = files_from_delta(delta, inventory, revid)
-    assert expected_files == files
+    if expected_files != files:
+        raise AssertionError
     lookup = [m.__getitem__ for m, f in manifest_parents[:2]]
     (manifest, flags) = manifest_and_flags_from_tree(parent_trees, tree, 
         mapping, lookup)
-    assert set(manifest.keys()) == set(expected_manifest.keys()), \
-            "Different contents in manifests: %r, %r" % (manifest.keys(), expected_manifest.keys())
-    assert set(flags.keys()) == set(expected_flags.keys()), \
-            "Different flags: %r, %r" % (flags, expected_flags)
+    if set(manifest.keys()) != set(expected_manifest.keys()):
+        raise AssertionError("Different contents in manifests: %r, %r" % 
+                (manifest.keys(), expected_manifest.keys()))
+    if set(flags.keys()) != set(expected_flags.keys()):
+        raise AssertionError("Different flags: %r, %r" % 
+                (flags, expected_flags))
     for path in manifest:
-        assert manifest[path] == expected_manifest[path], "Different version %s: %s, %s" % (path, mercurial.node.hex(manifest[path]), mercurial.node.hex(expected_manifest[path]))
+        if manifest[path] != expected_manifest[path]:
+            raise AssertionError("Different version %s: %s, %s" % 
+                (path, mercurial.node.hex(manifest[path]), 
+                       mercurial.node.hex(expected_manifest[path])))
     for path in flags:
-        assert expected_flags[path] == flags[path], "Different flags for %s: %s != %s" % (path, expected_flags[path], flags[path])
+        if expected_flags[path] != flags[path]:
+            raise AssertionError("Different flags for %s: %s != %s" % 
+                (path, expected_flags[path], flags[path]))
 
 
 class FromHgRepository(InterRepository):

@@ -29,6 +29,11 @@ from mercurial.revlog import (
     hash as hghash,
     )
 
+from bzrlib import (
+    debug,
+    revision as _mod_revision,
+    )
+
 from bzrlib.plugins.hg.mapping import (
     as_hg_parents,
     files_from_delta,
@@ -89,14 +94,19 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts):
             lookup_text_node.append(get_manifest(parent)[0].__getitem__)
         while len(lookup_text_node) < 2:
             lookup_text_node.append(lambda path: mercurial.node.nullid)
-        (manifest, flags) = manifest_and_flags_from_tree(tree, mapping, lookup_text_node)
+        # TODO: This refetches the parent trees, which we'll likely have seen 
+        # earlier in this loop.
+        parent_trees = list(repo.revision_trees(rev.parent_ids[:2]))
+        (manifest, flags) = manifest_and_flags_from_tree(parent_trees, tree, mapping, lookup_text_node)
         manifests[revid] = (manifest, flags)
-        # TODO: This refetches the inventory and base inventory while that's not necessary,
-        # they're already fetched by the .revision_trees() call above. -- JRV20091014
-        delta = repo.get_revision_delta(revid)
-        files[revid] = files_from_delta(delta, tree.inventory, revid)
-        # Avoid sending texts for first revision, it's listed so we get the base text 
-        # for the manifest delta's.
+        try:
+            base_tree = parent_trees[0]
+        except KeyError:
+            base_tree = repo.revision_tree(_mod_revision.NULL_REVISION)
+        files[revid] = files_from_delta(tree.changes_from(base_tree), 
+            tree.inventory, revid)
+        # Avoid sending texts for first revision, it's listed so we get the 
+        # base text for the manifest delta's.
         if revids != revids[0]:
             for p in files[revid]:
                 fileid = tree.inventory.path2id(p)
@@ -104,7 +114,11 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts):
                     texts[p].add((fileid, tree.inventory[fileid].revision))
         text = format_manifest(manifest, flags)
         node_parents = as_hg_parents(rev.parent_ids, lookup_manifest_id)
-        manifest_ids[revid] = hghash(text, node_parents[0], node_parents[1])
+        manifest_id = hghash(text, node_parents[0], node_parents[1])
+        manifest_ids[revid] = manifest_id
+        if 'check' in debug.debug_flags:
+            assert mapping.export_revision(rev)[0] in (None, manifest_id)
+
         yield text, node_parents, revid
 
 

@@ -82,9 +82,11 @@ def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
 def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts):
     def get_manifest(revid):
         if revid in manifest_ids:
-            return manifests[manifest_ids[(revid)]]
-        else:
-            return overlay.get_manifest_and_flags_by_revid(revid)
+            try:
+                return manifests[manifest_ids[(revid)]]
+            except KeyError:
+                pass
+        return overlay.get_manifest_and_flags_by_revid(revid)
     manifests = {}
     # TODO: Very naive and slow:
     for tree in repo.revision_trees(revids):

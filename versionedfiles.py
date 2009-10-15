@@ -28,6 +28,10 @@ from bzrlib.versionedfile import (
     VersionedFiles,
     )
 
+from mercurial.error import (
+    LookupError,
+    )
+
 from collections import defaultdict
 
 from bzrlib.plugins.hg.mapping import (
@@ -61,7 +65,10 @@ class RevlogVersionedFile(VersionedFile):
                 ret[(revid,)] = ()
             else:
                 hg_ref = self._lookup_id(revid)
-                ret[(revid, )] = tuple((x,) for x in as_bzr_parents(self._revlog.parents(hg_ref), self._reverse_lookup_id))
+                try:
+                    ret[(revid, )] = tuple((x,) for x in as_bzr_parents(self._revlog.parents(hg_ref), self._reverse_lookup_id))
+                except LookupError:
+                    ret[(revid, )] = None
         return ret
 
     def keys(self):

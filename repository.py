@@ -33,9 +33,6 @@ from bzrlib.osutils import (
     sha_strings,
     )
 import bzrlib.repository
-from bzrlib.revision import (
-    NULL_REVISION,
-    )
 
 from bzrlib.plugins.hg.mapping import (
     default_mapping,
@@ -44,7 +41,6 @@ from bzrlib.plugins.hg.mapping import (
 from bzrlib.plugins.hg.versionedfiles import (
     ChangelogVersionedFile,
     ManifestVersionedFile,
-    RevlogVersionedFile,
     RevlogVersionedFiles,
     )
 
@@ -277,7 +273,6 @@ class HgRepository(ForeignRepository):
         self._hgrepo = hgrepo
         self.base = hgdir.root_transport.base
         self._fallback_repositories = []
-        self._serializer = None
         self.signatures = None
         if self._hgrepo.local():
             self.revisions = ChangelogVersionedFile(self._hgrepo.changelog, 
@@ -313,7 +308,7 @@ class HgRepository(ForeignRepository):
         hgid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
-        all_relevant_revisions = self.get_revision_graph(revision_id)
+        all_relevant_revisions = self.get_ancestry(revision_id)
         pb = ui.ui_factory.nested_progress_bar()
         try:
             inv = manifest_to_inventory(self._hgrepo, hgid, log, manifest,
@@ -323,21 +318,6 @@ class HgRepository(ForeignRepository):
         finally:
             pb.finished()
 
-    def get_revision_graph(self, revision_id=None):
-        if revision_id is None:
-            raise NotImplementedError("get_revision_graph with no parents not implemented yet.")
-        else:
-            # add what can be reached from revision_id
-            result = {}
-            pending = set([revision_id])
-            while len(pending) > 0:
-                node = pending.pop()
-                result[node] = self.get_revision(node).parent_ids
-                for revision_id in result[node]:
-                    if revision_id not in result:
-                        pending.add(revision_id)
-            return result
-    
     def is_shared(self):
         """Whether this repository is being shared between multiple branches. 
         

@@ -143,6 +143,7 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
     # Dictionary of directories that could have been made empty in this delta,
     # with the set of removed children as value.
     maybe_empty_dirs = defaultdict(set)
+    maybe_empty_dirs[""] = None # Never consider removing the root
     for utf8_path in set(basis_manifest.keys() + manifest.keys()):
         if (basis_manifest.get(utf8_path) == manifest.get(utf8_path) and 
             basis_flags.get(utf8_path) == flags.get(utf8_path)):
@@ -201,16 +202,13 @@ def manifest_to_inventory_delta(mapping, basis_inv, other_inv,
     # Remove empty directories
     for path in sorted(maybe_empty_dirs.keys(), reverse=True):
         if maybe_empty_dirs[path] is None:
-            # Was vetoed
+            # Stuff was added to this directory in this revision, don't bother
             continue
         file_id = basis_inv.path2id(path)
-        if path == u"":
-            # Never consider removing the root :-)
-            continue
         # Is this directory really empty ?
         if set(basis_inv[file_id].children.keys()) == maybe_empty_dirs[path]:
             yield (path, None, file_id, None)
-            maybe_empty_dirs[basis_inv.path2id(os.path.dirname(path))].add(basis_inv[file_id].name)
+            maybe_empty_dirs[os.path.dirname(path)].add(basis_inv[file_id].name)
 
 
 def create_directory_texts(texts, invdelta):
@@ -232,6 +230,16 @@ def create_directory_texts(texts, invdelta):
 def check_roundtrips(repository, mapping, revid, expected_files, 
                      (expected_manifest, expected_flags), 
                      manifest_parents, inventory=None):
+    """Make sure that a revision imported to Bazaar can be re-exported to hg.
+
+    :param repository: Bazaar repository to retrieve revision from
+    :param mapping: Bzr<->Hg mapping to use
+    :param revid: Bazaar revision id
+    :param expected_files: Expected Mercurial-style files list
+    :param (expected_manifest, expected_flags): Expected manifest and flags
+    :param manifest_parents: Manifests of the parents of revision
+    :param inventory: Optional inventory for revid, if the caller already had it
+    """
     from bzrlib.plugins.hg.mapping import (
         files_from_delta,
         manifest_and_flags_from_tree,
@@ -368,8 +376,7 @@ class FromHgRepository(InterRepository):
                     if kind == "symlink":
                         self._symlink_targets[key] = fulltext
                         fulltext = ""
-                    record = FulltextContentFactory(key, None, osutils.sha_string(fulltext), fulltext)
-                    record.parents = parents
+                    record = FulltextContentFactory(key, parents, osutils.sha_string(fulltext), fulltext)
                     self._text_metadata[key] = (record.sha1, len(fulltext))
                     yield record
 

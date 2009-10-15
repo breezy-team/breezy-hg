@@ -109,7 +109,7 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts):
             tree.inventory, revid)
         # Avoid sending texts for first revision, it's listed so we get the 
         # base text for the manifest delta's.
-        if revids != revids[0]:
+        if revid != revids[0]:
             for p in files[revid]:
                 fileid = tree.inventory.path2id(p)
                 if fileid is not None:
@@ -125,8 +125,7 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts):
 
 def text_contents(repo, get_changelog_id, path, keys, overlay):
     def text_as_node((fileid, revision)):
-        (manifest, flags) = overlay.get_manifest_and_flags_by_revid(revision)
-        return manifest[path]
+        return overlay.lookup_text_node_by_revid_and_path(revision, path)
     for record in repo.texts.get_record_stream(keys, 'topological', True):
         fulltext = record.get_bytes_as('fulltext')
         yield (fulltext, as_hg_parents(record.parents, text_as_node), 

@@ -111,7 +111,6 @@ def pack_chunk_iter(entries):
     :param entries: Iterator over (fulltext, (p1, p2), link) tuples.
     :return: iterator over delta chunks
     """
-    cs = mercurial.node.nullid
     try:
         textbase = entries.next()[0]
     except StopIteration:
@@ -121,10 +120,9 @@ def pack_chunk_iter(entries):
         assert len(p2) == 20
         node = hghash(fulltext, p1, p2)
         assert len(node) == 20
-        chunk = struct.pack("20s20s20s20s", node, p1, p2, link) +\
-                mercurial.mdiff.bdiff.bdiff(textbase, fulltext)
+        delta = mercurial.mdiff.bdiff.bdiff(textbase, fulltext)
+        chunk = struct.pack("20s20s20s20s", node, p1, p2, link) + delta
         yield chunk
-        cs = node
         textbase = fulltext
 
 

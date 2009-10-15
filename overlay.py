@@ -124,6 +124,10 @@ class MercurialRepositoryOverlay(object):
             return True
         return False
 
+    def lookup_text_node_by_revid_and_path(self, revid, path):
+        (manifest, flags) = self.get_manifest_and_flags_by_revid(revid)
+        return manifest[path]
+
     def lookup_manifest_id_by_revid(self, revid):
         rev = self.repo.get_revision(revid)
         return mercurial.node.bin(rev.properties['manifest'])

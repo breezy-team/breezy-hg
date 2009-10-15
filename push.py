@@ -47,6 +47,9 @@ from bzrlib.plugins.hg.parsers import (
     format_manifest,
     pack_chunk_iter,
     )
+from bzrlib.plugins.hg.util import (
+    lazydict,
+    )
 
 
 def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
@@ -151,9 +154,9 @@ def dchangegroup(repo, mapping, revids):
     ret = StringIO()
     overlay = get_overlay(repo, mapping)
     files = {}
-    manifest_ids = defaultdict(overlay.lookup_manifest_id_by_revid)
+    manifest_ids = lazydict(overlay.lookup_manifest_id_by_revid)
     texts = defaultdict(set)
-    changelog_ids = defaultdict(overlay.lookup_changeset_id_by_revid)
+    changelog_ids = lazydict(overlay.lookup_changeset_id_by_revid)
     graph = repo.get_graph()
     revids = list(graph.iter_topo_order(revids))
     todo = [repo.get_parent_map([revids[0]])[revids[0]][0]] + revids # add base text revid

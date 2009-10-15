@@ -251,14 +251,15 @@ class ExperimentalHgMapping(foreign.VcsMapping):
             elif name.startswith("hg:extra:"):
                 extra[name[len("hg:extra:"):]] = base64.b64decode(value)
             else:
-                extra["bzr:revprop:"+name] = value.encode("utf-8")
+                assert not ":" in name
+                extra["bzr-revprop-"+name] = value.encode("utf-8")
         if not lossy and not rev.revision_id.startswith(self.revid_prefix + ":"):
-            extra["bzr:mapping"] = str(self)
-            extra["bzr:revision-id"] = rev.revision_id
+            extra["bzr-mapping"] = str(self)
+            extra["bzr-revision-id"] = rev.revision_id
             if len(rev.parent_ids) > 2:
-                extra["bzr:extra-parents"] = " ".join(rev.parent_ids[2:])
+                extra["bzr-extra-parents"] = " ".join(rev.parent_ids[2:])
             if fileids:
-                extra["bzr:fileids"] = bencode.bencode(sorted(fileids.items()))
+                extra["bzr-fileids"] = bencode.bencode(sorted(fileids.items()))
         desc = rev.message.encode("utf-8")
         return (manifest, user, (time, timezone), desc, extra)
 
@@ -276,15 +277,15 @@ class ExperimentalHgMapping(foreign.VcsMapping):
                 }
         fileids = {}
         for name, value in extra.iteritems():
-            if name.startswith("bzr:revprop:"):
-                result.properties[name[len("bzr:revprop:")]] = value.decode("utf-8")
-            elif name == "bzr:extra-parents":
+            if name.startswith("bzr-revprop-"):
+                result.properties[name[len("bzr-revprop-")]] = value.decode("utf-8")
+            elif name == "bzr-extra-parents":
                 result.parent_ids += tuple(value.split(" "))
-            elif name == "bzr:revision-id":
+            elif name == "bzr-revision-id":
                 assert value == result.revision_id
-            elif name == "bzr:fileids":
+            elif name == "bzr-fileids":
                 fileids = dict(bencode.bdecode(value))
-            elif name.startswith("bzr:"):
+            elif name.startswith("bzr-"):
                 trace.mutter("unknown bzr extra %s: %r", name, value)
             else:
                 result.properties["hg:extra:" + name] = base64.b64encode(value)

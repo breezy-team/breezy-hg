@@ -49,7 +49,8 @@ from bzrlib.plugins.hg.parsers import (
     )
 
 
-def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids, overlay):
+def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
+               overlay):
     """Serialize a series of Bazaar revisions as Mercurial changesets.
 
     :param repo: Bazaar repository
@@ -64,25 +65,22 @@ def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids, overla
         (manifest_id, user, date, desc, extra) = mapping.export_revision(rev)
         if manifest_id is None:
             manifest_id = manifest_ids[revid]
-        assert manifest_id == manifest_ids[revid]
-        text = format_changeset(manifest_id, files[revid], user, date, desc, extra)
+        if revid in manifest_ids and manifest_id != manifest_ids[revid]:
+            raise AssertionError
+        text = format_changeset(manifest_id, files[revid], user, date, desc,
+            extra)
         ps = as_hg_parents(rev.parent_ids, 
-                lambda x: overlay.lookup_changeset_id_by_revid(x)[0])
+            lambda x: overlay.lookup_changeset_id_by_revid(x)[0])
         hgid = hghash(text, ps[0], ps[1])
         changelog_ids[revid] = hgid
         yield text, ps, hgid
 
 
 def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts):
-    def lookup_manifest_id(revid):
-        try:
-            return manifest_ids[revid]
-        except KeyError:
-            return overlay.lookup_manifest_id_by_revid(revid)
     def get_manifest(revid):
-        try:
-            return manifests[lookup_manifest_id(revid)]
-        except KeyError:
+        if revid in manifest_ids:
+            return manifests[manifest_ids[(revid)]]
+        else:
             return overlay.get_manifest_and_flags_by_revid(revid)
     manifests = {}
     # TODO: Very naive and slow:
@@ -97,7 +95,8 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts):
         # TODO: This refetches the parent trees, which we'll likely have seen 
         # earlier in this loop.
         parent_trees = list(repo.revision_trees(rev.parent_ids[:2]))
-        (manifest, flags) = manifest_and_flags_from_tree(parent_trees, tree, mapping, lookup_text_node)
+        (manifest, flags) = manifest_and_flags_from_tree(parent_trees, tree, 
+            mapping, lookup_text_node)
         manifests[revid] = (manifest, flags)
         try:
             base_tree = parent_trees[0]
@@ -113,12 +112,11 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts):
                 if fileid is not None:
                     texts[p].add((fileid, tree.inventory[fileid].revision))
         text = format_manifest(manifest, flags)
-        node_parents = as_hg_parents(rev.parent_ids, lookup_manifest_id)
+        node_parents = as_hg_parents(rev.parent_ids, manifest_ids.__getitem__)
         manifest_id = hghash(text, node_parents[0], node_parents[1])
         manifest_ids[revid] = manifest_id
         if 'check' in debug.debug_flags:
             assert mapping.export_revision(rev)[0] in (None, manifest_id)
-
         yield text, node_parents, revid
 
 
@@ -128,7 +126,8 @@ def text_contents(repo, get_changelog_id, path, keys, overlay):
         return manifest[path]
     for record in repo.texts.get_record_stream(keys, 'topological', True):
         fulltext = record.get_bytes_as('fulltext')
-        yield fulltext, as_hg_parents(record.parents, text_as_node), get_changelog_id(record.key[1])
+        yield (fulltext, as_hg_parents(record.parents, text_as_node), 
+               get_changelog_id(record.key[1]))
 
 
 def write_chunk(f, buffer):
@@ -152,14 +151,9 @@ def dchangegroup(repo, mapping, revids):
     ret = StringIO()
     overlay = get_overlay(repo, mapping)
     files = {}
-    manifest_ids = {}
-    changelog_ids = {}
+    manifest_ids = defaultdict(overlay.lookup_manifest_id_by_revid)
     texts = defaultdict(set)
-    def get_changelog_id(revid):
-        try:
-            return changelog_ids[revid]
-        except KeyError:
-            return overlay.lookup_changeset_id_by_revid(revid)
+    changelog_ids = defaultdict(overlay.lookup_changeset_id_by_revid)
     graph = repo.get_graph()
     revids = list(graph.iter_topo_order(revids))
     todo = [repo.get_parent_map([revids[0]])[revids[0]][0]] + revids # add base text revid
@@ -169,13 +163,14 @@ def dchangegroup(repo, mapping, revids):
     del files
     del manifest_ids
     # 00manifest.i
-    write_delta_chunks(ret, ((text, ps, get_changelog_id(revid)) for (text, ps, revid) in manifests))
+    write_delta_chunks(ret, ((text, ps, changelog_ids[revid]) for (text, ps, revid) in manifests))
     del manifests
     # texts
     for path, keys in texts.iteritems():
         # FIXME: Mangle path in the same way that mercurial does
         write_chunk(ret, path)
-        write_delta_chunks(ret, text_contents(repo, get_changelog_id, path, keys, overlay))
+        write_delta_chunks(ret, text_contents(repo, changelog_ids.__getitem__,
+                           path, keys, overlay))
     write_chunk(ret, "")
     ret.seek(0)
     return ret, {}

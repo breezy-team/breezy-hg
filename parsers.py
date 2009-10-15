@@ -105,10 +105,12 @@ def parse_changeset(text):
 def pack_chunk_iter(entries):
     """Create a chained series of Mercurial deltas.
 
+    The first entry is not packed but rather used as a base for the delta 
+    for the second.
+
     :param entries: Iterator over (fulltext, (p1, p2), link) tuples.
     :return: iterator over delta chunks
     """
-    # TODO: Let caller pass in an actual valid parent text.
     cs = mercurial.node.nullid
     try:
         textbase = entries.next()[0]
@@ -177,8 +179,7 @@ def unpack_manifest_chunks(chunkiter, lookup_base):
     """
     for (fulltext, hgkey, hgparents, cs) in unpack_chunk_iter(chunkiter, 
                                                           lookup_base):
-        (manifest, flags) = parse_manifest(fulltext)
-        yield hgkey, hgparents, cs, (manifest, flags)
+        yield hgkey, hgparents, cs, parse_manifest(fulltext)
 
 
 def format_manifest(manifest, flags):

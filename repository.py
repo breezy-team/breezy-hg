@@ -305,6 +305,10 @@ class HgRepository(ForeignRepository):
     def get_mapping(self):
         return default_mapping # for now
 
+    def iter_inventories(self, revision_ids, ordering=None):
+        for revid in revision_ids:
+            yield self.get_inventory(revid)
+
     def get_inventory(self, revision_id):
         hgid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
         log = self._hgrepo.changelog.read(hgid)
@@ -312,8 +316,10 @@ class HgRepository(ForeignRepository):
         all_relevant_revisions = self.get_revision_graph(revision_id)
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            return manifest_to_inventory(self._hgrepo, hgid, log, manifest,
+            inv = manifest_to_inventory(self._hgrepo, hgid, log, manifest,
                 all_relevant_revisions, mapping, pb)
+            inv.revision_id = revision_id
+            return inv
         finally:
             pb.finished()
 

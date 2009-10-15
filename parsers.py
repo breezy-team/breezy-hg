@@ -45,7 +45,6 @@ def format_changeset(manifest, files, user, date, desc, extra):
     :param extra: Dictionary with extra revision properties
     :return: String with formatted revision
     """
-    user = user.strip()
     # An empty username or a username with a "\n" will make the
     # revision text contain two "\n\n" sequences -> corrupt
     # repository since read cannot unpack the revision.
@@ -53,9 +52,6 @@ def format_changeset(manifest, files, user, date, desc, extra):
         raise ValueError("empty username")
     if "\n" in user:
         raise ValueError("username %s contains a newline" % repr(user))
-
-    # strip trailing whitespace and leading and trailing empty lines
-    desc = '\n'.join([l.rstrip() for l in desc.splitlines()]).strip('\n')
 
     user = mercurial.encoding.fromlocal(user)
     desc = mercurial.encoding.fromlocal(desc)

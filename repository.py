@@ -343,20 +343,6 @@ class HgRepository(ForeignRepository):
 class HgLocalRepository(HgRepository):
     """Local Mercurial repository."""
 
-    def get_parent_map(self, revids):
-        ret = {}
-        for revid in revids:
-            if revid == NULL_REVISION:
-                ret[revid] = ()
-            else:
-                hg_ref, mapping = self.lookup_revision_id(revid)
-                parents = []
-                for r in self._hgrepo.changelog.parents(hg_ref):
-                    if r != mercurial.node.nullid:
-                        parents.append(mapping.revision_id_foreign_to_bzr(r))
-                ret[revid] = tuple(parents)
-        return ret
-
     def get_revisions(self, revids):
         return [self.get_revision(r) for r in revids]
 

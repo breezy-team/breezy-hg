@@ -14,6 +14,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+from bzrlib import (
+    graph as _mod_graph,
+    )
+
+from bzrlib.revision import (
+    NULL_REVISION,
+    )
 
 from bzrlib.versionedfile import (
     FulltextContentFactory,
@@ -22,6 +29,10 @@ from bzrlib.versionedfile import (
     )
 
 from collections import defaultdict
+
+from bzrlib.plugins.hg.mapping import (
+    as_bzr_parents,
+    )
 
 
 class RevlogVersionedFile(VersionedFile):
@@ -43,6 +54,16 @@ class RevlogVersionedFile(VersionedFile):
             # FIXME: Parents?
             yield FulltextContentFactory((key, ), None, None, self._revlog.revision(hgid))
 
+    def get_parent_map(self, revids):
+        ret = {}
+        for (revid, ) in revids:
+            if revid == NULL_REVISION:
+                ret[(revid,)] = ()
+            else:
+                hg_ref = self._lookup_id(revid)
+                ret[(revid, )] = tuple((x,) for x in as_bzr_parents(self._revlog.parents(hg_ref), self._reverse_lookup_id))
+        return ret
+
     def keys(self):
         return list(self.iterkeys())
 
@@ -52,6 +73,21 @@ class RevlogVersionedFile(VersionedFile):
 
     def __len__(self):
         return len(self._revlog)
+
+    def get_known_graph_ancestry(self, keys):
+        """Get a KnownGraph instance with the ancestry of keys."""
+        # most basic implementation is a loop around get_parent_map
+        pending = set(keys)
+        parent_map = {}
+        while pending:
+            this_parent_map = self.get_parent_map(pending)
+            parent_map.update(this_parent_map)
+            pending = set()
+            map(pending.update, this_parent_map.itervalues())
+            pending = pending.difference(parent_map)
+        kg = _mod_graph.KnownGraph(parent_map)
+        return kg
+
 
 
 class ChangelogVersionedFile(RevlogVersionedFile):

@@ -80,7 +80,7 @@ def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
         yield text, ps, hgid
 
 
-def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts):
+def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts, fileids, lossy=True):
     def get_manifest(revid):
         if revid in manifest_ids:
             try:
@@ -101,8 +101,9 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts):
         # TODO: This refetches the parent trees, which we'll likely have seen 
         # earlier in this loop.
         parent_trees = list(repo.revision_trees(rev.parent_ids[:2]))
-        (manifest, flags) = manifest_and_flags_from_tree(parent_trees, tree, 
-            mapping, lookup_text_node)
+        (manifest, flags, extrafileids) = manifest_and_flags_from_tree(
+            parent_trees, tree, mapping, lookup_text_node)
+        fileids[revid] = extrafileids
         manifests[revid] = (manifest, flags)
         try:
             base_tree = parent_trees[0]
@@ -170,8 +171,8 @@ def dchangegroup(repo, mapping, revids, lossy=True):
     graph = repo.get_graph()
     revids = list(graph.iter_topo_order(revids))
     todo = [repo.get_parent_map([revids[0]])[revids[0]][0]] + revids # add base text revid
-    fileids = {} #FIXME: fill in file ids when lossy=False
-    manifests = list(dinventories(repo, mapping, todo, manifest_ids, files, overlay, texts))
+    fileids = {} 
+    manifests = list(dinventories(repo, mapping, todo, manifest_ids, files, overlay, texts, fileids, lossy=lossy))
     # 00changelog.i
     write_delta_chunks(ret, drevisions(repo, mapping, todo, files, changelog_ids, manifest_ids, overlay, fileids=fileids, lossy=lossy))
     del files

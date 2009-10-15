@@ -137,6 +137,7 @@ def manifest_and_flags_from_tree(parent_trees, tree, mapping, parent_node_lookup
     :param parent_node_lookup: 2-tuple with functions to look up the nodes 
         of paths in the tree's parents
     """
+    unusual_fileids = {}
     def get_text_parents(path):
         assert type(path) == str
         ret = []
@@ -163,7 +164,10 @@ def manifest_and_flags_from_tree(parent_trees, tree, mapping, parent_node_lookup
                 manifest[utf8_path] = hghash(tree.get_file_text(entry.file_id), *get_text_parents(utf8_path))
         if entry.kind in ('file', 'symlink') and prev_entry is not None:
             manifest[utf8_path] = parent_node_lookup[prev_entry](utf8_path)
-    return (manifest, flags)
+        if ((mapping.generate_file_id(utf8_path) != entry.file_id or entry.kind == 'directory') and 
+            (parent_trees == [] or parent_trees[0].inventory.id2path(entry.file_id) != path)):
+            unusual_fileids[utf8_path] = entry.file_id
+    return (manifest, flags, unusual_fileids)
 
 
 def escape_path(path):

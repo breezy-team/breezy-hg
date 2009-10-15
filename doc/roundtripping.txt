@@ -23,6 +23,6 @@ id stored in ``bzr:extra-parents``, separated by spaces. These parents will
 most probably end up as ghosts (since we have no way to have Mercurial fetch 
 them), but that should not be a problem.
 
-File ids for newly introduced files that do not match the mapping's path-based
-file id generation mechanism will be stored in a ``bzr:file-ids`` property, 
-sorted() by path and bencoded.
+File ids for newly introduced files *or* empty directories that do not match 
+the mapping's path-based file id generation mechanism will be stored in a 
+``bzr:file-ids`` property, sorted() by path and bencoded.

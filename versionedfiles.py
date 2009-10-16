@@ -14,6 +14,14 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+
+"""VersionedFiles implementation on top of a Mercurial repository."""
+
+
+from collections import (
+    defaultdict,
+    )
+
 from bzrlib import (
     graph as _mod_graph,
     )
@@ -31,8 +39,6 @@ from bzrlib.versionedfile import (
 from mercurial.error import (
     LookupError,
     )
-
-from collections import defaultdict
 
 from bzrlib.plugins.hg.mapping import (
     as_bzr_parents,
@@ -54,9 +60,9 @@ class RevlogVersionedFile(VersionedFile):
     def get_record_stream(self, nodes, order, include_delta_closure):
         for (key, ) in nodes:
             hgid = self._lookup_id(key)
-            #node = self._revlog.rev(hgid)
-            # FIXME: Parents?
-            yield FulltextContentFactory((key, ), None, None, self._revlog.revision(hgid))
+            hgparents = self._revlog.parents(hgid)
+            parents = tuple([(x,) for x in as_bzr_parents(hgparents, self._reverse_lookup_id)])
+            yield FulltextContentFactory((key, ), parents, None, self._revlog.revision(hgid))
 
     def get_parent_map(self, revids):
         ret = {}
@@ -99,30 +105,29 @@ class RevlogVersionedFile(VersionedFile):
 
 class ChangelogVersionedFile(RevlogVersionedFile):
 
-    def __init__(self, revlog, mapping):
+    def __init__(self, revlog, repo):
         RevlogVersionedFile.__init__(self, revlog)
-        self._mapping = mapping
+        self._repo = repo
 
     def _lookup_id(self, key):
-        return self._mapping.revision_id_bzr_to_foreign(key)[0]
+        return self._repo.lookup_revision_id(key)[0]
 
     def _reverse_lookup_id(self, key):
-        return self._mapping.revision_id_foreign_to_bzr(key)
+        return self._repo.reverse_lookup_revision_id(key)
 
 
 class ManifestVersionedFile(RevlogVersionedFile):
 
-    def __init__(self, repo, revlog, mapping):
+    def __init__(self, repo, revlog):
         RevlogVersionedFile.__init__(self, revlog)
         self.repo = repo
-        self._mapping = mapping
 
     def _lookup_id(self, key):
-        clid = self._mapping.revision_id_bzr_to_foreign(key)[0]
+        clid = self.repo.lookup_revision_id(key)[0]
         return self.repo._hgrepo.changelog.read(clid)[0]
 
     def _reverse_lookup_id(self, key):
-        return self._mapping.revision_id_foreign_to_bzr(self._revlog.linkrev(key))
+        return self.repo.reverse_lookup_revision_id(self._revlog.linkrev(key))
 
 
 class RevlogVersionedFiles(VersionedFiles):

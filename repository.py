@@ -72,7 +72,7 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
 
 
 def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
-                          mapping, pb):
+                          mapping, reverse_lookup_revision_id, pb):
     """Convert a Mercurial manifest to a Bazaar inventory.
 
     :param hgrepo: A local Mercurial repository
@@ -215,7 +215,7 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
             for parent_cl in hgrepo.changelog.parents(current_cl):
                 if parent_cl not in done_cls:
                     parent_cls.add(parent_cl)
-        modified_revision = mapping.revision_id_foreign_to_bzr(good_id)
+        modified_revision = reverse_lookup_revision_id(good_id, mapping)
         # dont use the following, it doesn't give the right results consistently.
         # modified_revision = bzrrevid_from_hg(
         #     self._hgrepo.changelog.index[changelog_index][7])
@@ -246,10 +246,13 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
             for parent_cl in hgrepo.changelog.parents(current_cl_id):
                 if parent_cl not in done_cls:
                     parent_cl_ids.add((current_cl_id, parent_cl))
-        introduced_at_path_revision = mapping.revision_id_foreign_to_bzr(good_id)
+        introduced_at_path_revision = reverse_lookup_revision_id(good_id, mapping)
         add_dir_for(file, introduced_at_path_revision)
-        entry = result.add_path(file, 'file',
-            file_id=mapping.generate_file_id(file))
+        if 'l' in file_flags:
+            kind = 'symlink'
+        else:
+            kind = 'file'
+        entry = result.add_path(file, kind, file_id=mapping.generate_file_id(file))
         # its a shame we need to pull the text out. is there a better way?
         # TODO: perhaps we should use readmeta here to figure out renames ?
         text = revlog.read(file_revision)
@@ -279,10 +282,8 @@ class HgRepository(ForeignRepository):
         self._fallback_repositories = []
         self.signatures = None
         if self._hgrepo.local():
-            self.revisions = ChangelogVersionedFile(self._hgrepo.changelog, 
-                                                 self.get_mapping())
-            self.inventories = ManifestVersionedFile(self, self._hgrepo.manifest,
-                                                   self.get_mapping())
+            self.revisions = ChangelogVersionedFile(self._hgrepo.changelog, self)
+            self.inventories = ManifestVersionedFile(self, self._hgrepo.manifest)
             self.texts = RevlogVersionedFiles(self, self._hgrepo.file,
                                               self.get_mapping())
         else:
@@ -321,6 +322,11 @@ class HgLocalRepository(HgRepository):
     def get_revisions(self, revids):
         return [self.get_revision(r) for r in revids]
 
+    def reverse_lookup_revision_id(self, hgid, mapping=None):
+        if mapping is None:
+            mapping = self.get_mapping()
+        return mapping.revision_id_foreign_to_bzr(hgid)
+
     def lookup_revision_id(self, revision_id):
         # TODO: Handle round-tripped revisions
         try:
@@ -332,8 +338,7 @@ class HgLocalRepository(HgRepository):
         hgrevid, mapping = self.lookup_revision_id(revision_id)
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)
-        parent_ids = as_bzr_parents(hgparents, 
-            mapping.revision_id_foreign_to_bzr)
+        parent_ids = as_bzr_parents(hgparents, self.reverse_lookup_revision_id)
         return mapping.import_revision(revision_id, parent_ids, hgrevid, hgchange[0], hgchange[1], hgchange[2], hgchange[4], hgchange[5])[0]
 
     def iter_inventories(self, revision_ids, ordering=None):
@@ -348,7 +353,8 @@ class HgLocalRepository(HgRepository):
         pb = ui.ui_factory.nested_progress_bar()
         try:
             inv = manifest_to_inventory(self._hgrepo, hgid, log, manifest,
-                self.get_parent_map(all_relevant_revisions), mapping, pb)
+                self.get_parent_map(all_relevant_revisions), mapping, 
+                self.reverse_lookup_revision_id, pb)
             inv.revision_id = revision_id
             return inv
         finally:

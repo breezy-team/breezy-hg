@@ -25,6 +25,11 @@ from bzrlib.decorators import (
     )
 
 
+from mercurial.hg import (
+    update as hg_update,
+    )
+
+
 class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
     """Working Tree format for Mercurial Working Trees.
 
@@ -54,7 +59,7 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
 
     @needs_write_lock
     def add(self, files, ids=None):
-        # hg does not use ids, toss them away.
+        # hg does not use ids, toss them out
         if isinstance(files, basestring):
             files = [files]
         # hg does not canonicalise paths : make them absolute
@@ -72,6 +77,9 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
 
     def _reset_data(self):
         """Reset all cached data."""
+
+    def update(self, change_reporter=None, possible_transports=None):
+        hg_update(self._hgrepo, None)
 
     def unlock(self):
         """Overridden to avoid hashcache usage - hg manages that."""

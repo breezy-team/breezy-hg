@@ -7,6 +7,7 @@ main differences in their models that matter for bzr-hg when roundtripping are:
    20-byte hashes
  - Mercurial does not support ghosts
  - Mercurial does not support more than 2 parents for a revision
+ - Mercurial does not support empty directories, only "implicit" directories
  - Mercurial does not have the concept of file ids
 
 Fortunately both support custom properties stored in the revision. bzr-hg 

@@ -306,24 +306,6 @@ class HgRepository(ForeignRepository):
     def get_mapping(self):
         return default_mapping # for now
 
-    def iter_inventories(self, revision_ids, ordering=None):
-        for revid in revision_ids:
-            yield self.get_inventory(revid)
-
-    def get_inventory(self, revision_id):
-        hgid, mapping = mapping_registry.revision_id_bzr_to_foreign(revision_id)
-        log = self._hgrepo.changelog.read(hgid)
-        manifest = self._hgrepo.manifest.read(log[0])
-        all_relevant_revisions = self.get_ancestry(revision_id)[1:] + [NULL_REVISION]
-        pb = ui.ui_factory.nested_progress_bar()
-        try:
-            inv = manifest_to_inventory(self._hgrepo, hgid, log, manifest,
-                self.get_parent_map(all_relevant_revisions), mapping, pb)
-            inv.revision_id = revision_id
-            return inv
-        finally:
-            pb.finished()
-
     def is_shared(self):
         """Whether this repository is being shared between multiple branches. 
         
@@ -340,16 +322,34 @@ class HgLocalRepository(HgRepository):
 
     def lookup_revision_id(self, revision_id):
         # TODO: Handle round-tripped revisions
-        return mapping_registry.revision_id_bzr_to_foreign(revision_id)
+        try:
+            return mapping_registry.revision_id_bzr_to_foreign(revision_id)
+        except errors.InvalidRevisionId:
+            raise errors.NoSuchRevision(self, revision_id)
 
     def get_revision(self, revision_id):
-        try:
-            hgrevid, mapping = self.lookup_revision_id(revision_id)
-        except errors.InvalidRevisionId:
-            raise errors.NoSuchRevision(revision_id)
+        hgrevid, mapping = self.lookup_revision_id(revision_id)
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)
         return mapping.import_revision(revision_id, hgrevid, hgparents, hgchange[0], hgchange[1], hgchange[2], hgchange[4], hgchange[5])[0]
+
+    def iter_inventories(self, revision_ids, ordering=None):
+        for revid in revision_ids:
+            yield self.get_inventory(revid)
+
+    def get_inventory(self, revision_id):
+        hgid, mapping = self.lookup_revision_id(revision_id)
+        log = self._hgrepo.changelog.read(hgid)
+        manifest = self._hgrepo.manifest.read(log[0])
+        all_relevant_revisions = self.get_ancestry(revision_id)[1:] + [NULL_REVISION]
+        pb = ui.ui_factory.nested_progress_bar()
+        try:
+            inv = manifest_to_inventory(self._hgrepo, hgid, log, manifest,
+                self.get_parent_map(all_relevant_revisions), mapping, pb)
+            inv.revision_id = revision_id
+            return inv
+        finally:
+            pb.finished()
 
     def has_revision(self, revision_id):
         try:
@@ -364,6 +364,12 @@ class HgRemoteRepository(HgRepository):
         raise MercurialSmartRemoteNotSupported()
 
     def get_revisions(self, revision_ids):
+        raise MercurialSmartRemoteNotSupported()
+
+    def iter_inventories(self, revision_ids, ordering=None):
+        raise MercurialSmartRemoteNotSupported()
+
+    def get_inventory(self, revision_id):
         raise MercurialSmartRemoteNotSupported()
 
     def get_revision(self, revision_id):

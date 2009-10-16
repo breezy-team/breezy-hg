@@ -38,6 +38,7 @@ from bzrlib.revision import (
     )
 
 from bzrlib.plugins.hg.mapping import (
+    as_bzr_parents,
     default_mapping,
     mapping_registry,
     )
@@ -331,7 +332,9 @@ class HgLocalRepository(HgRepository):
         hgrevid, mapping = self.lookup_revision_id(revision_id)
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)
-        return mapping.import_revision(revision_id, hgrevid, hgparents, hgchange[0], hgchange[1], hgchange[2], hgchange[4], hgchange[5])[0]
+        parent_ids = as_bzr_parents(hgparents, 
+            mapping.revision_id_foreign_to_bzr)
+        return mapping.import_revision(revision_id, parent_ids, hgrevid, hgchange[0], hgchange[1], hgchange[2], hgchange[4], hgchange[5])[0]
 
     def iter_inventories(self, revision_ids, ordering=None):
         for revid in revision_ids:
@@ -354,7 +357,7 @@ class HgLocalRepository(HgRepository):
     def has_revision(self, revision_id):
         try:
             return self.lookup_revision_id(revision_id)[0] in self._hgrepo.changelog.nodemap
-        except errors.InvalidRevisionId:
+        except errors.NoSuchRevision:
             return False
 
 

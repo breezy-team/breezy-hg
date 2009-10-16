@@ -112,6 +112,11 @@ def files_from_delta(delta, inv, revid):
 
 
 def entry_sha1(entry):
+    """Calculate the full text sha1 for an inventory entry.
+
+    :param entry: Inventory entry
+    :return: SHA1 hex string
+    """
     if entry.kind == 'symlink':
         return osutils.sha_string(entry.symlink_target)
     else:
@@ -267,10 +272,10 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         desc = rev.message.encode("utf-8")
         return (manifest, user, (time, timezone), desc, extra)
 
-    def import_revision(self, revid, hgrevid, hgparents, manifest, user,
+    def import_revision(self, revid, parent_ids, hgrevid, manifest, user,
                         (time, timezone), desc, extra):
         result = foreign.ForeignRevision(hgrevid, self, revid)
-        result.parent_ids = as_bzr_parents(hgparents, self.revision_id_foreign_to_bzr)
+        result.parent_ids = parent_ids
         result.message = desc.decode("utf-8")
         result.inventory_sha1 = ""
         result.timezone = -timezone

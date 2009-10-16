@@ -58,6 +58,7 @@ from bzrlib.versionedfile import (
     )
 
 from bzrlib.plugins.hg.mapping import (
+    as_bzr_parents,
     files_from_delta,
     flags_kind,
     manifest_and_flags_from_tree,
@@ -296,12 +297,6 @@ class FromHgRepository(InterRepository):
         """The format to test with - as yet there is no HgRepoFormat."""
         return None
 
-    def _get_revision(self, revid):
-        try:
-            return self._revisions[revid]
-        except KeyError:
-            return self.target.get_revision(revid)
-
     def _get_inventories(self, revision_ids):
         ret = []
         for revid in revision_ids:
@@ -393,7 +388,7 @@ class FromHgRepository(InterRepository):
                 unpack_manifest_chunks(manifestchunks, self._target_overlay.get_manifest_text)):
             pb.update("adding inventories", i, total)
             for revid in self._manifest2rev_map[manifest_id]:
-                rev = self._get_revision(revid)
+                rev = self._revisions[revid]
                 files = self._files[rev.revision_id]
                 del self._files[rev.revision_id]
                 if rev.parent_ids == ():
@@ -434,8 +429,10 @@ class FromHgRepository(InterRepository):
             (manifest, user, (time, timezone), files, desc, extra) = \
                 parse_changeset(fulltext)
             key = mapping.revision_id_foreign_to_bzr(hgkey)
-            rev, fileids = mapping.import_revision(key, hgkey,
-                hgparents, manifest, user, (time, timezone), desc, extra)
+            parent_ids = as_bzr_parents(hgparents, 
+                mapping.revision_id_foreign_to_bzr)
+            rev, fileids = mapping.import_revision(key, parent_ids, hgkey,
+                manifest, user, (time, timezone), desc, extra)
             self._files[rev.revision_id] = files
             self._manifest2rev_map[manifest].add(rev.revision_id)
             self._revisions[rev.revision_id] = rev

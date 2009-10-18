@@ -8,6 +8,15 @@
 
   * Support 'bzr send --format=hg' to send hg bundles. (Jelmer Vernooij)
 
+  * Convert 'rebase_source' extra into 'rebase-of' revision property. 
+    (Jelmer Vernooij)
+
+  * Convert 'convert_revision' extra into 'converted-from' revision property.
+    (Jelmer Vernooij)
+
+  * Set 'converted-from' revision on newly converted revisions.
+    (Jelmer Vernooij)
+
  BUG FIXES
 
   * Mark as compatible with Bazaar 2.1. (Jelmer Vernooij)

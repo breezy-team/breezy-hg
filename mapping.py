@@ -36,6 +36,36 @@ from bzrlib import (
     trace,
     )
 
+import urllib
+
+def convert_converted_from(rev):
+    """Convert a Mercurial 'convert_revision' extra to a Bazaar 'converted-from' revprop.
+
+    """
+    (kind, revid) = rev.split(":", 1)
+    if kind == "svn":
+        url, revnum = revid.rsplit('@', 1)
+        revnum = int(revnum)
+        parts = url.split('/', 1)
+        uuid = parts.pop(0)[4:]
+        mod = ''
+        if parts:
+            mod = parts[0]
+        return "svn %s:%d:%s\n" % (uuid, revnum, urllib.quote(mod))
+    else:
+        raise KeyError("Unknown VCS '%s'" % kind)
+
+
+def generate_convert_revision(line):
+    (kind, revid) = line.split(" ", 1)
+    if kind == "svn":
+        (uuid, revnumstr, branchpathstr) = revid.split(":", 2)
+        revnum = int(revnumstr)
+        branchpath = urllib.unquote(branchpathstr)
+        return "svn:%s%s@%s" % (uuid, branchpath, revnum)
+    else:
+        raise KeyError("Unknown VCS '%s'" % kind)
+
 
 def flags_kind(flags, path):
     """Determine the Bazaar file kind from the Mercurial flags for a path.
@@ -225,7 +255,13 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         """See VcsMapping.revision_id_foreign_to_bzr."""
         if revision_id == mercurial.node.nullid:
             return _mod_revision.NULL_REVISION
-        return "%s:%s" % (cls.revid_prefix, hex(revision_id))
+        if len(revision_id) == 20:
+            hexhgrevid = hex(revision_id)
+        elif len(revision_id) == 40:
+            hexhgrevid = revision_id
+        else:
+            raise AssertionError
+        return "%s:%s" % (cls.revid_prefix, hexhgrevid)
 
     @classmethod
     def revision_id_bzr_to_foreign(cls, revision_id):
@@ -259,6 +295,18 @@ class ExperimentalHgMapping(foreign.VcsMapping):
                 manifest = mercurial.node.bin(value)
             elif name.startswith("hg:extra:"):
                 extra[name[len("hg:extra:"):]] = base64.b64decode(value)
+            elif name == 'rebase-of':
+                try:
+                    hgid, mapping = self.revision_id_bzr_to_foreign(value)
+                except errors.InvalidRevisionId:
+                    pass
+                else:
+                    assert len(hgid) == 20
+                extra['rebase_source'] = mercurial.node.hex(hgid)
+            elif name == 'converted-from':
+                if value.count('\n') <= 1:
+                    continue
+                extra['convert_revision'] = generate_convert_revision(value.splitlines()[-2])
             else:
                 assert not ":" in name
                 extra["bzr-revprop-"+name] = value.encode("utf-8")
@@ -294,10 +342,21 @@ class ExperimentalHgMapping(foreign.VcsMapping):
                 result.revision_id = value
             elif name == "bzr-fileids":
                 fileids = dict(bencode.bdecode(value))
+            elif name == "convert_revision":
+                result.properties['converted-from'] = convert_converted_from(value)
+            elif name == "rebase_source":
+                result.properties['rebase-of'] = self.revision_id_foreign_to_bzr(value)
             elif name.startswith("bzr-"):
                 trace.mutter("unknown bzr extra %s: %r", name, value)
             else:
                 result.properties["hg:extra:" + name] = base64.b64encode(value)
+        if len(hgrevid) == 40:
+            hghexrevid = hgrevid
+        else:
+            hghexrevid = mercurial.node.hex(hgrevid)
+        result.properties['converted-from'] = \
+                result.properties.get('converted-from', '') + \
+                "hg %s\n" % hghexrevid
         return result, fileids
 
 

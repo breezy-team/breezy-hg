@@ -48,8 +48,8 @@ class HgMappingTests(TestCase):
         self.mapping = ExperimentalHgMapping()
 
     def test_revid_foreign_to_bzr(self):
-        self.assertEquals("hg-experimental:" + hex("myrev"),
-            self.mapping.revision_id_foreign_to_bzr("myrev"))
+        self.assertEquals("hg-experimental:" + hex("a" * 20),
+            self.mapping.revision_id_foreign_to_bzr("a" * 20))
 
     def test_revid_bzr_to_foreign(self):
         self.assertEquals("myrev", 

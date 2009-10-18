@@ -20,6 +20,7 @@ from bzrlib.tests import TestCaseWithTransport
 
 import base64
 import copy
+import mercurial.node
 import os
 import stat
 
@@ -116,7 +117,8 @@ class TestPulling(TestCaseWithTransport):
         converted_rev = self.tree.branch.repository.get_revision(self.revidone)
         self.assertEqual((), converted_rev.parent_ids)
         self.assertEqual({"hg:extra:branch": base64.b64encode("default"),
-            'manifest': '18b146e67ed06c840bc37906f14f232a6139e4a4'},
+            'manifest': '18b146e67ed06c840bc37906f14f232a6139e4a4',
+            'converted-from': 'hg %s\n' % mercurial.node.hex(converted_rev.foreign_revid)},
             converted_rev.properties)
         self.assertEqual('foo', converted_rev.message)
         self.assertEqual(self.revidone, converted_rev.revision_id)
@@ -131,7 +133,8 @@ class TestPulling(TestCaseWithTransport):
         converted_rev = self.tree.branch.repository.get_revision(self.revidtwo)
         self.assertEqual((self.revidone,), converted_rev.parent_ids)
         self.assertEqual({"hg:extra:branch": base64.b64encode("default"),
-            'manifest': '23f1837a1232d834ec828ba402711f2a81f1403e'},
+            'manifest': '23f1837a1232d834ec828ba402711f2a81f1403e',
+            'converted-from': 'hg %s\n' % mercurial.node.hex(converted_rev.foreign_revid)},
             converted_rev.properties)
         self.assertEqual('bar', converted_rev.message)
         self.assertEqual(self.revidtwo, converted_rev.revision_id)

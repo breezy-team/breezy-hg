@@ -22,7 +22,6 @@ from mercurial.revlog import (
     )
 
 from bzrlib import (
-    errors,
     ui,
     )
 
@@ -51,7 +50,6 @@ class MercurialRepositoryOverlay(object):
         self.repo = repo
         self.mapping = mapping
         self.idmap = idmap
-        self._update_idmap()
 
     def _update_idmap(self):
         present_revids = self.idmap.revids()
@@ -146,7 +144,7 @@ class MercurialRepositoryOverlay(object):
     def get_changeset_text_by_revid(self, revid):
         rev = self.repo.get_revision(revid)
         (manifest, user, (time, timezone), desc, extra) = \
-            mapping.export_revision(rev)
+            self.mapping.export_revision(rev)
         if manifest is None:
             # Manifest not in the revision, look it up
             # This could potentially be very expensive, but no way around 

@@ -14,8 +14,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-from bzrlib.tests import TestCase
+from bzrlib.tests import (
+    TestCase,
+    )
 
+from bzrlib.plugins.hg import (
+    HgBzrDirFormat,
+    )
 from bzrlib.plugins.hg.branch import (
     HgBranchFormat,
     )
@@ -25,3 +30,11 @@ class BranchFormatTests(TestCase):
     def test_description(self):
         self.assertEquals("Mercurial Branch", 
             HgBranchFormat().get_format_description())
+
+
+class ForeignTestsBranchFactory(object):
+
+    def make_empty_branch(self, transport):
+        return HgBzrDirFormat().initialize_on_transport(transport).open_branch()
+
+    make_branch = make_empty_branch

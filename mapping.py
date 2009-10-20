@@ -57,6 +57,9 @@ def convert_converted_from(rev):
 
 
 def generate_convert_revision(line):
+    """Generate 'convert_revision'.
+
+    """
     (kind, revid) = line.split(" ", 1)
     if kind == "svn":
         (uuid, revnumstr, branchpathstr) = revid.split(":", 2)
@@ -334,6 +337,8 @@ class ExperimentalHgMapping(foreign.VcsMapping):
                 }
         fileids = {}
         for name, value in extra.iteritems():
+            if not name in ('branch', ):
+                import pdb; pdb.set_trace()
             if name.startswith("bzr-revprop-"):
                 result.properties[name[len("bzr-revprop-")]] = value.decode("utf-8")
             elif name == "bzr-extra-parents":
@@ -387,11 +392,15 @@ class ForeignHg(foreign.ForeignVcs):
 
     def __init__(self):
         super(ForeignHg, self).__init__(mapping_registry)
+        self.abbreviation = "hg"
 
     @classmethod
     def show_foreign_revid(cls, foreign_revid):
         """See ForeignVcs.show_foreign_revid."""
         return { "hg commit": hex(foreign_revid) }
+
+    def serialize_foreign_revid(self, foreign_revid):
+        return mercurial.node.hex(foreign_revid)
 
 
 foreign_hg = ForeignHg()

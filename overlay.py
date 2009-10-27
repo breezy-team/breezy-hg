@@ -20,6 +20,9 @@ import mercurial.node
 from mercurial.revlog import (
     hash as hghash,
     )
+from mercurial import (
+    error as hgerrors,
+    )
 
 from bzrlib import (
     ui,
@@ -30,6 +33,7 @@ from bzrlib.plugins.hg.idmap import (
     )
 from bzrlib.plugins.hg.mapping import (
     as_hg_parents,
+    default_mapping,
     files_from_delta,
     manifest_and_flags_from_tree,
     )
@@ -39,7 +43,19 @@ from bzrlib.plugins.hg.parsers import (
     )
 
 
-def get_overlay(bzr_repo, mapping):
+class changelog_wrapper(object):
+
+    def __init__(self, bzrrepo, mapping):
+        self.bzrrepo = bzrrepo
+        self.mapping = mapping
+
+    def rev(self, node):
+        return None # FIXME
+
+
+def get_overlay(bzr_repo, mapping=None):
+    if mapping is None:
+        mapping = default_mapping
     return MercurialRepositoryOverlay(bzr_repo, mapping, MemoryIdmap())
 
 
@@ -50,6 +66,7 @@ class MercurialRepositoryOverlay(object):
         self.repo = repo
         self.mapping = mapping
         self.idmap = idmap
+        self.changelog = changelog_wrapper(self.repo, self.mapping)
 
     def _update_idmap(self):
         present_revids = self.idmap.revids()
@@ -71,6 +88,20 @@ class MercurialRepositoryOverlay(object):
                     self.idmap.insert_manifest(manifest_id, revid)
         finally:
             pb.finished()
+
+    def __len__(self):
+        # Slow...
+        return len(self.repo.all_revision_ids())
+
+    def lookup(self, key):
+        if key == 'null':
+            return mercurial.node.nullid
+        if key == 'tip':
+            revid = self._bzrdir.open_branch().last_revision()
+            return self._overlay.lookup_changeset_id_by_revid(revid)
+        if key == '.':
+            raise NotImplementedError
+        raise hgerrors.RepoLookupError("unknown revision '%s'" % key)
 
     def get_files_by_revid(self, revid):
         try:

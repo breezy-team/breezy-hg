@@ -337,8 +337,6 @@ class ExperimentalHgMapping(foreign.VcsMapping):
                 }
         fileids = {}
         for name, value in extra.iteritems():
-            if not name in ('branch', ):
-                import pdb; pdb.set_trace()
             if name.startswith("bzr-revprop-"):
                 result.properties[name[len("bzr-revprop-")]] = value.decode("utf-8")
             elif name == "bzr-extra-parents":

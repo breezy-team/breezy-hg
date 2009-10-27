@@ -51,7 +51,6 @@ from bzrlib.plugins.hg.util import (
     lazydict,
     )
 
-
 def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
                overlay, fileids={}, lossy=True):
     """Serialize a series of Bazaar revisions as Mercurial changesets.
@@ -80,7 +79,8 @@ def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
         yield text, ps, hgid
 
 
-def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts, fileids, lossy=True):
+def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts, 
+                 fileids, lossy=True, first_is_base=True):
     def get_manifest(revid):
         if revid in manifest_ids:
             try:
@@ -107,13 +107,13 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts, fil
         manifests[revid] = (manifest, flags)
         try:
             base_tree = parent_trees[0]
-        except KeyError:
+        except IndexError:
             base_tree = repo.revision_tree(_mod_revision.NULL_REVISION)
         files[revid] = files_from_delta(tree.changes_from(base_tree), 
             tree.inventory, revid)
         # Avoid sending texts for first revision, it's listed so we get the 
         # base text for the manifest delta's.
-        if revid != revids[0]:
+        if not first_is_base or revid != revids[0]:
             for p in files[revid]:
                 fileid = tree.inventory.path2id(p)
                 if fileid is not None:
@@ -170,9 +170,16 @@ def dchangegroup(repo, mapping, revids, lossy=True):
     changelog_ids = lazydict(overlay.lookup_changeset_id_by_revid)
     graph = repo.get_graph()
     revids = list(graph.iter_topo_order(revids))
-    todo = [repo.get_parent_map([revids[0]])[revids[0]][0]] + revids # add base text revid
+    assert revids[0] != _mod_revision.NULL_REVISION
+    base_revid = repo.get_parent_map([revids[0]])[revids[0]][0]
+    if base_revid != _mod_revision.NULL_REVISION:
+        todo = [base_revid] + revids # add base text revid
+        first_is_base = True
+    else:
+        todo = revids
+        first_is_base = False
     fileids = {} 
-    manifests = list(dinventories(repo, mapping, todo, manifest_ids, files, overlay, texts, fileids, lossy=lossy))
+    manifests = list(dinventories(repo, mapping, todo, manifest_ids, files, overlay, texts, fileids, lossy=lossy, first_is_base=first_is_base))
     # 00changelog.i
     write_delta_chunks(ret, drevisions(repo, mapping, todo, files, changelog_ids, manifest_ids, overlay, fileids=fileids, lossy=lossy))
     del files

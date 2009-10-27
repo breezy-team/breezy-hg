@@ -25,6 +25,7 @@ from mercurial import (
     )
 
 from bzrlib import (
+    revision as _mod_revision,
     ui,
     )
 
@@ -123,9 +124,9 @@ class MercurialRepositoryOverlay(object):
         return self.get_manifest_text_by_revid(revid) 
 
     def _get_file_fulltext(self, key):
-        ret = "".join(self.target.iter_files_bytes([key + (None,)]).next()[1])
+        ret = "".join(self.repo.iter_files_bytes([key + (None,)]).next()[1])
         if ret == "": # could be a symlink
-            ie = self.target.get_inventory(key[1])[key[0]]
+            ie = self.repo.get_inventory(key[1])[key[0]]
             if ie.kind == "symlink":
                 return ie.symlink_target
         return ret
@@ -204,6 +205,18 @@ class MercurialRepositoryOverlay(object):
         # TODO: Handle roundtripping
         return self.mapping.revision_id_bzr_to_foreign(revid)
 
+    def heads(self):
+        """Determine the hg heads in the target repository."""
+        self.repo.lock_read()
+        try:
+            all_revs = self.repo.all_revision_ids()
+            parent_map = self.repo.get_parent_map(all_revs)
+            all_parents = set()
+            map(all_parents.update, parent_map.itervalues())
+            return set([self.lookup_changeset_id_by_revid(revid)[0] for revid in set(all_revs) - all_parents])
+        finally:
+            self.repo.unlock()
+
     def has_hgids(self, ids):
         """Check whether the specified Mercurial ids are present.
         
@@ -215,3 +228,15 @@ class MercurialRepositoryOverlay(object):
         return set([
             self.mapping.revision_id_bzr_to_foreign(revid)[0]
             for revid in self.repo.has_revisions(revids)])
+
+    def changegroup(self, nodes, kind):
+        if nodes == [mercurial.node.nullid]:
+            revids = [revid for revid in self.repo.all_revision_ids() if revid != _mod_revision.NULL_REVISION]
+        else:
+            revids = [self.lookup_revision_by_changeset_id(node) for node in nodes]
+        from bzrlib.plugins.hg.push import dchangegroup
+        self.repo.lock_read()
+        try:
+            return dchangegroup(self.repo, self.mapping, revids, lossy=False)
+        finally:
+            self.repo.unlock()

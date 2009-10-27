@@ -491,15 +491,6 @@ class FromHgRepository(InterRepository):
         finally:
             pb.finished()
 
-    def get_target_heads(self):
-        """Determine the heads in the target repository."""
-        all_revs = self.target.all_revision_ids()
-        parent_map = self.target.get_parent_map(all_revs)
-        all_parents = set()
-        map(all_parents.update, parent_map.itervalues())
-        mapping = self.source.get_mapping()
-        return set([mapping.revision_id_bzr_to_foreign(revid)[0] for revid in set(all_revs) - all_parents])
-
     def heads(self, fetch_spec, revision_id):
         """Determine the Mercurial heads to fetch. """
         if fetch_spec is not None:

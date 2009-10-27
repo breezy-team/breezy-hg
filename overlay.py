@@ -62,11 +62,18 @@ def get_overlay(bzr_repo, mapping=None):
 class MercurialRepositoryOverlay(object):
     """Overlay that allows accessing some Mercurialisque properties from a Bazaar repo."""
 
-    def __init__(self, repo, mapping, idmap):
+    def __init__(self, repo, mapping, idmap=None):
         self.repo = repo
         self.mapping = mapping
-        self.idmap = idmap
+        if idmap is None:
+            from bzrlib.plugins.hg.idmap import MemoryIdmap
+            self.idmap = MemoryIdmap()
+        else:
+            self.idmap = idmap
         self.changelog = changelog_wrapper(self.repo, self.mapping)
+
+    def __repr__(self):
+        return "%s(%r, %r)" % (self.__class__.__name__, self.repo, self.mapping)
 
     def _update_idmap(self):
         present_revids = self.idmap.revids()

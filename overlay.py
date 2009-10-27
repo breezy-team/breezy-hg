@@ -25,6 +25,7 @@ from mercurial import (
     )
 
 from bzrlib import (
+    errors,
     revision as _mod_revision,
     ui,
     )
@@ -202,8 +203,10 @@ class MercurialRepositoryOverlay(object):
                                 desc, extra)
 
     def lookup_changeset_id_by_revid(self, revid):
-        # TODO: Handle roundtripping
-        return self.mapping.revision_id_bzr_to_foreign(revid)
+        try:
+            return self.mapping.revision_id_bzr_to_foreign(revid)
+        except errors.InvalidRevisionId:
+            raise # FIXME: Lookup in id map
 
     def heads(self):
         """Determine the hg heads in the target repository."""

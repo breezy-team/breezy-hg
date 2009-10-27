@@ -12,8 +12,8 @@ if __name__ == '__main__':
           version=version_string,
           url='http://bazaar-vcs.org/BzrForeignBranches/Mercurial',
           license='GPL',
-          author='Robert Collins',
-          author_email='robertc@robertcollins.net',
+          maintainer='Jelmer Vernooij',
+          maintainer_email='jelmer@samba.org',
           long_description="""
           This plugin adds limited support for checking out and viewing 
           Mercurial branches in Bazaar.

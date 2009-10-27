@@ -77,9 +77,13 @@ class MercurialRepositoryOverlay(object):
     def __repr__(self):
         return "%s(%r, %r)" % (self.__class__.__name__, self.repo, self.mapping)
 
-    def _update_idmap(self):
+    def _update_idmap(self, stop_revision=None):
         present_revids = self.idmap.revids()
-        todo = set(self.repo.all_revision_ids()) - present_revids
+        if stop_revision is None:
+            wanted = self.repo.all_revision_ids()
+        else:
+            wanted = self.repo.get_ancestry(stop_revision)[1:]
+        todo = set(wanted) - present_revids
         revs = self.repo.get_revisions(todo)
         graph = self.repo.get_graph()
         pb = ui.ui_factory.nested_progress_bar()
@@ -87,14 +91,16 @@ class MercurialRepositoryOverlay(object):
             for i, revid in enumerate(graph.iter_topo_order(todo)):
                 pb.update("updating cache", i, len(todo))
                 rev = self.repo.get_revision(revid)
-                try:
-                    manifest_id = rev.properties['manifest']
-                except KeyError:
+                (manifest_id, user, (time, timezone), desc, extra) = \
+                    self.mapping.export_revision(rev)
+                if manifest_id is None:
                     manifest_text = self.get_manifest_text_by_revid(revid)
                     manifest_id = hghash(manifest_text, *as_hg_parents(rev.parent_ids[:2], self.lookup_manifest_id_by_revid))
-                    pass # no 'manifest' property present
-                else:
-                    self.idmap.insert_manifest(manifest_id, revid)
+
+                changeset_text = self.get_changeset_text_by_revid(revid, rev, 
+                    manifest_id=manifest_id)
+                changeset_id = hghash(changeset_text, *as_hg_parents(rev.parent_ids[:2], self.lookup_changeset_id_by_revid))
+                self.idmap.insert_revision(revid, manifest_id, changeset_id)
         finally:
             pb.finished()
 
@@ -189,24 +195,31 @@ class MercurialRepositoryOverlay(object):
         rev = self.repo.get_revision(revid)
         return mercurial.node.bin(rev.properties['manifest'])
 
-    def get_changeset_text_by_revid(self, revid):
-        rev = self.repo.get_revision(revid)
-        (manifest, user, (time, timezone), desc, extra) = \
+    def get_changeset_text_by_revid(self, revid, rev=None, manifest_id=None):
+        if rev is None:
+            rev = self.repo.get_revision(revid)
+        (stored_manifest_id, user, (time, timezone), desc, extra) = \
             self.mapping.export_revision(rev)
-        if manifest is None:
+        if manifest_id is None and stored_manifest_id is not None:
+            manifest_id = stored_manifest_id
+        if manifest_id is None:
             # Manifest not in the revision, look it up
             # This could potentially be very expensive, but no way around 
             # that...
-            manifest = self.lookup_manifest_id_by_revid(revid)
+            manifest_id = self.lookup_manifest_id_by_revid(revid)
         files = self.get_files_by_revid(revid)
-        return format_changeset(manifest, files, user, (time, timezone),
+        return format_changeset(manifest_id, files, user, (time, timezone),
                                 desc, extra)
 
     def lookup_changeset_id_by_revid(self, revid):
         try:
             return self.mapping.revision_id_bzr_to_foreign(revid)
         except errors.InvalidRevisionId:
-            raise # FIXME: Lookup in id map
+            try:
+                return self.idmap.lookup_changeset_id_by_revid(revid)
+            except KeyError:
+                self._update_idmap(stop_revision=revid)
+                return self.idmap.lookup_changeset_id_by_revid(revid)
 
     def heads(self):
         """Determine the hg heads in the target repository."""

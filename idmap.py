@@ -30,14 +30,17 @@ class Idmap(object):
     def lookup_revision_by_manifest_id(self):
         raise NotImplementedError(self.lookup_revision_by_manifest_id)
 
+    def lookup_changeset_id_by_revid(self, revid):
+        raise NotImplementedError(self.lookup_changeset_id_by_revid)
+
     def get_files_by_revid(self, revid):
         raise NotImplementedError(self.get_files_by_revid)
 
     def revids(self):
         raise NotImplementedError(self.revids)
 
-    def insert_manifest(self, manifest_id, revid):
-        raise NotImplementedError(self.insert_manifest)
+    def insert_revision(self, revid, manifest_id, changeset_id):
+        raise NotImplementedError(self.insert_revision)
 
 
 class MemoryIdmap(Idmap):
@@ -45,6 +48,7 @@ class MemoryIdmap(Idmap):
 
     def __init__(self):
         self._manifest_to_revid = {}
+        self._revid_to_changeset_id = {}
 
     def get_files_by_revid(self, revid):
         raise KeyError(revid)
@@ -52,13 +56,19 @@ class MemoryIdmap(Idmap):
     def lookup_revision_by_manifest_id(self, manifest_id):
         return self._manifest_to_revid[manifest_id]
 
+    def lookup_changeset_id_by_revid(self, revid):
+        return self._revid_to_changeset_id[revid]
+
     def revids(self):
         return set(self._manifest_to_revid.values())
 
-    def insert_manifest(self, manifest_id, revid):
+    def insert_revision(self, revid, manifest_id, changeset_id):
         if len(manifest_id) == 40:
             manifest_id = mercurial.node.bin(manifest_id)
+        if len(changeset_id) == 40:
+            changeset_id = mercurial.node.bin(changeset_id)
         self._manifest_to_revid[manifest_id] = revid
+        self._revid_to_changeset_id[revid] = changeset_id
 
 
 _mapdbs = threading.local()
@@ -107,6 +117,9 @@ class TdbIdmap(Idmap):
     def lookup_revision_by_manifest_id(self, manifest_id):
         return self.db["manifest/" + manifest_id]
 
+    def lookup_changeset_id_by_revid(self, revid):
+        return self.db["revid/" + revid]
+
     def revids(self):
         ret = set()
         for k, v in self.db.iteritems():
@@ -114,7 +127,10 @@ class TdbIdmap(Idmap):
                 ret.add(v)
         return ret
 
-    def insert_manifest(self, manifest_id, revid):
+    def insert_revision(self, revid, manifest_id, changeset_id):
         if len(manifest_id) == 40:
             manifest_id = mercurial.node.bin(manifest_id)
+        if len(changeset_id) == 40:
+            changeset_id = mercurial.node.bin(changeset_id)
         self.db["manifest/" + manifest_id] = revid
+        self.db["revid/" + revid] = changeset_id

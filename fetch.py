@@ -341,21 +341,17 @@ class FromHgRepository(InterRepository):
                 other_inv = parent_invs[1]
             else:
                 other_inv = None
-        return basis_inv, list(manifest_to_inventory_delta(mapping.generate_file_id, 
+        invdelta = list(manifest_to_inventory_delta(mapping.generate_file_id, 
                 basis_inv, other_inv, (basis_manifest, basis_flags),
                 (manifest, flags), rev.revision_id, files, 
                 self._text_metadata.__getitem__,
                 self._symlink_targets.__getitem__))
+        return basis_inv, invdelta
 
     def _get_target_fulltext(self, key):
         if key in self._symlink_targets:
             return self._symlink_targets[key]
-        ret = "".join(self.target.iter_files_bytes([key + (None,)]).next()[1])
-        if ret == "": # could be a symlink
-            ie = self.target.get_inventory(key[1])[key[0]]
-            if ie.kind == "symlink":
-                return ie.symlink_target
-        return ret
+        return self._target_overlay.get_file_fulltext(key)
 
     def _unpack_texts(self, cg, mapping, filetext_map, pb):
         i = 0

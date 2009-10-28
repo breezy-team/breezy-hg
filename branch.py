@@ -162,7 +162,7 @@ class HgBranch(ForeignBranch):
     @needs_read_lock
     def last_revision(self):
         tip = self._hgrepo.lookup("tip")
-        return self.repository.reverse_lookup_revision_id(tip, 
+        return self.repository.lookup_foreign_revision_id(tip, 
             mapping=self.mapping)
 
     def lock_read(self):

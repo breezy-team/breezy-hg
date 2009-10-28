@@ -72,7 +72,7 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
 
 
 def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
-                          mapping, reverse_lookup_revision_id, pb):
+                          mapping, lookup_foreign_revision_id, pb):
     """Convert a Mercurial manifest to a Bazaar inventory.
 
     :param hgrepo: A local Mercurial repository
@@ -215,7 +215,7 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
             for parent_cl in hgrepo.changelog.parents(current_cl):
                 if parent_cl not in done_cls:
                     parent_cls.add(parent_cl)
-        modified_revision = reverse_lookup_revision_id(good_id, mapping)
+        modified_revision = lookup_foreign_revision_id(good_id, mapping)
         # dont use the following, it doesn't give the right results consistently.
         # modified_revision = bzrrevid_from_hg(
         #     self._hgrepo.changelog.index[changelog_index][7])
@@ -246,7 +246,7 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
             for parent_cl in hgrepo.changelog.parents(current_cl_id):
                 if parent_cl not in done_cls:
                     parent_cl_ids.add((current_cl_id, parent_cl))
-        introduced_at_path_revision = reverse_lookup_revision_id(good_id, mapping)
+        introduced_at_path_revision = lookup_foreign_revision_id(good_id, mapping)
         add_dir_for(file, introduced_at_path_revision)
         if 'l' in file_flags:
             kind = 'symlink'
@@ -322,7 +322,7 @@ class HgLocalRepository(HgRepository):
     def get_revisions(self, revids):
         return [self.get_revision(r) for r in revids]
 
-    def reverse_lookup_revision_id(self, hgid, mapping=None):
+    def lookup_foreign_revision_id(self, hgid, mapping=None):
         if mapping is None:
             mapping = self.get_mapping()
         return mapping.revision_id_foreign_to_bzr(hgid)
@@ -339,7 +339,7 @@ class HgLocalRepository(HgRepository):
         hgrevid, mapping = self.lookup_bzr_revision_id(revision_id)
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)
-        parent_ids = as_bzr_parents(hgparents, self.reverse_lookup_revision_id)
+        parent_ids = as_bzr_parents(hgparents, self.lookup_foreign_revision_id)
         return mapping.import_revision(revision_id, parent_ids, hgrevid, hgchange[0], hgchange[1], hgchange[2], hgchange[4], hgchange[5])[0]
 
     def iter_inventories(self, revision_ids, ordering=None):
@@ -355,7 +355,7 @@ class HgLocalRepository(HgRepository):
         try:
             inv = manifest_to_inventory(self._hgrepo, hgid, log, manifest,
                 self.get_parent_map(all_relevant_revisions), mapping, 
-                self.reverse_lookup_revision_id, pb)
+                self.lookup_foreign_revision_id, pb)
             inv.revision_id = revision_id
             return inv
         finally:

@@ -417,7 +417,7 @@ class FromHgRepository(InterRepository):
 
     def _unpack_changesets(self, chunkiter, mapping, pb):
         def get_hg_revision(hgid):
-            revid = self.source.reverse_lookup_revision_id(hgid, mapping)
+            revid = self.source.lookup_foreign_revision_id(hgid, mapping)
             return self._target_overlay.get_changeset_text_by_revid(revid)
 
         for i, (fulltext, hgkey, hgparents, csid) in enumerate(
@@ -427,7 +427,7 @@ class FromHgRepository(InterRepository):
                 parse_changeset(fulltext)
             key = mapping.revision_id_foreign_to_bzr(hgkey)
             parent_ids = as_bzr_parents(hgparents, 
-                self.source.reverse_lookup_revision_id)
+                self.source.lookup_foreign_revision_id)
             rev, fileids = mapping.import_revision(key, parent_ids, hgkey,
                 manifest, user, (time, timezone), desc, extra)
             self._files[rev.revision_id] = files

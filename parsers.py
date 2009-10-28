@@ -119,6 +119,7 @@ def pack_chunk_iter(entries):
         assert len(p2) == 20
         node = hghash(fulltext, p1, p2)
         assert len(node) == 20
+        assert len(link) == 20
         delta = mercurial.mdiff.bdiff.bdiff(textbase, fulltext)
         chunk = struct.pack("20s20s20s20s", node, p1, p2, link) + delta
         yield chunk

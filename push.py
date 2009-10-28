@@ -133,7 +133,7 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts,
         yield text, node_parents, revid
 
 
-def text_contents(repo, get_changelog_id, path, keys, overlay):
+def text_contents(repo, changelog_ids, path, keys, overlay):
     def text_as_node((fileid, revision)):
         try:
             return text_nodes[revision]
@@ -143,9 +143,15 @@ def text_contents(repo, get_changelog_id, path, keys, overlay):
     base_reported = False
     for record in repo.texts.get_record_stream(keys, 'topological', True):
         if not base_reported:
-            if record.parents and record.parents[0][0] == record.key[0]:
-                base_record = repo.texts.get_record_stream([record.parents[0]], 'unordered', True).next()
-                base_text = base_record.get_bytes_as('fulltext')
+            if record.parents:
+                inv = repo.get_inventory(record.parents[0][1])
+                fileid = inv.path2id(path)
+                if fileid is None:
+                    base_text = ""
+                else:
+                    base_key = (fileid, record.parents[0][1])
+                    base_record = repo.texts.get_record_stream([base_key], 'unordered', True).next()
+                    base_text = base_record.get_bytes_as('fulltext')
             else:
                 base_text = ""
             yield base_text, None, None
@@ -153,7 +159,7 @@ def text_contents(repo, get_changelog_id, path, keys, overlay):
         fulltext = record.get_bytes_as('fulltext')
         parents = as_hg_parents(record.parents, text_as_node)
         text_nodes[record.key[1]] = hghash(fulltext, parents[0], parents[1])
-        yield (fulltext, parents, get_changelog_id(record.key[1]))
+        yield (fulltext, parents, changelog_ids[record.key[1]])
 
 
 def write_chunk(f, buffer):
@@ -199,8 +205,8 @@ def dchangegroup(repo, mapping, revids, lossy=True):
     for path, keys in texts.iteritems():
         # FIXME: Mangle path in the same way that mercurial does
         write_chunk(ret, path)
-        write_delta_chunks(ret, text_contents(repo, changelog_ids.__getitem__,
-                           path, keys, overlay))
+        write_delta_chunks(ret, 
+            text_contents(repo, changelog_ids, path, keys, overlay))
     write_chunk(ret, "")
     ret.seek(0)
     return ret, changelog_ids

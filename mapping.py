@@ -270,7 +270,7 @@ class ExperimentalHgMapping(foreign.VcsMapping):
     def revision_id_bzr_to_foreign(cls, revision_id):
         """See VcsMapping.revision_id_foreign_to_bzr."""
         if revision_id == _mod_revision.NULL_REVISION:
-            return mercurial.node.nullid
+            return mercurial.node.nullid, cls()
         if not revision_id.startswith("%s:" % cls.revid_prefix):
             raise errors.InvalidRevisionId(revision_id, cls)
         return bin(revision_id[len(cls.revid_prefix)+1:]), cls()
@@ -367,6 +367,8 @@ class HgMappingRegistry(foreign.VcsMappingRegistry):
     """Registry of all Bazaar <-> Mercurial mappings."""
 
     def revision_id_bzr_to_foreign(self, bzr_revid):
+        if bzr_revid == _mod_revision.NULL_REVISION:
+            return mercurial.node.nullid, None
         if not bzr_revid.startswith("hg-"):
             raise errors.InvalidRevisionId(bzr_revid, None)
         (mapping_version, hg_ref) = bzr_revid.split(":", 1)

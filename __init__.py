@@ -306,6 +306,19 @@ bzrlib.bzrdir.format_registry.register("hg",
 send_format_registry.register_lazy('hg', 'bzrlib.plugins.hg.send',
                                    'send_hg', 'Mecurial bundle format')
 
+from bzrlib.revisionspec import revspec_registry
+revspec_registry.register_lazy("hg:", "bzrlib.plugins.hg.revspec", 
+    "RevisionSpec_hg")
+
+try:
+    from bzrlib.revisionspec import dwim_revspecs
+except ImportError:
+    pass
+else:
+    from bzrlib.plugins.hg.revspec import RevisionSpec_hg
+    dwim_revspecs.append(RevisionSpec_hg)
+
+
 def test_suite():
     from unittest import TestSuite, TestLoader
     import tests

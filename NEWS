@@ -17,6 +17,8 @@
   * Set 'converted-from' revision on newly converted revisions.
     (Jelmer Vernooij)
 
+  * New revision specified 'hg:'. (Jelmer Vernooij)
+
  BUG FIXES
 
   * Mark as compatible with Bazaar 2.1. (Jelmer Vernooij)

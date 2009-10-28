@@ -25,6 +25,10 @@ from bzrlib import (
     trace,
     )
 
+from bzrlib.plugins.hg.mapping import (
+    mapping_registry,
+    )
+
 def get_cache_dir():
     try:
         from xdg.BaseDirectory import xdg_cache_home
@@ -52,7 +56,7 @@ class Idmap(object):
     def revids(self):
         raise NotImplementedError(self.revids)
 
-    def insert_revision(self, revid, manifest_id, changeset_id):
+    def insert_revision(self, revid, manifest_id, changeset_id, mapping):
         raise NotImplementedError(self.insert_revision)
 
 
@@ -75,13 +79,13 @@ class MemoryIdmap(Idmap):
     def revids(self):
         return set(self._manifest_to_revid.values())
 
-    def insert_revision(self, revid, manifest_id, changeset_id):
+    def insert_revision(self, revid, manifest_id, changeset_id, mapping):
         if len(manifest_id) == 40:
             manifest_id = mercurial.node.bin(manifest_id)
         if len(changeset_id) == 40:
             changeset_id = mercurial.node.bin(changeset_id)
         self._manifest_to_revid[manifest_id] = revid
-        self._revid_to_changeset_id[revid] = changeset_id
+        self._revid_to_changeset_id[revid] = changeset_id, mapping
 
 
 _mapdbs = threading.local()
@@ -141,7 +145,9 @@ class TdbIdmap(Idmap):
         return self.db["manifest/" + manifest_id]
 
     def lookup_changeset_id_by_revid(self, revid):
-        return self.db["revid/" + revid]
+        text = self.db["revid/" + revid]
+        csid = text[:20]
+        return csid, mapping_registry.get(text[20:])
 
     def revids(self):
         ret = set()
@@ -150,10 +156,10 @@ class TdbIdmap(Idmap):
                 ret.add(self.db[k])
         return ret
 
-    def insert_revision(self, revid, manifest_id, changeset_id):
+    def insert_revision(self, revid, manifest_id, changeset_id, mapping):
         if len(manifest_id) == 40:
             manifest_id = mercurial.node.bin(manifest_id)
         if len(changeset_id) == 40:
             changeset_id = mercurial.node.bin(changeset_id)
         self.db["manifest/" + manifest_id] = revid
-        self.db["revid/" + revid] = changeset_id
+        self.db["revid/" + revid] = changeset_id + str(mapping)

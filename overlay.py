@@ -93,6 +93,9 @@ class MercurialRepositoryOverlay(object):
     def __repr__(self):
         return "%s(%r, %r)" % (self.__class__.__name__, self.repo, self.mapping)
 
+    def url(self):
+        return self.repo.base
+
     def remember_manifest_text(self, revid, parent_revids, text):
         self.manifests.insert_record_stream([FulltextContentFactory(
             (revid,), [(p,) for p in parent_revids] , None, text)])
@@ -120,8 +123,9 @@ class MercurialRepositoryOverlay(object):
 
                 changeset_text = self.get_changeset_text_by_revid(revid, rev, 
                     manifest_id=manifest_id)
-                changeset_id = hghash(changeset_text, *as_hg_parents(rev.parent_ids[:2], self.lookup_changeset_id_by_revid))
-                self.idmap.insert_revision(revid, manifest_id, changeset_id)
+                changeset_id = hghash(changeset_text, *as_hg_parents(rev.parent_ids[:2], lambda x: self.lookup_changeset_id_by_revid(x)[0]))
+                self.idmap.insert_revision(revid, manifest_id, changeset_id,
+                                           self.mapping)
         finally:
             pb.finished()
 
@@ -134,7 +138,7 @@ class MercurialRepositoryOverlay(object):
             return mercurial.node.nullid
         if key == 'tip':
             revid = self._bzrdir.open_branch().last_revision()
-            return self._overlay.lookup_changeset_id_by_revid(revid)
+            return self._overlay.lookup_changeset_id_by_revid(revid)[0]
         if key == '.':
             raise NotImplementedError
         raise hgerrors.RepoLookupError("unknown revision '%s'" % key)
@@ -252,17 +256,23 @@ class MercurialRepositoryOverlay(object):
                                 desc, extra)
 
     def lookup_changeset_id_by_revid(self, revid):
+        """Lookup a Mercurial changeset id by revision id.
+
+        :param revid: Revision id
+        :return: Tuple with mercurial changeset id and mapping
+        """
         try:
             return self.mapping.revision_id_bzr_to_foreign(revid)
         except errors.InvalidRevisionId:
             try:
                 return self.idmap.lookup_changeset_id_by_revid(revid)
             except KeyError:
+                import pdb; pdb.set_trace()
                 self._update_idmap(stop_revision=revid)
                 return self.idmap.lookup_changeset_id_by_revid(revid)
 
     def heads(self):
-        """Determine the hg heads in the target repository."""
+        """Determine the hg heads in this repository."""
         self.repo.lock_read()
         try:
             all_revs = self.repo.all_revision_ids()
@@ -286,6 +296,7 @@ class MercurialRepositoryOverlay(object):
             for revid in self.repo.has_revisions(revids)])
 
     def changegroup(self, nodes, kind):
+        """See mercurial.repo.changegroup()."""
         if nodes == [mercurial.node.nullid]:
             revids = [revid for revid in self.repo.all_revision_ids() if revid != _mod_revision.NULL_REVISION]
         else:
@@ -293,6 +304,6 @@ class MercurialRepositoryOverlay(object):
         from bzrlib.plugins.hg.push import dchangegroup
         self.repo.lock_read()
         try:
-            return dchangegroup(self.repo, self.mapping, revids, lossy=False)
+            return dchangegroup(self.repo, self.mapping, revids, lossy=False)[0]
         finally:
             self.repo.unlock()

@@ -63,6 +63,9 @@ def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
     :return: Iterable over changeset fulltexts
     """
     for revid in revids:
+        if revid == _mod_revision.NULL_REVISION:
+            yield "", (mercurial.node.nullid, mercurial.node.nullid), mercurial.node.nullid
+            continue
         rev = repo.get_revision(revid)
         (manifest_id, user, date, desc, extra) = mapping.export_revision(rev, 
             lossy=lossy, fileids=fileids.get(revid, {}))
@@ -72,22 +75,25 @@ def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
             raise AssertionError
         text = format_changeset(manifest_id, files[revid], user, date, desc,
             extra)
-        ps = as_hg_parents(rev.parent_ids, 
-            lambda x: overlay.lookup_changeset_id_by_revid(x)[0])
+        ps = as_hg_parents(rev.parent_ids, changelog_ids.__getitem__)
         hgid = hghash(text, ps[0], ps[1])
         changelog_ids[revid] = hgid
         yield text, ps, hgid
 
 
 def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts, 
-                 fileids, lossy=True, first_is_base=True):
+                 fileids, lossy=True):
     def get_manifest(revid):
         if revid in manifest_ids:
             try:
-                return manifests[manifest_ids[(revid)]]
+                return manifests[manifest_ids[revid]]
             except KeyError:
                 pass
         return overlay.get_manifest_and_flags_by_revid(revid)
+    skip_revid = revids[0]
+    if revids[0] == _mod_revision.NULL_REVISION:
+        yield "", (mercurial.node.nullid, mercurial.node.nullid), revids[0]
+        revids = revids[1:]
     manifests = {}
     # TODO: Very naive and slow:
     for tree in repo.revision_trees(revids):
@@ -113,7 +119,7 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts,
             tree.inventory, revid)
         # Avoid sending texts for first revision, it's listed so we get the 
         # base text for the manifest delta's.
-        if not first_is_base or revid != revids[0]:
+        if revid != skip_revid:
             for p in files[revid]:
                 fileid = tree.inventory.path2id(p)
                 if fileid is not None:
@@ -167,19 +173,15 @@ def dchangegroup(repo, mapping, revids, lossy=True):
     files = {}
     manifest_ids = lazydict(overlay.lookup_manifest_id_by_revid)
     texts = defaultdict(set)
-    changelog_ids = lazydict(overlay.lookup_changeset_id_by_revid)
+    changelog_ids = lazydict(lambda x: overlay.lookup_changeset_id_by_revid(x)[0])
+    changelog_ids[_mod_revision.NULL_REVISION] = mercurial.node.nullid
     graph = repo.get_graph()
     revids = list(graph.iter_topo_order(revids))
     assert revids[0] != _mod_revision.NULL_REVISION
     base_revid = repo.get_parent_map([revids[0]])[revids[0]][0]
-    if base_revid != _mod_revision.NULL_REVISION:
-        todo = [base_revid] + revids # add base text revid
-        first_is_base = True
-    else:
-        todo = revids
-        first_is_base = False
+    todo = [base_revid] + revids # add base text revid
     fileids = {} 
-    manifests = list(dinventories(repo, mapping, todo, manifest_ids, files, overlay, texts, fileids, lossy=lossy, first_is_base=first_is_base))
+    manifests = list(dinventories(repo, mapping, todo, manifest_ids, files, overlay, texts, fileids, lossy=lossy))
     # 00changelog.i
     write_delta_chunks(ret, drevisions(repo, mapping, todo, files, changelog_ids, manifest_ids, overlay, fileids=fileids, lossy=lossy))
     del files

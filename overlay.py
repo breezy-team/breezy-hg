@@ -267,7 +267,6 @@ class MercurialRepositoryOverlay(object):
             try:
                 return self.idmap.lookup_changeset_id_by_revid(revid)
             except KeyError:
-                import pdb; pdb.set_trace()
                 self._update_idmap(stop_revision=revid)
                 return self.idmap.lookup_changeset_id_by_revid(revid)
 

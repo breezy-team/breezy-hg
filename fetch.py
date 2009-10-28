@@ -419,7 +419,6 @@ class FromHgRepository(InterRepository):
         def get_hg_revision(hgid):
             revid = self.source.lookup_foreign_revision_id(hgid, mapping)
             return self._target_overlay.get_changeset_text_by_revid(revid)
-
         for i, (fulltext, hgkey, hgparents, csid) in enumerate(
                 unpack_chunk_iter(chunkiter, get_hg_revision)):
             pb.update("fetching changesets", i)

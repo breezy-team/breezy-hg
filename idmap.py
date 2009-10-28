@@ -21,8 +21,21 @@ import os
 import threading
 
 from bzrlib import (
+    errors,
     trace,
     )
+
+def get_cache_dir():
+    try:
+        from xdg.BaseDirectory import xdg_cache_home
+    except ImportError:
+        from bzrlib.config import config_dir
+        ret = os.path.join(config_dir(), "hg")
+    else:
+        ret = os.path.join(xdg_cache_home, "bazaar", "hg")
+    if not os.path.isdir(ret):
+        os.makedirs(ret)
+    return ret
 
 
 class Idmap(object):
@@ -111,6 +124,16 @@ class TdbIdmap(Idmap):
                 self.db.clear()
             self.db["version"] = str(TDB_MAP_VERSION)
 
+    @classmethod
+    def from_repository(cls, repo):
+        try:
+            transport = getattr(repo, "_transport", None)
+            if transport is not None:
+                return cls(os.path.join(transport.local_abspath("."), "hg.tdb"))
+        except errors.NotLocalUrl:
+            pass
+        return cls(os.path.join(get_cache_dir(), "remote.tdb"))
+
     def get_files_by_revid(self, revid):
         raise KeyError(revid)
 
@@ -122,9 +145,9 @@ class TdbIdmap(Idmap):
 
     def revids(self):
         ret = set()
-        for k, v in self.db.iteritems():
+        for k in self.db.iterkeys():
             if k.startswith("manifest/"):
-                ret.add(v)
+                ret.add(self.db[k])
         return ret
 
     def insert_revision(self, revid, manifest_id, changeset_id):

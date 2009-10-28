@@ -28,12 +28,12 @@ class IdmapTestCase(object):
         self.assertRaises(KeyError, self.idmap.lookup_revision_by_manifest_id, "a" * 20)
 
     def test_lookup_manifest_revid(self):
-        self.idmap.insert_manifest("a" * 20, "jelmer@voo")
+        self.idmap.insert_revision("jelmer@voo", "a" * 20, "c" * 20)
         self.assertEquals("jelmer@voo", self.idmap.lookup_revision_by_manifest_id("a" * 20))
 
     def test_revids(self):
-        self.idmap.insert_manifest("a" * 20, "jelmer@voo")
-        self.idmap.insert_manifest("b" * 20, "jelmer@bar")
+        self.idmap.insert_revision("jelmer@voo", "a" * 20, "c" * 20)
+        self.idmap.insert_revision("jelmer@bar", "b" * 20, "d" * 20)
         self.assertEquals(set(["jelmer@voo", "jelmer@bar"]), 
             self.idmap.revids())
 

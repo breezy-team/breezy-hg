@@ -29,9 +29,17 @@ from bzrlib import (
     revision as _mod_revision,
     ui,
     )
+from bzrlib.knit import (
+    make_file_factory,
+    )
+from bzrlib.versionedfile import (
+    ConstantMapper,
+    FulltextContentFactory,
+    )
 
 from bzrlib.plugins.hg.idmap import (
     MemoryIdmap,
+    TdbIdmap,
     )
 from bzrlib.plugins.hg.mapping import (
     as_hg_parents,
@@ -42,6 +50,7 @@ from bzrlib.plugins.hg.mapping import (
 from bzrlib.plugins.hg.parsers import (
     format_changeset,
     format_manifest,
+    parse_manifest,
     )
 
 
@@ -58,24 +67,35 @@ class changelog_wrapper(object):
 def get_overlay(bzr_repo, mapping=None):
     if mapping is None:
         mapping = default_mapping
-    return MercurialRepositoryOverlay(bzr_repo, mapping, MemoryIdmap())
+    mapper = ConstantMapper("manifests")
+    transport = getattr(bzr_repo, "_transport", None)
+    if transport is not None:
+        manifests = make_file_factory(True, mapper)(transport)
+    else:
+        manifests = None
+    return MercurialRepositoryOverlay(bzr_repo, mapping,
+        TdbIdmap.from_repository(bzr_repo), manifests)
 
 
 class MercurialRepositoryOverlay(object):
     """Overlay that allows accessing some Mercurialisque properties from a Bazaar repo."""
 
-    def __init__(self, repo, mapping, idmap=None):
+    def __init__(self, repo, mapping, idmap=None, manifests=None):
         self.repo = repo
         self.mapping = mapping
         if idmap is None:
-            from bzrlib.plugins.hg.idmap import MemoryIdmap
             self.idmap = MemoryIdmap()
         else:
             self.idmap = idmap
+        self.manifests = manifests
         self.changelog = changelog_wrapper(self.repo, self.mapping)
 
     def __repr__(self):
         return "%s(%r, %r)" % (self.__class__.__name__, self.repo, self.mapping)
+
+    def remember_manifest_text(self, revid, parent_revids, text):
+        self.manifests.insert_record_stream([FulltextContentFactory(
+            (revid,), [(p,) for p in parent_revids] , None, text)])
 
     def _update_idmap(self, stop_revision=None):
         present_revids = self.idmap.revids()
@@ -95,6 +115,7 @@ class MercurialRepositoryOverlay(object):
                     self.mapping.export_revision(rev)
                 if manifest_id is None:
                     manifest_text = self.get_manifest_text_by_revid(revid)
+                    self.remember_manifest_text(revid, rev.parent_ids, manifest_text)
                     manifest_id = hghash(manifest_text, *as_hg_parents(rev.parent_ids[:2], self.lookup_manifest_id_by_revid))
 
                 changeset_text = self.get_changeset_text_by_revid(revid, rev, 
@@ -139,10 +160,25 @@ class MercurialRepositoryOverlay(object):
         return ret
 
     def get_manifest_text_by_revid(self, revid):
+        if self.manifests is not None:
+            record = self.manifests.get_record_stream([(revid,)], 
+                "unordered", True).next()
+            if record.storage_kind != 'absent':
+                return record.get_bytes_as('fulltext')
         (manifest, flags) = self.get_manifest_and_flags_by_revid(revid)
-        return format_manifest(manifest, flags)
+        fulltext = format_manifest(manifest, flags)
+        if self.manifests is not None:
+            parents = self.repo.get_parent_map([revid])[revid]
+            self.remember_manifest_text(revid, parents, fulltext)
+        return fulltext
 
     def get_manifest_and_flags_by_revid(self, revid):
+        if self.manifests is not None:
+            record = self.manifests.get_record_stream([(revid,)], 
+                "unordered", True).next()
+            if record.storage_kind != 'absent':
+                ft = record.get_bytes_as('fulltext')
+                return parse_manifest(ft)
         tree = self.repo.revision_tree(revid)
         lookup_text_node = []
         rev = self.repo.get_revision(revid)
@@ -152,8 +188,12 @@ class MercurialRepositoryOverlay(object):
             lookup_text_node.append(parent_manifest.__getitem__)
         while len(lookup_text_node) < 2:
             lookup_text_node.append(lambda path: mercurial.node.nullid)
-        return manifest_and_flags_from_tree(base_tree, tree, self.mapping, 
-                lookup_text_node)[:2]
+        (manifest, flags) = manifest_and_flags_from_tree(base_tree, tree, 
+                self.mapping, lookup_text_node)[:2]
+        if self.manifests is not None:
+            fulltext = format_manifest(manifest, flags)
+            self.remember_manifest_text(revid, rev.parent_ids, fulltext)
+        return (manifest, flags)
 
     def get_manifest_and_flags(self, manifest_id):
         """Return manifest by manifest id.

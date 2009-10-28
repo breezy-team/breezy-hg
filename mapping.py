@@ -141,7 +141,7 @@ def files_from_delta(delta, inv, revid):
     for (oldpath, newpath, id, kind, text_modified, meta_modified) in delta.renamed:
         if kind in ('file', 'symlink'):
             ret.update([oldpath, newpath])
-    return sorted(ret)
+    return sorted([p.encode("utf-8") for p in ret])
 
 
 def entry_sha1(entry):

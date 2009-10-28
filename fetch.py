@@ -68,6 +68,7 @@ from bzrlib.plugins.hg.overlay import (
     )
 from bzrlib.plugins.hg.parsers import (
     parse_changeset,
+    parse_manifest,
     unpack_chunk_iter,
     unpack_manifest_chunks,
     )
@@ -441,10 +442,14 @@ class FromHgRepository(InterRepository):
         :param pb: Progress bar
         """
         filetext_map = defaultdict(lambda: defaultdict(dict))
-        for i, (hgkey, hgparents, csid, (manifest, flags)) in enumerate(
-                unpack_manifest_chunks(chunkiter, self._target_overlay.get_manifest_text)):
+        for i, (fulltext, hgkey, hgparents, csid) in enumerate(
+                unpack_chunk_iter(chunkiter, self._target_overlay.get_manifest_text)):
             pb.update("fetching manifests", i, len(self._revisions))
+            (manifest, flags) = parse_manifest(fulltext)
             for revid in self._manifest2rev_map[hgkey]:
+                self._target_overlay.remember_manifest_text(revid, 
+                    self._revisions[revid].parent_ids, 
+                    fulltext)
                 for path in self._files[revid]:
                     assert type(path) is str
                     fileid = mapping.generate_file_id(path)

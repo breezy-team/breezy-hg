@@ -26,7 +26,9 @@ This code should probably be submitted to upstream Mercurial for inclusion.
 
 import mercurial.changelog
 import mercurial.encoding
+import mercurial.manifest
 import mercurial.node
+import mercurial.parsers
 import struct
 
 from mercurial.revlog import (

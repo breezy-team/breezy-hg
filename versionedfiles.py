@@ -110,7 +110,7 @@ class ChangelogVersionedFile(RevlogVersionedFile):
         self._repo = repo
 
     def _lookup_id(self, key):
-        return self._repo.lookup_revision_id(key)[0]
+        return self._repo.lookup_bzr_revision_id(key)[0]
 
     def _reverse_lookup_id(self, key):
         return self._repo.reverse_lookup_revision_id(key)
@@ -123,7 +123,7 @@ class ManifestVersionedFile(RevlogVersionedFile):
         self.repo = repo
 
     def _lookup_id(self, key):
-        clid = self.repo.lookup_revision_id(key)[0]
+        clid = self.repo.lookup_bzr_revision_id(key)[0]
         return self.repo._hgrepo.changelog.read(clid)[0]
 
     def _reverse_lookup_id(self, key):
@@ -143,7 +143,7 @@ class RevlogVersionedFiles(VersionedFiles):
         return self._opener(path)
 
     def _get_manifest(self, revid):
-        hgid, mapping = self.repo.lookup_revision_id(revid)
+        hgid, mapping = self.repo.lookup_bzr_revision_id(revid)
         manifest_id = self.repo._hgrepo.changelog.read(hgid)[0]
         return self.repo._hgrepo.manifest.read(manifest_id), mapping
 

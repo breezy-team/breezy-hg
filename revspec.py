@@ -79,7 +79,7 @@ class RevisionSpec_hg(RevisionSpec):
         from bzrlib.plugins.hg.mapping import (
             mapping_registry,
             )
-        parse_revid = getattr(branch.repository, "lookup_revision_id",
+        parse_revid = getattr(branch.repository, "lookup_bzr_revision_id",
                               mapping_registry.parse_revision_id)
         branch.repository.lock_read()
         try:

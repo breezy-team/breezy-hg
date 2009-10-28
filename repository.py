@@ -327,7 +327,8 @@ class HgLocalRepository(HgRepository):
             mapping = self.get_mapping()
         return mapping.revision_id_foreign_to_bzr(hgid)
 
-    def lookup_revision_id(self, revision_id):
+    def lookup_bzr_revision_id(self, revision_id):
+        """See ForeignRepository.lookup_bzr_revision_id()."""
         # TODO: Handle round-tripped revisions
         try:
             return mapping_registry.revision_id_bzr_to_foreign(revision_id)
@@ -335,7 +336,7 @@ class HgLocalRepository(HgRepository):
             raise errors.NoSuchRevision(self, revision_id)
 
     def get_revision(self, revision_id):
-        hgrevid, mapping = self.lookup_revision_id(revision_id)
+        hgrevid, mapping = self.lookup_bzr_revision_id(revision_id)
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)
         parent_ids = as_bzr_parents(hgparents, self.reverse_lookup_revision_id)
@@ -346,7 +347,7 @@ class HgLocalRepository(HgRepository):
             yield self.get_inventory(revid)
 
     def get_inventory(self, revision_id):
-        hgid, mapping = self.lookup_revision_id(revision_id)
+        hgid, mapping = self.lookup_bzr_revision_id(revision_id)
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
         all_relevant_revisions = self.get_ancestry(revision_id)[1:] + [NULL_REVISION]
@@ -360,9 +361,12 @@ class HgLocalRepository(HgRepository):
         finally:
             pb.finished()
 
+    def has_foreign_revision(self, foreign_revid):
+        return foreign_revid in self._hgrepo.changelog.nodemap
+
     def has_revision(self, revision_id):
         try:
-            return self.lookup_revision_id(revision_id)[0] in self._hgrepo.changelog.nodemap
+            return self.has_foreign_revision(self.lookup_bzr_revision_id(revision_id)[0])
         except errors.NoSuchRevision:
             return False
 

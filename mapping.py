@@ -302,10 +302,10 @@ class ExperimentalHgMapping(foreign.VcsMapping):
                 try:
                     hgid, mapping = self.revision_id_bzr_to_foreign(value)
                 except errors.InvalidRevisionId:
-                    pass
+                    extra["bzr-revprop-"+name] = value.encode("utf-8")
                 else:
                     assert len(hgid) == 20
-                extra['rebase_source'] = mercurial.node.hex(hgid)
+                    extra['rebase_source'] = mercurial.node.hex(hgid)
             elif name == 'converted-from':
                 if value.count('\n') <= 1:
                     continue

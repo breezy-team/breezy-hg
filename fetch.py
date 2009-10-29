@@ -70,7 +70,6 @@ from bzrlib.plugins.hg.parsers import (
     parse_changeset,
     parse_manifest,
     unpack_chunk_iter,
-    unpack_manifest_chunks,
     )
 
 
@@ -286,8 +285,6 @@ class FromHgRepository(InterRepository):
         self._inventories = lru_cache.LRUCache(25)
         self._revisions = {}
         self._files = {}
-        self._remember_manifests = defaultdict(lambda: 0)
-        self._manifests = {}
         self._text_metadata = {}
         self._symlink_targets = {}
         # Map mapping manifest ids to bzr revision ids
@@ -309,24 +306,8 @@ class FromHgRepository(InterRepository):
                 ret.append(self._inventories[revid])
         return ret
 
-    def _get_manifest_and_flags(self, node):
-        if node in self._manifests:
-            return self._manifests[node]
-        else:
-            return self._target_overlay.get_manifest_and_flags(node)
-
-    def _import_manifest_delta(self, manifest, manifest_p1, flags, files, rev, 
+    def _import_manifest_delta(self, manifest, flags, files, rev, 
                                mapping):
-        def get_base(node):
-            assert self._remember_manifests[node] > 0
-            try:
-                return self._get_manifest_and_flags(node)
-            finally:
-                self._remember_manifests[node] -= 1
-                if self._remember_manifests[node] == 0:
-                    if node in self._manifests:
-                        del self._manifests[node]
-                    del self._remember_manifests[node]
         parent_invs = self._get_inventories(rev.parent_ids)
         if not len(rev.parent_ids) in (0, 1, 2):
             raise AssertionError
@@ -337,7 +318,7 @@ class FromHgRepository(InterRepository):
             basis_flags = {}
         else:
             basis_inv = parent_invs[0]
-            basis_manifest, basis_flags = get_base(manifest_p1)
+            basis_manifest, basis_flags = self._target_overlay.get_manifest_and_flags_by_revid(rev.parent_ids[0])
             if len(rev.parent_ids) == 2:
                 other_inv = parent_invs[1]
             else:
@@ -378,42 +359,35 @@ class FromHgRepository(InterRepository):
                     self._text_metadata[key] = (record.sha1, len(fulltext))
                     yield record
 
-    def _add_inventories(self, manifestchunks, mapping, pb):
+    def _add_inventories(self, todo, mapping, pb):
         total = len(self._revisions)
         # add the actual revisions
-        for i, (manifest_id, manifest_parents, csid, (manifest, flags)) in enumerate(
-                unpack_manifest_chunks(manifestchunks, self._target_overlay.get_manifest_text)):
-            pb.update("adding inventories", i, total)
-            for revid in self._manifest2rev_map[manifest_id]:
-                rev = self._revisions[revid]
-                files = self._files[rev.revision_id]
-                del self._files[rev.revision_id]
-                if rev.parent_ids == ():
-                    basis_revid = NULL_REVISION
-                else:
-                    basis_revid = rev.parent_ids[0]
-                basis_inv, invdelta = self._import_manifest_delta(
-                    manifest, manifest_parents[0], flags, files, 
-                    rev, mapping)
-                # FIXME: Add empty directories
-                create_directory_texts(self.target.texts, invdelta)
-                (validator, new_inv) = self.target.add_inventory_by_delta(
-                    basis_revid, invdelta, rev.revision_id, rev.parent_ids, 
-                    basis_inv)
-                self._inventories[rev.revision_id] = new_inv
-                self.target.add_revision(rev.revision_id, rev, new_inv)
-                del self._revisions[rev.revision_id]
-                if self._remember_manifests[manifest_id] > 0:
-                    self._manifests[manifest_id] = (manifest, flags)
-                if 'check' in debug.debug_flags:
-                    check_roundtrips(self.target, mapping, rev.revision_id, 
-                        files, (manifest, flags), 
-                        [self._get_manifest_and_flags(x) for x in manifest_parents],
-                        inventory=new_inv,
-                        )
-        del self._remember_manifests[mercurial.node.nullid]
-        if len([x for x,n in self._remember_manifests.iteritems() if n > 1]) > 0:
-            raise AssertionError("%r not empty" % self._remember_manifests)
+        for i, revid in enumerate(todo):
+            (manifest, flags) = self._target_overlay.get_manifest_and_flags_by_revid(revid)
+            pb.update("adding inventories", i, len(todo))
+            rev = self._revisions[revid]
+            files = self._files[rev.revision_id]
+            del self._files[rev.revision_id]
+            if rev.parent_ids == ():
+                basis_revid = NULL_REVISION
+            else:
+                basis_revid = rev.parent_ids[0]
+            basis_inv, invdelta = self._import_manifest_delta(
+                manifest, flags, files, rev, mapping)
+            # FIXME: Add empty directories
+            create_directory_texts(self.target.texts, invdelta)
+            (validator, new_inv) = self.target.add_inventory_by_delta(
+                basis_revid, invdelta, rev.revision_id, rev.parent_ids, 
+                basis_inv)
+            self._inventories[rev.revision_id] = new_inv
+            self.target.add_revision(rev.revision_id, rev, new_inv)
+            del self._revisions[rev.revision_id]
+            if 'check' in debug.debug_flags:
+                check_roundtrips(self.target, mapping, rev.revision_id, 
+                    files, (manifest, flags), 
+                    [self._target_overlay.get_manifest_and_flags_by_revid(x) for x in rev.parent_ids[:2]],
+                    inventory=new_inv,
+                    )
 
     def _unpack_changesets(self, chunkiter, mapping, pb):
         def get_hg_revision(hgid):
@@ -441,14 +415,17 @@ class FromHgRepository(InterRepository):
         :param pb: Progress bar
         """
         filetext_map = defaultdict(lambda: defaultdict(dict))
+        todo = []
         for i, (fulltext, hgkey, hgparents, csid) in enumerate(
                 unpack_chunk_iter(chunkiter, self._target_overlay.get_manifest_text)):
             pb.update("fetching manifests", i, len(self._revisions))
             (manifest, flags) = parse_manifest(fulltext)
             for revid in self._manifest2rev_map[hgkey]:
+                todo.append(revid)
                 self._target_overlay.remember_manifest_text(revid, 
-                    self._revisions[revid].parent_ids, 
-                    fulltext)
+                    self._revisions[revid].parent_ids, fulltext)
+                self._target_overlay.remember_manifest(revid, 
+                    self._revisions[revid].parent_ids, (manifest, flags))
                 for path in self._files[revid]:
                     assert type(path) is str
                     fileid = mapping.generate_file_id(path)
@@ -457,8 +434,7 @@ class FromHgRepository(InterRepository):
                         continue
                     kind = flags_kind(flags, path)
                     filetext_map[fileid][manifest[path]][revid] = (kind, ()) # FIXME: parents
-                self._remember_manifests[hgparents[0]] += 1
-        return filetext_map
+        return filetext_map, todo
 
     def addchangegroup(self, cg, mapping):
         """Import a Mercurial changegroup into the target repository.
@@ -474,11 +450,10 @@ class FromHgRepository(InterRepository):
         finally:
             pb.finished()
         # Manifests
-        manifestchunks1, manifestchunks2 = itertools.tee(
-            mercurial.changegroup.chunkiter(cg))
+        manifestchunks = mercurial.changegroup.chunkiter(cg)
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            filetext_map = self._unpack_manifests(manifestchunks1, mapping, pb)
+            filetext_map, todo = self._unpack_manifests(manifestchunks, mapping, pb)
         finally:
             pb.finished()
         # Texts
@@ -491,7 +466,7 @@ class FromHgRepository(InterRepository):
         # Adding actual data
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            self._add_inventories(manifestchunks2, mapping, pb)
+            self._add_inventories(todo, mapping, pb)
         finally:
             pb.finished()
 

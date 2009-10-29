@@ -167,19 +167,6 @@ def parse_manifest(fulltext):
     return manifest, flags
 
 
-def unpack_manifest_chunks(chunkiter, lookup_base):
-    """Unpack manifests in a stream of deltas.
-
-    :param chunkiter: Iterator over delta chunks
-    :param lookup_base: Callback for looking up an arbitrary manifest text.
-
-    Yields tuples with key, parents, manifest and flags dictionary
-    """
-    for (fulltext, hgkey, hgparents, cs) in unpack_chunk_iter(chunkiter, 
-                                                          lookup_base):
-        yield hgkey, hgparents, cs, parse_manifest(fulltext)
-
-
 def format_manifest(manifest, flags):
     lines = []
     for path in sorted(manifest.keys()):

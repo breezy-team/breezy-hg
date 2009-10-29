@@ -26,6 +26,7 @@ from mercurial import (
 
 from bzrlib import (
     errors,
+    lru_cache,
     revision as _mod_revision,
     ui,
     )
@@ -87,7 +88,8 @@ class MercurialRepositoryOverlay(object):
             self.idmap = MemoryIdmap()
         else:
             self.idmap = idmap
-        self.manifests = manifests
+        self.manifests_vf = manifests
+        self.manifests_lru = lru_cache.LRUCache()
         self.changelog = changelog_wrapper(self.repo, self.mapping)
 
     def __repr__(self):
@@ -97,8 +99,23 @@ class MercurialRepositoryOverlay(object):
         return self.repo.base
 
     def remember_manifest_text(self, revid, parent_revids, text):
-        self.manifests.insert_record_stream([FulltextContentFactory(
-            (revid,), [(p,) for p in parent_revids] , None, text)])
+        if self.manifests_vf is not None:
+            self.manifests_vf.insert_record_stream([FulltextContentFactory(
+                (revid,), [(p,) for p in parent_revids] , None, text)])
+
+    def get_cached_manifest(self, revid):
+        return self.manifests_lru[revid]
+
+    def remember_manifest(self, revid, parent_revids, (manifest, flags)):
+        self.manifests_lru[revid] = (manifest, flags)
+
+    def get_cached_manifest_text(self, revid):
+        if self.manifests_vf is not None:
+            record = self.manifests_vf.get_record_stream([(revid,)], 
+                "unordered", True).next()
+            if record.storage_kind != 'absent':
+                return record.get_bytes_as('fulltext')
+        raise KeyError(revid)
 
     def _update_idmap(self, stop_revision=None):
         present_revids = self.idmap.revids()
@@ -164,25 +181,29 @@ class MercurialRepositoryOverlay(object):
         return ret
 
     def get_manifest_text_by_revid(self, revid):
-        if self.manifests is not None:
-            record = self.manifests.get_record_stream([(revid,)], 
-                "unordered", True).next()
-            if record.storage_kind != 'absent':
-                return record.get_bytes_as('fulltext')
+        try:
+            return self.get_cached_manifest_text(revid)
+        except KeyError:
+            pass
         (manifest, flags) = self.get_manifest_and_flags_by_revid(revid)
+        self.remember_manifest(revid, self.repo.get_parent_map([revid])[revid],
+                (manifest, flags))
         fulltext = format_manifest(manifest, flags)
-        if self.manifests is not None:
-            parents = self.repo.get_parent_map([revid])[revid]
-            self.remember_manifest_text(revid, parents, fulltext)
+        self.remember_manifest_text(revid, 
+            self.repo.get_parent_map([revid])[revid], fulltext)
         return fulltext
 
     def get_manifest_and_flags_by_revid(self, revid):
-        if self.manifests is not None:
-            record = self.manifests.get_record_stream([(revid,)], 
-                "unordered", True).next()
-            if record.storage_kind != 'absent':
-                ft = record.get_bytes_as('fulltext')
-                return parse_manifest(ft)
+        try:
+            return self.get_cached_manifest(revid)
+        except KeyError:
+            pass
+        try:
+            ft = self.get_cached_manifest_text(revid)
+        except KeyError:
+            pass
+        else:
+            return parse_manifest(ft)
         tree = self.repo.revision_tree(revid)
         lookup_text_node = []
         rev = self.repo.get_revision(revid)
@@ -194,9 +215,8 @@ class MercurialRepositoryOverlay(object):
             lookup_text_node.append(lambda path: mercurial.node.nullid)
         (manifest, flags) = manifest_and_flags_from_tree(base_tree, tree, 
                 self.mapping, lookup_text_node)[:2]
-        if self.manifests is not None:
-            fulltext = format_manifest(manifest, flags)
-            self.remember_manifest_text(revid, rev.parent_ids, fulltext)
+        self.remember_manifest(revid, rev.parent_ids, manifest, flags)
+        self.remember_manifest_text(revid, rev.parent_ids, format_manifest(manifest, flags))
         return (manifest, flags)
 
     def get_manifest_and_flags(self, manifest_id):

@@ -28,12 +28,12 @@
 from collections import (
     defaultdict,
     )
-import itertools
 import mercurial.node
 import os
 
 from bzrlib import (
     debug,
+    errors,
     lru_cache,
     osutils,
     trace,
@@ -41,6 +41,9 @@ from bzrlib import (
     )
 from bzrlib.decorators import (
     needs_write_lock,
+    )
+from bzrlib.graph import (
+    Graph,
     )
 from bzrlib.inventory import (
     InventoryDirectory,
@@ -355,7 +358,7 @@ class FromHgRepository(InterRepository):
                     if kind == "symlink":
                         self._symlink_targets[key] = fulltext
                         fulltext = ""
-                    record = FulltextContentFactory(key, parents, osutils.sha_string(fulltext), fulltext)
+                    record = FulltextContentFactory(key, [(fileid, p) for p in parents], osutils.sha_string(fulltext), fulltext)
                     self._text_metadata[key] = (record.sha1, len(fulltext))
                     yield record
 
@@ -381,6 +384,8 @@ class FromHgRepository(InterRepository):
                 basis_inv)
             self._inventories[rev.revision_id] = new_inv
             self.target.add_revision(rev.revision_id, rev, new_inv)
+            self._target_overlay.idmap.insert_revision(rev.revision_id, 
+                rev.properties['manifest'], rev.foreign_revid, mapping)
             del self._revisions[rev.revision_id]
             if 'check' in debug.debug_flags:
                 check_roundtrips(self.target, mapping, rev.revision_id, 
@@ -393,19 +398,42 @@ class FromHgRepository(InterRepository):
         def get_hg_revision(hgid):
             revid = self.source.lookup_foreign_revision_id(hgid, mapping)
             return self._target_overlay.get_changeset_text_by_revid(revid)
+        def lookup_foreign_revid(foreign_revid):
+            # TODO: Handle round-tripped revisions
+            return mapping.revision_id_foreign_to_bzr(foreign_revid)
         for i, (fulltext, hgkey, hgparents, csid) in enumerate(
                 unpack_chunk_iter(chunkiter, get_hg_revision)):
             pb.update("fetching changesets", i)
             (manifest, user, (time, timezone), files, desc, extra) = \
                 parse_changeset(fulltext)
             key = mapping.revision_id_foreign_to_bzr(hgkey)
-            parent_ids = as_bzr_parents(hgparents, 
-                self.source.lookup_foreign_revision_id)
+            parent_ids = as_bzr_parents(hgparents, lookup_foreign_revid)
             rev, fileids = mapping.import_revision(key, parent_ids, hgkey,
                 manifest, user, (time, timezone), desc, extra)
             self._files[rev.revision_id] = files
             self._manifest2rev_map[manifest].add(rev.revision_id)
             self._revisions[rev.revision_id] = rev
+
+    def get_parent_map(self, revids):
+        ret = {}
+        missing = []
+        for revid in revids:
+            try:
+                ret[revid] = self._revisions[revid].parent_ids
+            except KeyError:
+                missing.append(revid)
+        if missing:
+            ret.update(self.target.get_parent_map(missing))
+        return ret
+
+    def _find_most_recent_ancestor(self, candidates, revid):
+        if len(candidates) == 1:
+            return candidates[0]
+        graph = Graph(self)
+        for r, ps in graph.iter_ancestry([revid]):
+            if r in candidates:
+                return r
+        raise AssertionError
 
     def _unpack_manifests(self, chunkiter, mapping, pb):
         """Unpack the manifest deltas.
@@ -426,6 +454,19 @@ class FromHgRepository(InterRepository):
                     self._revisions[revid].parent_ids, fulltext)
                 self._target_overlay.remember_manifest(revid, 
                     self._revisions[revid].parent_ids, (manifest, flags))
+                if not self._files[revid]:
+                    # Avoid fetching inventories and parent manifests 
+                    # unnecessarily
+                    continue
+                rev = self._revisions[revid]
+                parents = []
+                for previd in rev.parent_ids:
+                    try:
+                        inv = self.target.get_inventory(previd)
+                    except errors.NoSuchRevision:
+                        parents.append(self._target_overlay.get_manifest_and_flags_by_revid(previd)[0])
+                    else:
+                        parents.append(inv)
                 for path in self._files[revid]:
                     assert type(path) is str
                     fileid = mapping.generate_file_id(path)
@@ -433,7 +474,20 @@ class FromHgRepository(InterRepository):
                         # Path still has to actually exist..
                         continue
                     kind = flags_kind(flags, path)
-                    filetext_map[fileid][manifest[path]][revid] = (kind, ()) # FIXME: parents
+                    text_parents = []
+                    for parent in parents:
+                        path2id = getattr(parent, "path2id", None)
+                        if path2id is None: # manifest
+                            node = parent.get(path)
+                            if node is None:
+                                continue
+                            revisions = filetext_map[fileid][node]
+                            tp = self._find_most_recent_ancestor(revisions.keys(), revid)
+                            text_parents.append(tp)
+                        elif path2id(fileid) == path:
+                            # FIXME: Handle situation where path is not actually in parent
+                            text_parents.append(parent[fileid].revision)
+                    filetext_map[fileid][manifest[path]][revid] = (kind, text_parents)
         return filetext_map, todo
 
     def addchangegroup(self, cg, mapping):

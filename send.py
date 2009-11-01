@@ -29,7 +29,7 @@ from mercurial import (
 from bzrlib.plugins.hg.mapping import (
     default_mapping,
     )
-from bzrlib.plugins.hg.push import (
+from bzrlib.plugins.hg.changegroup import (
     dchangegroup,
     )
 

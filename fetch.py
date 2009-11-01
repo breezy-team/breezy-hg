@@ -224,13 +224,13 @@ def create_directory_texts(texts, invdelta):
     :param texts: VersionedFiles to add entries to
     :param invdelta: Inventory delta
     """
-    stream = []
-    for (old_path, new_path, fileid, ie) in invdelta:
-        if old_path is None and ie.kind == "directory":
-            record = FulltextContentFactory((fileid, ie.revision), (), None, "")
-            record.parents = ()
-            stream.append(record)
-    texts.insert_record_stream(stream)
+    def generate_stream():
+        for (old_path, new_path, fileid, ie) in invdelta:
+            if old_path is None and ie.kind == "directory":
+                record = FulltextContentFactory((fileid, ie.revision), (), None, "")
+                record.parents = ()
+                yield record
+    texts.insert_record_stream(generate_stream())
 
 
 def check_roundtrips(repository, mapping, revid, expected_files, 
@@ -435,23 +435,20 @@ class FromHgRepository(InterRepository):
                 return r
         raise AssertionError
 
-    def _unpack_manifests(self, chunkiter, mapping, pb):
+    def _unpack_manifests(self, chunkiter, mapping, filetext_map, todo, pb):
         """Unpack the manifest deltas.
 
         :param chunkiter: Iterator over delta chunks for the manifest.
         :param mapping: Bzr<->Hg mapping
         :param pb: Progress bar
         """
-        filetext_map = defaultdict(lambda: defaultdict(dict))
-        todo = []
         for i, (fulltext, hgkey, hgparents, csid) in enumerate(
                 unpack_chunk_iter(chunkiter, self._target_overlay.get_manifest_text)):
             pb.update("fetching manifests", i, len(self._revisions))
             (manifest, flags) = parse_manifest(fulltext)
             for revid in self._manifest2rev_map[hgkey]:
                 todo.append(revid)
-                self._target_overlay.remember_manifest_text(revid, 
-                    self._revisions[revid].parent_ids, fulltext)
+                yield (revid, self._revisions[revid].parent_ids, fulltext)
                 self._target_overlay.remember_manifest(revid, 
                     self._revisions[revid].parent_ids, (manifest, flags))
                 if not self._files[revid]:
@@ -488,7 +485,6 @@ class FromHgRepository(InterRepository):
                             # FIXME: Handle situation where path is not actually in parent
                             text_parents.append(parent[fileid].revision)
                     filetext_map[fileid][manifest[path]][revid] = (kind, text_parents)
-        return filetext_map, todo
 
     def addchangegroup(self, cg, mapping):
         """Import a Mercurial changegroup into the target repository.
@@ -505,9 +501,11 @@ class FromHgRepository(InterRepository):
             pb.finished()
         # Manifests
         manifestchunks = mercurial.changegroup.chunkiter(cg)
+        filetext_map = defaultdict(lambda: defaultdict(dict))
+        todo = []
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            filetext_map, todo = self._unpack_manifests(manifestchunks, mapping, pb)
+            self._target_overlay.remember_manifest_texts(self._unpack_manifests(manifestchunks, mapping, filetext_map, todo, pb))
         finally:
             pb.finished()
         # Texts

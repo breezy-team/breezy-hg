@@ -39,7 +39,7 @@ from bzrlib.repository import (
     InterRepository,
     )
 
-from bzrlib.plugins.hg.push import (
+from bzrlib.plugins.hg.changegroup import (
     dchangegroup,
     )
 

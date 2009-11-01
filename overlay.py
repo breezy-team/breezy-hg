@@ -66,6 +66,12 @@ class changelog_wrapper(object):
 
 
 def get_overlay(bzr_repo, mapping=None):
+    """Create an overlay for a Bazaar repository.
+
+    :param bzr_repo: Bazaar repository to create an overlay for.
+    :param mapping: Optional mapping to use
+    :return: Mercurial overlay
+    """
     if mapping is None:
         mapping = default_mapping
     mapper = ConstantMapper("manifests")
@@ -74,6 +80,7 @@ def get_overlay(bzr_repo, mapping=None):
         manifests = make_file_factory(True, mapper)(transport)
     else:
         manifests = None
+    import pdb; pdb.set_trace()
     return MercurialRepositoryOverlay(bzr_repo, mapping,
         TdbIdmap.from_repository(bzr_repo), manifests)
 
@@ -99,17 +106,37 @@ class MercurialRepositoryOverlay(object):
         return self.repo.base
 
     def remember_manifest_text(self, revid, parent_revids, text):
-        if self.manifests_vf is not None:
-            self.manifests_vf.insert_record_stream([FulltextContentFactory(
-                (revid,), [(p,) for p in parent_revids] , None, text)])
+        """Convenience function for remembering the text of a single manifest.
 
-    def get_cached_manifest(self, revid):
+        :param revid: Revision id
+        :param parent_revids: Parent revision ids
+        :text: Fulltext (as string)
+        """
+        self.remember_manifest_texts([(revid, parent_revids, text)])
+
+    def remember_manifest_texts(self, entries):
+        """Remember a series of serialized manifests.
+
+        :param entries: Iterable over tuples with revision id, parent revids
+            and manifest fulltext
+        """
+        if self.manifests_vf is not None:
+            self.manifests_vf.insert_record_stream(
+                ((FulltextContentFactory((revid,), [(p,) for p in parent_revids] , None, text) for (revid, parent_revids, text) in entries)))
+
+    def _get_cached_manifest(self, revid):
+        """Attempt to retrieve a cached manifest.
+
+        :param revid: Revision id of the manifest:
+        :return: Tuple with manifest dictionary and flags
+        :raises: KeyError if not cached
+        """
         return self.manifests_lru[revid]
 
     def remember_manifest(self, revid, parent_revids, (manifest, flags)):
         self.manifests_lru[revid] = (manifest, flags)
 
-    def get_cached_manifest_text(self, revid):
+    def _get_cached_manifest_text(self, revid):
         if self.manifests_vf is not None:
             record = self.manifests_vf.get_record_stream([(revid,)], 
                 "unordered", True).next()
@@ -182,7 +209,7 @@ class MercurialRepositoryOverlay(object):
 
     def get_manifest_text_by_revid(self, revid):
         try:
-            return self.get_cached_manifest_text(revid)
+            return self._get_cached_manifest_text(revid)
         except KeyError:
             pass
         (manifest, flags) = self.get_manifest_and_flags_by_revid(revid)
@@ -195,7 +222,7 @@ class MercurialRepositoryOverlay(object):
 
     def get_manifest_and_flags_by_revid(self, revid):
         try:
-            return self.get_cached_manifest(revid)
+            return self._get_cached_manifest(revid)
         except KeyError:
             pass
         try:
@@ -320,7 +347,7 @@ class MercurialRepositoryOverlay(object):
             revids = [revid for revid in self.repo.all_revision_ids() if revid != _mod_revision.NULL_REVISION]
         else:
             revids = [self.lookup_revision_by_changeset_id(node) for node in nodes]
-        from bzrlib.plugins.hg.push import dchangegroup
+        from bzrlib.plugins.hg.changegroup import dchangegroup
         self.repo.lock_read()
         try:
             return dchangegroup(self.repo, self.mapping, revids, lossy=False)[0]

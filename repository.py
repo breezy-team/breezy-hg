@@ -70,6 +70,9 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
         """See RepositoryFormat.get_format_description()."""
         return "Mercurial Repository"
 
+    def network_name(self):
+        return "hg"
+
 
 def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
                           mapping, lookup_foreign_revision_id, pb):

@@ -390,6 +390,11 @@ class ForeignHg(foreign.ForeignVcs):
         from bzrlib.plugins.hg.branch import HgBranchFormat
         return HgBranchFormat()
 
+    @property
+    def repository_format(self):
+        from bzrlib.plugins.hg.repository import HgRepositoryFormat
+        return HgRepositoryFormat()
+
     def __init__(self):
         super(ForeignHg, self).__init__(mapping_registry)
         self.abbreviation = "hg"

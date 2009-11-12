@@ -363,10 +363,10 @@ class FromHgRepository(InterRepository):
                     yield record
 
     def _add_inventories(self, todo, mapping, pb):
+        assert isinstance(todo, list)
         total = len(self._revisions)
         # add the actual revisions
-        for i, revid in enumerate(todo):
-            (manifest, flags) = self._target_overlay.get_manifest_and_flags_by_revid(revid)
+        for i, (revid, (manifest, flags)) in enumerate(self._target_overlay.get_manifest_and_flags_by_revids(todo)):
             pb.update("adding inventories", i, len(todo))
             rev = self._revisions[revid]
             files = self._files[rev.revision_id]
@@ -390,7 +390,7 @@ class FromHgRepository(InterRepository):
             if 'check' in debug.debug_flags:
                 check_roundtrips(self.target, mapping, rev.revision_id, 
                     files, (manifest, flags), 
-                    [self._target_overlay.get_manifest_and_flags_by_revid(x) for x in rev.parent_ids[:2]],
+                    [x[1] for x in self._target_overlay.get_manifest_and_flags_by_revids(rev.parent_ids[:2])],
                     inventory=new_inv,
                     )
 

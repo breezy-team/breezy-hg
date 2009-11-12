@@ -34,6 +34,7 @@ from bzrlib.knit import (
     make_file_factory,
     )
 from bzrlib.versionedfile import (
+    AbsentContentFactory,
     ConstantMapper,
     FulltextContentFactory,
     )
@@ -80,7 +81,6 @@ def get_overlay(bzr_repo, mapping=None):
         manifests = make_file_factory(True, mapper)(transport)
     else:
         manifests = None
-    import pdb; pdb.set_trace()
     return MercurialRepositoryOverlay(bzr_repo, mapping,
         TdbIdmap.from_repository(bzr_repo), manifests)
 
@@ -220,17 +220,32 @@ class MercurialRepositoryOverlay(object):
             self.repo.get_parent_map([revid])[revid], fulltext)
         return fulltext
 
+    def get_manifest_and_flags_by_revids(self, revids):
+        if self.manifests_vf is not None:
+            stream = self.manifests_vf.get_record_stream(
+                ((revid,) for revid in revids), "topological", True)
+        else:
+            stream = (AbsentContentFactory((revid,)) for revid in revids)
+        for record in stream:
+            if record.storage_kind == 'absent':
+                yield (record.key[0], self._reconstruct_manifest_and_flags_by_revid(record.key))
+            else:
+                yield (record.key[0], parse_manifest(record.get_bytes_as('fulltext')))
+
     def get_manifest_and_flags_by_revid(self, revid):
         try:
             return self._get_cached_manifest(revid)
         except KeyError:
             pass
         try:
-            ft = self.get_cached_manifest_text(revid)
+            ft = self._get_cached_manifest_text(revid)
         except KeyError:
             pass
         else:
             return parse_manifest(ft)
+        return self._reconstruct_manifest_and_flags_by_revid(revid)
+
+    def _reconstruct_manifest_and_flags_by_revid(self, revid):
         tree = self.repo.revision_tree(revid)
         lookup_text_node = []
         rev = self.repo.get_revision(revid)

@@ -73,6 +73,10 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     def network_name(self):
         return "hg"
 
+    def get_foreign_tests_repository_factory(self):
+        from bzrlib.plugins.hg.tests.test_repository import ForeignTestsRepositoryFactory
+        return ForeignTestsRepositoryFactory()
+
 
 def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
                           mapping, lookup_foreign_revision_id, pb):

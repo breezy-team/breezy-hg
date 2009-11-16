@@ -242,13 +242,13 @@ def unescape_path(file_id):
     return "".join(ret)
 
 
-class ExperimentalHgMapping(foreign.VcsMapping):
+class HgMappingv1(foreign.VcsMapping):
     """Class that maps between Bazaar and Mercurial semantics."""
-    experimental = True
-    revid_prefix = "hg-experimental"
+    experimental = False
+    revid_prefix = "hg-v1"
 
     def __init__(self):
-        super(ExperimentalHgMapping, self).__init__(foreign_hg)
+        super(HgMappingv1, self).__init__(foreign_hg)
 
     def __str__(self):
         return self.revid_prefix
@@ -363,6 +363,12 @@ class ExperimentalHgMapping(foreign.VcsMapping):
         return result, fileids
 
 
+class ExperimentalHgMapping(HgMappingv1):
+
+    experimental = True
+    revid_prefix = "hg-experimental"
+
+
 class HgMappingRegistry(foreign.VcsMappingRegistry):
     """Registry of all Bazaar <-> Mercurial mappings."""
 
@@ -379,8 +385,11 @@ class HgMappingRegistry(foreign.VcsMappingRegistry):
 
 
 mapping_registry = HgMappingRegistry()
+mapping_registry.register_lazy("hg-v1", "bzrlib.plugins.hg.mapping",
+    "HgMappingv1")
 mapping_registry.register_lazy("hg-experimental", "bzrlib.plugins.hg.mapping",
     "ExperimentalHgMapping")
+mapping_registry.set_default('hg-v1')
 
 class ForeignHg(foreign.ForeignVcs):
     """Foreign Mercurial."""
@@ -409,4 +418,4 @@ class ForeignHg(foreign.ForeignVcs):
 
 
 foreign_hg = ForeignHg()
-default_mapping = ExperimentalHgMapping()
+default_mapping = HgMappingv1()

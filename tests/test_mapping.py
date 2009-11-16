@@ -24,6 +24,7 @@ from mercurial.node import (
 
 from bzrlib.plugins.hg.mapping import (
     ExperimentalHgMapping,
+    HgMappingv1,
     as_bzr_parents,
     as_hg_parents,
     escape_path,
@@ -41,20 +42,16 @@ from bzrlib.tests import (
     TestCase,
     )
        
-class HgMappingTests(TestCase):
-
-    def setUp(self):
-        TestCase.setUp(self)
-        self.mapping = ExperimentalHgMapping()
+class HgMappingTests(object):
 
     def test_revid_foreign_to_bzr(self):
-        self.assertEquals("hg-experimental:" + hex("a" * 20),
+        self.assertEquals(self.mapping.revid_prefix + ":" + hex("a" * 20),
             self.mapping.revision_id_foreign_to_bzr("a" * 20))
 
     def test_revid_bzr_to_foreign(self):
         self.assertEquals("myrev", 
                 self.mapping.revision_id_bzr_to_foreign(
-                    "hg-experimental:" + hex("myrev"))[0])
+                    self.mapping.revid_prefix + ":" + hex("myrev"))[0])
 
     def test_revid_bzr_to_foreign_invalid(self):
         self.assertRaises(errors.InvalidRevisionId, 
@@ -70,6 +67,22 @@ class HgMappingTests(TestCase):
 
     def test_parse_file_id_invalid(self):
         self.assertRaises(ValueError, self.mapping.parse_file_id, "bar")
+
+
+# TODO: Adapters:
+
+class ExperimentalMappingTests(TestCase,HgMappingTests):
+
+    def setUp(self):
+        TestCase.setUp(self)
+        self.mapping = ExperimentalHgMapping()
+
+
+class Mappingv1Tests(TestCase,HgMappingTests):
+
+    def setUp(self):
+        TestCase.setUp(self)
+        self.mapping = HgMappingv1()
 
 
 class EscapePathTests(TestCase):

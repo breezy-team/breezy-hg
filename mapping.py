@@ -418,4 +418,4 @@ class ForeignHg(foreign.ForeignVcs):
 
 
 foreign_hg = ForeignHg()
-default_mapping = HgMappingv1()
+default_mapping = mapping_registry.get_default()()

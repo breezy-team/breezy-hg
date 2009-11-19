@@ -41,7 +41,7 @@ from bzrlib.versionedfile import (
 
 from bzrlib.plugins.hg.idmap import (
     MemoryIdmap,
-    TdbIdmap,
+    from_repository as idmap_from_repository,
     )
 from bzrlib.plugins.hg.mapping import (
     as_hg_parents,
@@ -82,7 +82,7 @@ def get_overlay(bzr_repo, mapping=None):
     else:
         manifests = None
     return MercurialRepositoryOverlay(bzr_repo, mapping,
-        TdbIdmap.from_repository(bzr_repo), manifests)
+        idmap_from_repository(bzr_repo), manifests)
 
 
 class MercurialRepositoryOverlay(object):

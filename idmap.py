@@ -163,3 +163,98 @@ class TdbIdmap(Idmap):
             changeset_id = mercurial.node.bin(changeset_id)
         self.db["manifest/" + manifest_id] = revid
         self.db["revid/" + revid] = changeset_id + str(mapping)
+
+
+class SqliteIdmap(Idmap):
+    """Idmap that stores in SQLite.
+    """
+
+    def __init__(self, path=None):
+        if path is None:
+            self.db = sqlite3.connect(":memory:")
+        else:
+            if not mapdbs().has_key(path):
+                mapdbs()[path] = sqlite3.connect(path)
+            self.db = mapdbs()[path]
+        self.db.executescript("""
+        create table if not exists revision (
+            revid text,
+            csid text,
+            manifest_id text,
+            mapping text
+        );
+        create unique index if not exists revision_revid on revision(revid);
+        create unique index if not exists revision_csid on revision(csid, mapping);
+        create index if not exists revision_manifest on revision(manifest_id);
+        """)
+
+    @classmethod
+    def from_repository(cls, repo):
+        try:
+            transport = getattr(repo, "_transport", None)
+            if transport is not None:
+                return cls(os.path.join(transport.local_abspath("."), "hg.db"))
+        except errors.NotLocalUrl:
+            pass
+        return cls(os.path.join(get_cache_dir(), "remote.db"))
+
+    def get_files_by_revid(self, revid):
+        raise KeyError(revid)
+
+    def lookup_revision_by_manifest_id(self, manifest_id):
+        row = self.db.execute("select revid from revision where manifest_id = ?", (manifest_id,)).fetchone()
+        if row is not None:
+            return row[0].encode("utf-8")
+        raise KeyError
+
+    def lookup_changeset_id_by_revid(self, revid):
+        row = self.db.execute("select csid, mapping from revision where revid = ?").fetchone()
+        if row is not None:
+            return row[0].encode("utf-8"), mapping_registry.get(row[1].encode("utf-8"))
+        raise KeyError
+
+    def revids(self):
+        ret = set()
+        for row in self.db.execute("select revid from revision").fetchall():
+            ret.add(row[0].encode("utf-8"))
+        return ret
+
+    def insert_revision(self, revid, manifest_id, changeset_id, mapping):
+        if len(manifest_id) == 40:
+            manifest_id = mercurial.node.bin(manifest_id)
+        if len(changeset_id) == 40:
+            changeset_id = mercurial.node.bin(changeset_id)
+        self.db.execute("insert into revision (revid, csid, manifest_id, mapping) values (?, ?, ?, ?)", (revid, changeset_id, manifest_id, str(mapping)))
+
+
+def check_pysqlite_version(sqlite3):
+    """Check that sqlite library is compatible.
+
+    """
+    if (sqlite3.sqlite_version_info[0] < 3 or 
+            (sqlite3.sqlite_version_info[0] == 3 and 
+             sqlite3.sqlite_version_info[1] < 3)):
+        trace.warning('Needs at least sqlite 3.3.x')
+        raise bzrlib.errors.BzrError("incompatible sqlite library")
+
+try:
+    try:
+        import sqlite3
+        check_pysqlite_version(sqlite3)
+    except (ImportError, bzrlib.errors.BzrError), e: 
+        from pysqlite2 import dbapi2 as sqlite3
+        check_pysqlite_version(sqlite3)
+except:
+    trace.warning('Needs at least Python2.5 or Python2.4 with the pysqlite2 '
+            'module')
+    raise errors.BzrError("missing sqlite library")
+
+
+def from_repository(repository):
+    try:
+        return TdbIdmap.from_repository(repository)
+    except ImportError:
+        return SqliteIdmap.from_repository(repository)
+
+
+

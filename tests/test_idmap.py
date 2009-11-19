@@ -19,6 +19,7 @@ from bzrlib.tests import TestCase
 
 from bzrlib.plugins.hg.idmap import (
     MemoryIdmap,
+    SqliteIdmap,
     TdbIdmap,
     )
 
@@ -50,4 +51,11 @@ class TdbIdmapTests(TestCase,IdmapTestCase):
     def setUp(self):
         TestCase.setUp(self)
         self.idmap = TdbIdmap()
+
+
+class SqliteIdmapTests(TestCase,IdmapTestCase):
+
+    def setUp(self):
+        TestCase.setUp(self)
+        self.idmap = SqliteIdmap()
 

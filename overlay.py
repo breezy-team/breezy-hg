@@ -257,7 +257,7 @@ class MercurialRepositoryOverlay(object):
             lookup_text_node.append(lambda path: mercurial.node.nullid)
         (manifest, flags) = manifest_and_flags_from_tree(base_tree, tree, 
                 self.mapping, lookup_text_node)[:2]
-        self.remember_manifest(revid, rev.parent_ids, manifest, flags)
+        self.remember_manifest(revid, rev.parent_ids, (manifest, flags))
         self.remember_manifest_text(revid, rev.parent_ids, format_manifest(manifest, flags))
         return (manifest, flags)
 

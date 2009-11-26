@@ -17,7 +17,7 @@
 
 # Some of this code was based on code from Mercurial:
 #
-# InterHgRepository.findmissing is based on 
+# InterHgRepository.findmissing is based on
 #       mercurial.localrepo.localrepository.findcommonincoming
 #
 # Copyright 2005-2007 Matt Mackall <mpm@selenic.com>
@@ -80,11 +80,11 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
                                lookup_file_id, revid):
     """Make sure a directory and its parents exist.
 
-    :param directories: Dictionary with directories that have already been 
+    :param directories: Dictionary with directories that have already been
         created as keys, their id as value
-    :param basis_inv: Basis inventory against which directories should be 
+    :param basis_inv: Basis inventory against which directories should be
         created
-    :param other_inv: Optional other inventory that could have introduced 
+    :param other_inv: Optional other inventory that could have introduced
         directories
     :param path: Path of the directory
     :param lookup_file_id: Lookup file id
@@ -96,8 +96,8 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
     if basis_inv is not None and basis_inv.has_filename(path):
         directories[path] = basis_inv.path2id(path)
         return ([], directories[path])
-    if (other_inv is not None and 
-        basis_inv.has_filename(os.path.dirname(path)) and 
+    if (other_inv is not None and
+        basis_inv.has_filename(os.path.dirname(path)) and
         other_inv.has_filename(path)):
         other_fileid = other_inv.path2id(path)
         other_ie = other_inv[other_fileid]
@@ -107,7 +107,7 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
         directories[path] = other_fileid
         return ([(None, path, other_fileid, ie)], other_fileid)
     if path != "":
-        ret, parent_id = inventory_create_directory(directories, basis_inv, 
+        ret, parent_id = inventory_create_directory(directories, basis_inv,
             other_inv, os.path.dirname(path), lookup_file_id, revid)
     else:
         # Root directory doesn't have a parent id
@@ -121,24 +121,24 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
     return ret, fileid
 
 
-def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv, 
+def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
                                 (basis_manifest, basis_flags),
-                                (manifest, flags), 
+                                (manifest, flags),
                                 revid, files, lookup_metadata,
                                 lookup_symlink):
-    """Simple O(n) manifest to inventory converter. 
+    """Simple O(n) manifest to inventory converter.
 
     Does not take renames into account.
 
     :param lookup_file_id: Lookup a file id
     :param basis_inv: Basis (Bazaar) inventory (None if there are no parents)
     :param other_inv: Optional merge parent inventory
-    :param (basis_manifest, basis_flags): Manifest and flags matching basis 
+    :param (basis_manifest, basis_flags): Manifest and flags matching basis
         inventory.
     :param (manifest, flags): Manifest and flags to convert
     :param revid: Revision id of the revision for which to convert the manifest
     :param files: List of files changed somehow
-    :param lookup_metadata: Function for looking up sha1 
+    :param lookup_metadata: Function for looking up sha1
         and length for a node by (fileid, revision) tuple.
     :param lookup_symlink: Function to lookup symlink target.
     """
@@ -150,7 +150,7 @@ def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
     maybe_empty_dirs = defaultdict(set)
     maybe_empty_dirs[""] = None # Never consider removing the root
     for utf8_path in set(basis_manifest.keys() + manifest.keys()):
-        if (basis_manifest.get(utf8_path) == manifest.get(utf8_path) and 
+        if (basis_manifest.get(utf8_path) == manifest.get(utf8_path) and
             basis_flags.get(utf8_path) == flags.get(utf8_path)):
             continue
         path = utf8_path.decode("utf-8")
@@ -175,7 +175,7 @@ def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
             else:
                 old_path = None
                 # Make sure parent exists
-                extra, parent_id = inventory_create_directory(directories, 
+                extra, parent_id = inventory_create_directory(directories,
                     basis_inv, other_inv, parent_path, lookup_file_id, revid)
                 for e in extra:
                     yield e
@@ -188,7 +188,7 @@ def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
             ie.executable = ('x' in f)
             if utf8_path not in files:
                 # Not changed in this revision, so pick one of the parents
-                if (manifest.get(utf8_path) == basis_manifest.get(utf8_path) and 
+                if (manifest.get(utf8_path) == basis_manifest.get(utf8_path) and
                     flags.get(utf8_path) == basis_flags.get(utf8_path)):
                     orig_inv = basis_inv
                 else:
@@ -233,8 +233,8 @@ def create_directory_texts(texts, invdelta):
     texts.insert_record_stream(generate_stream())
 
 
-def check_roundtrips(repository, mapping, revid, expected_files, 
-                     (expected_manifest, expected_flags), 
+def check_roundtrips(repository, mapping, revid, expected_files,
+                     (expected_manifest, expected_flags),
                      manifest_parents, inventory=None):
     """Make sure that a revision imported to Bazaar can be re-exported to hg.
 
@@ -260,22 +260,22 @@ def check_roundtrips(repository, mapping, revid, expected_files,
     if expected_files != files:
         raise AssertionError
     lookup = [m.__getitem__ for m, f in manifest_parents[:2]]
-    (manifest, flags) = manifest_and_flags_from_tree(parent_trees, tree, 
+    (manifest, flags) = manifest_and_flags_from_tree(parent_trees, tree,
         mapping, lookup)
     if set(manifest.keys()) != set(expected_manifest.keys()):
-        raise AssertionError("Different contents in manifests: %r, %r" % 
+        raise AssertionError("Different contents in manifests: %r, %r" %
                 (manifest.keys(), expected_manifest.keys()))
     if set(flags.keys()) != set(expected_flags.keys()):
-        raise AssertionError("Different flags: %r, %r" % 
+        raise AssertionError("Different flags: %r, %r" %
                 (flags, expected_flags))
     for path in manifest:
         if manifest[path] != expected_manifest[path]:
-            raise AssertionError("Different version %s: %s, %s" % 
-                (path, mercurial.node.hex(manifest[path]), 
+            raise AssertionError("Different version %s: %s, %s" %
+                (path, mercurial.node.hex(manifest[path]),
                        mercurial.node.hex(expected_manifest[path])))
     for path in flags:
         if expected_flags[path] != flags[path]:
-            raise AssertionError("Different flags for %s: %s != %s" % 
+            raise AssertionError("Different flags for %s: %s != %s" %
                 (path, expected_flags[path], flags[path]))
 
 
@@ -309,7 +309,7 @@ class FromHgRepository(InterRepository):
                 ret.append(self._inventories[revid])
         return ret
 
-    def _import_manifest_delta(self, manifest, flags, files, rev, 
+    def _import_manifest_delta(self, manifest, flags, files, rev,
                                mapping):
         parent_invs = self._get_inventories(rev.parent_ids)
         if not len(rev.parent_ids) in (0, 1, 2):
@@ -326,9 +326,9 @@ class FromHgRepository(InterRepository):
                 other_inv = parent_invs[1]
             else:
                 other_inv = None
-        invdelta = list(manifest_to_inventory_delta(mapping.generate_file_id, 
+        invdelta = list(manifest_to_inventory_delta(mapping.generate_file_id,
                 basis_inv, other_inv, (basis_manifest, basis_flags),
-                (manifest, flags), rev.revision_id, files, 
+                (manifest, flags), rev.revision_id, files,
                 self._text_metadata.__getitem__,
                 self._symlink_targets.__getitem__))
         return basis_inv, invdelta
@@ -380,16 +380,16 @@ class FromHgRepository(InterRepository):
             # FIXME: Add empty directories
             create_directory_texts(self.target.texts, invdelta)
             (validator, new_inv) = self.target.add_inventory_by_delta(
-                basis_revid, invdelta, rev.revision_id, rev.parent_ids, 
+                basis_revid, invdelta, rev.revision_id, rev.parent_ids,
                 basis_inv)
             self._inventories[rev.revision_id] = new_inv
             self.target.add_revision(rev.revision_id, rev, new_inv)
-            self._target_overlay.idmap.insert_revision(rev.revision_id, 
+            self._target_overlay.idmap.insert_revision(rev.revision_id,
                 rev.properties['manifest'], rev.foreign_revid, mapping)
             del self._revisions[rev.revision_id]
             if 'check' in debug.debug_flags:
-                check_roundtrips(self.target, mapping, rev.revision_id, 
-                    files, (manifest, flags), 
+                check_roundtrips(self.target, mapping, rev.revision_id,
+                    files, (manifest, flags),
                     [x[1] for x in self._target_overlay.get_manifest_and_flags_by_revids(rev.parent_ids[:2])],
                     inventory=new_inv,
                     )
@@ -449,10 +449,10 @@ class FromHgRepository(InterRepository):
             for revid in self._manifest2rev_map[hgkey]:
                 todo.append(revid)
                 yield (revid, self._revisions[revid].parent_ids, fulltext)
-                self._target_overlay.remember_manifest(revid, 
+                self._target_overlay.remember_manifest(revid,
                     self._revisions[revid].parent_ids, (manifest, flags))
                 if not self._files[revid]:
-                    # Avoid fetching inventories and parent manifests 
+                    # Avoid fetching inventories and parent manifests
                     # unnecessarily
                     continue
                 rev = self._revisions[revid]
@@ -488,7 +488,7 @@ class FromHgRepository(InterRepository):
 
     def addchangegroup(self, cg, mapping):
         """Import a Mercurial changegroup into the target repository.
-        
+
         :param cg: Changegroup to add
         :param mapping: Mercurial mapping
         """
@@ -534,7 +534,7 @@ class FromHgRepository(InterRepository):
 
     def findmissing(self, heads):
         """Find the set of ancestors of heads missing from target.
-        
+
         :param heads: Mercurial heads to check for.
 
         Based on mercurial.localrepo.localrepository.findcommonincoming
@@ -568,7 +568,7 @@ class FromHgRepository(InterRepository):
                     trace.mutter("branch already found")
                     continue
                 elif n[1] and self._target_overlay.has_hgid(n[1]): # do we know the base?
-                    trace.mutter("found incomplete branch %s:%s", 
+                    trace.mutter("found incomplete branch %s:%s",
                         mercurial.node.short(n[0]), mercurial.node.short(n[1]))
                     search.append(n[0:2]) # schedule branch range for scanning
                     seenbranch.add(n)
@@ -608,7 +608,7 @@ class FromHgRepository(InterRepository):
                                          mercurial.node.short(p))
                             fetch.add(p)
                         else:
-                            trace.mutter("narrowed branch search to %s:%s", 
+                            trace.mutter("narrowed branch search to %s:%s",
                                           mercurial.node.short(p),
                                           mercurial.node.short(i))
                             newsearch.append((p, i))
@@ -628,7 +628,7 @@ class FromHgRepository(InterRepository):
         self.target.fetch(self.source, revision_id=revision_id)
 
     @needs_write_lock
-    def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
+    def fetch(self, revision_id=None, pb=None, find_ghosts=False,
               fetch_spec=None):
         """Fetch revisions. """
         heads = self.heads(fetch_spec, revision_id)
@@ -655,7 +655,7 @@ class FromHgRepository(InterRepository):
 class InterHgRepository(FromHgRepository):
 
     @needs_write_lock
-    def fetch(self, revision_id=None, pb=None, find_ghosts=False, 
+    def fetch(self, revision_id=None, pb=None, find_ghosts=False,
               fetch_spec=None):
         """Fetch revisions. This is a partial implementation."""
         if revision_id is not None:
@@ -671,5 +671,5 @@ class InterHgRepository(FromHgRepository):
     def is_compatible(source, target):
         """Be compatible with HgRepositories."""
         from bzrlib.plugins.hg.repository import HgRepository
-        return (isinstance(source, HgRepository) and 
+        return (isinstance(source, HgRepository) and
                 isinstance(target, HgRepository))

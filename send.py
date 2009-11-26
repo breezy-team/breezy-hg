@@ -53,7 +53,7 @@ class HgMergeDirective(merge_directive._BaseMergeDirective):
             repository.fetch(submit_branch.repository, submit_revision_id)
             graph = repository.get_graph()
             todo = graph.find_difference(submit_revision_id, revision_id)[1]
-            cg, revidmap = dchangegroup(repository, 
+            cg, revidmap = dchangegroup(repository,
                 getattr(submit_branch, "mapping", default_mapping), todo)
             fn = changegroup.writebundle(cg, None, BUNDLE_TYPE)
             f = open(fn, 'r')
@@ -63,7 +63,7 @@ class HgMergeDirective(merge_directive._BaseMergeDirective):
                 f.close()
         finally:
             submit_branch.unlock()
-        return cls(revision_id, None, time, timezone, target_branch, contents, 
+        return cls(revision_id, None, time, timezone, target_branch, contents,
                    None, public_branch, message)
 
 

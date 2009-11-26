@@ -15,7 +15,7 @@ if __name__ == '__main__':
           maintainer='Jelmer Vernooij',
           maintainer_email='jelmer@samba.org',
           long_description="""
-          This plugin adds limited support for checking out and viewing 
+          This plugin adds limited support for checking out and viewing
           Mercurial branches in Bazaar.
           """,
           package_dir={'bzrlib.plugins.hg':'.'},

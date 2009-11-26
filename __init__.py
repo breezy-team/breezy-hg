@@ -60,7 +60,7 @@ def lazy_load_mercurial():
     trace.mutter("bzr-hg: using Mercurial %s" % hg_version)
 
 
-foreign_vcs_registry.register_lazy("hg", 
+foreign_vcs_registry.register_lazy("hg",
     "bzrlib.plugins.hg.mapping", "foreign_hg", "Mercurial")
 
 class HgDummyLock(object):
@@ -209,7 +209,7 @@ class HgDir(bzrlib.bzrdir.BzrDir):
     def open_workingtree(self, shared=False, recommend_upgrade=False):
         """'open' a workingtree for this dir."""
         from bzrlib.plugins.hg.workingtree import HgWorkingTree
-        return HgWorkingTree(self._hgrepo, self.open_branch(), self, 
+        return HgWorkingTree(self._hgrepo, self.open_branch(), self,
                              self._lockfiles)
 
     def cloning_metadir(self, stacked=False):
@@ -257,14 +257,14 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
 
     def open(self, transport, _create=False, _found=None):
         """Open this directory.
-        
+
         :param _create: create the hg dir on the fly. private to HgBzrDirFormat.
         """
         # we dont grok readonly - hg isn't integrated with transport.
         if transport.base.startswith('readonly+'):
             transport = transport._decorated
         if not _create and not transport.has(".hg"):
-            # Explicitly check for .hg directories here, so we avoid 
+            # Explicitly check for .hg directories here, so we avoid
             # loading foreign branches through Mercurial.
             raise errors.NotBranchError(path=transport.base)
         if transport.base.startswith('file://'):
@@ -284,7 +284,7 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
     def probe_transport(klass, transport):
         """Our format is present if the transport ends in '.not/'."""
         # little ugly, but works
-        format = klass() 
+        format = klass()
         from bzrlib.transport.local import LocalTransport
         lazy_load_mercurial()
         from mercurial import error as hg_errors
@@ -307,7 +307,7 @@ send_format_registry.register_lazy('hg', 'bzrlib.plugins.hg.send',
                                    'send_hg', 'Mecurial bundle format')
 
 from bzrlib.revisionspec import revspec_registry
-revspec_registry.register_lazy("hg:", "bzrlib.plugins.hg.revspec", 
+revspec_registry.register_lazy("hg:", "bzrlib.plugins.hg.revspec",
     "RevisionSpec_hg")
 
 try:
@@ -327,12 +327,12 @@ def test_suite():
 
     suite.addTest(tests.test_suite())
 
-    return suite      
+    return suite
 
 
 # TODO: test that a last-modified in a merged branch is correctly assigned
 # TODO: test that we set the per file parents right: that is the rev of the
-# last heads, *not* the revs of the revisions parents. (note, this should be 
+# last heads, *not* the revs of the revisions parents. (note, this should be
 # right already, because if the use of find_previous_heads, but surety is nice.)
 # TODO: test that the assignment of .revision to directories works correctly
 # in the following case:
@@ -342,6 +342,6 @@ def test_suite():
 # to have created 'dir' - X and Y. We want to always choose lower-sorting one.
 # Its potentially impossible to guarantee a consistent choice otherwise, and
 # having the dir flip-flop in bzr would be unhelpful. This choice is what I
-# think has been implemented, but not having got hg merges operating from 
+# think has been implemented, but not having got hg merges operating from
 # within python yet, its quite hard to produce this scenario to test.
 # TODO: file version extraction should elide 'copy' and 'copyrev file headers.

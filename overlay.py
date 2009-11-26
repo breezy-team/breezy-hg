@@ -138,7 +138,7 @@ class MercurialRepositoryOverlay(object):
 
     def _get_cached_manifest_text(self, revid):
         if self.manifests_vf is not None:
-            record = self.manifests_vf.get_record_stream([(revid,)], 
+            record = self.manifests_vf.get_record_stream([(revid,)],
                 "unordered", True).next()
             if record.storage_kind != 'absent':
                 return record.get_bytes_as('fulltext')
@@ -165,7 +165,7 @@ class MercurialRepositoryOverlay(object):
                     self.remember_manifest_text(revid, rev.parent_ids, manifest_text)
                     manifest_id = hghash(manifest_text, *as_hg_parents(rev.parent_ids[:2], self.lookup_manifest_id_by_revid))
 
-                changeset_text = self.get_changeset_text_by_revid(revid, rev, 
+                changeset_text = self.get_changeset_text_by_revid(revid, rev,
                     manifest_id=manifest_id)
                 changeset_id = hghash(changeset_text, *as_hg_parents(rev.parent_ids[:2], lambda x: self.lookup_changeset_id_by_revid(x)[0]))
                 self.idmap.insert_revision(revid, manifest_id, changeset_id,
@@ -197,7 +197,7 @@ class MercurialRepositoryOverlay(object):
 
     def get_manifest_text(self, manifest_id):
         revid = self._lookup_revision_by_manifest_id(manifest_id)
-        return self.get_manifest_text_by_revid(revid) 
+        return self.get_manifest_text_by_revid(revid)
 
     def _get_file_fulltext(self, key):
         ret = "".join(self.repo.iter_files_bytes([key + (None,)]).next()[1])
@@ -216,7 +216,7 @@ class MercurialRepositoryOverlay(object):
         self.remember_manifest(revid, self.repo.get_parent_map([revid])[revid],
                 (manifest, flags))
         fulltext = format_manifest(manifest, flags)
-        self.remember_manifest_text(revid, 
+        self.remember_manifest_text(revid,
             self.repo.get_parent_map([revid])[revid], fulltext)
         return fulltext
 
@@ -255,7 +255,7 @@ class MercurialRepositoryOverlay(object):
             lookup_text_node.append(parent_manifest.__getitem__)
         while len(lookup_text_node) < 2:
             lookup_text_node.append(lambda path: mercurial.node.nullid)
-        (manifest, flags) = manifest_and_flags_from_tree(base_tree, tree, 
+        (manifest, flags) = manifest_and_flags_from_tree(base_tree, tree,
                 self.mapping, lookup_text_node)[:2]
         self.remember_manifest(revid, rev.parent_ids, (manifest, flags))
         self.remember_manifest_text(revid, rev.parent_ids, format_manifest(manifest, flags))
@@ -287,7 +287,7 @@ class MercurialRepositoryOverlay(object):
 
     def has_hgid(self, id):
         """Check whether a Mercurial revision id is present in the repo.
-        
+
         :param id: Mercurial ID
         :return: boolean
         """
@@ -310,7 +310,7 @@ class MercurialRepositoryOverlay(object):
             manifest_id = stored_manifest_id
         if manifest_id is None:
             # Manifest not in the revision, look it up
-            # This could potentially be very expensive, but no way around 
+            # This could potentially be very expensive, but no way around
             # that...
             manifest_id = self.lookup_manifest_id_by_revid(revid)
         files = self.get_files_by_revid(revid)
@@ -346,7 +346,7 @@ class MercurialRepositoryOverlay(object):
 
     def has_hgids(self, ids):
         """Check whether the specified Mercurial ids are present.
-        
+
         :param ids: Mercurial revision ids
         :return: Set with the revisions that were present
         """

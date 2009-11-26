@@ -58,7 +58,7 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     """Mercurial Repository Format.
 
     This is currently not aware of different repository formats,
-    but simply relies on the installed copy of mercurial to 
+    but simply relies on the installed copy of mercurial to
     support the repository format.
     """
     rich_root_data = True
@@ -96,13 +96,13 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
     we create an Inventory
     for each file in the manifest we:
         * if the dirname of the file is not in the inventory, we add it
-          recursively, with an id of the path with / replaced by :, and a 
+          recursively, with an id of the path with / replaced by :, and a
           prefix of 'hg:'. The directory gets a last-modified value of the
-          topologically oldest file.revision value under it in the 
+          topologically oldest file.revision value under it in the
           inventory. In the event of multiple revisions with no topological
           winner - that is where there is more than one root, alpha-sorting
           is used as a tie-break.
-        * use the files revlog to get the 'linkrev' of the file which 
+        * use the files revlog to get the 'linkrev' of the file which
           takes us to the revision id that introduced that revision. That
           revision becomes the revision_id in the inventory
         * check for executable status in the manifest flags
@@ -177,9 +177,9 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
         # add the dir to the directory summary for creation detection
         directories[path] = file_revision_id
         # and put it in the inventory. The revision value is assigned later.
-        entry = result.add_path(path, 'directory', 
+        entry = result.add_path(path, 'directory',
             file_id=mapping.generate_file_id(path))
-    # this can and should be tuned, but for now its just fine - its a 
+    # this can and should be tuned, but for now its just fine - its a
     # proof of concept. add_path is part of the things to tune, as is
     # the dirname() calls.
     known_manifests = {}
@@ -189,7 +189,7 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
         revlog = hgrepo.file(file)
         file_flags = manifest.flags(file)
 
-        # find when the file was modified. 
+        # find when the file was modified.
         # start with the manifest nodeid
         current_log = log
         # we should find all the tails, and then when there are > 2 heads
@@ -316,8 +316,8 @@ class HgRepository(ForeignRepository):
         return default_mapping # for now
 
     def is_shared(self):
-        """Whether this repository is being shared between multiple branches. 
-        
+        """Whether this repository is being shared between multiple branches.
+
         Always False for Mercurial for now.
         """
         return False
@@ -361,7 +361,7 @@ class HgLocalRepository(HgRepository):
         pb = ui.ui_factory.nested_progress_bar()
         try:
             inv = manifest_to_inventory(self._hgrepo, hgid, log, manifest,
-                self.get_parent_map(all_relevant_revisions), mapping, 
+                self.get_parent_map(all_relevant_revisions), mapping,
                 self.lookup_foreign_revision_id, pb)
             inv.revision_id = revision_id
             return inv

@@ -34,7 +34,7 @@ class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
     """Working Tree format for Mercurial Working Trees.
 
     This is currently not aware of different working tree formats,
-    but simply relies on the installed copy of mercurial to 
+    but simply relies on the installed copy of mercurial to
     support the working tree format.
     """
 

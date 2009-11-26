@@ -14,7 +14,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-# Please note that imports are delayed as much as possible here since 
+# Please note that imports are delayed as much as possible here since
 # if DWIM revspecs are supported this module is imported by __init__.py.
 
 from bzrlib.errors import (
@@ -41,7 +41,7 @@ class RevisionSpec_hg(RevisionSpec):
 
     help_txt = """Selects a revision using a Mercurial revision sha1.
     """
-    
+
     prefix = 'hg:'
     wants_revision_history = False
 

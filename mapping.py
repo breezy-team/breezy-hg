@@ -172,7 +172,7 @@ def manifest_and_flags_from_tree(parent_trees, tree, mapping, parent_node_lookup
     :param parent_trees: Parent trees
     :param tree: Tree
     :param mapping: Bzr<->Hg mapping
-    :param parent_node_lookup: 2-tuple with functions to look up the nodes 
+    :param parent_node_lookup: 2-tuple with functions to look up the nodes
         of paths in the tree's parents
     """
     unusual_fileids = {}
@@ -202,7 +202,7 @@ def manifest_and_flags_from_tree(parent_trees, tree, mapping, parent_node_lookup
                 manifest[utf8_path] = hghash(tree.get_file_text(entry.file_id), *get_text_parents(utf8_path))
         if entry.kind in ('file', 'symlink') and prev_entry is not None:
             manifest[utf8_path] = parent_node_lookup[prev_entry](utf8_path)
-        if ((mapping.generate_file_id(utf8_path) != entry.file_id or entry.kind == 'directory') and 
+        if ((mapping.generate_file_id(utf8_path) != entry.file_id or entry.kind == 'directory') and
             (parent_trees == [] or parent_trees[0].inventory.path2id(path) != entry.file_id)):
             unusual_fileids[utf8_path] = entry.file_id
     return (manifest, flags, unusual_fileids)
@@ -219,7 +219,7 @@ def escape_path(path):
 
 def unescape_path(file_id):
     """Unescape a file id created with escape_path().
-    
+
     :param file_id: File id to unescape
     :return: Unescaped path
     """

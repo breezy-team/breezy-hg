@@ -116,9 +116,9 @@ class TdbIdmap(Idmap):
         else:
             import tdb
             if not mapdbs().has_key(path):
-                mapdbs()[path] = tdb.Tdb(path, TDB_HASH_SIZE, tdb.DEFAULT, 
+                mapdbs()[path] = tdb.Tdb(path, TDB_HASH_SIZE, tdb.DEFAULT,
                                           os.O_RDWR|os.O_CREAT)
-            self.db = mapdbs()[path]    
+            self.db = mapdbs()[path]
         if not "version" in self.db:
             self.db["version"] = str(TDB_MAP_VERSION)
         else:
@@ -231,8 +231,8 @@ def check_pysqlite_version(sqlite3):
     """Check that sqlite library is compatible.
 
     """
-    if (sqlite3.sqlite_version_info[0] < 3 or 
-            (sqlite3.sqlite_version_info[0] == 3 and 
+    if (sqlite3.sqlite_version_info[0] < 3 or
+            (sqlite3.sqlite_version_info[0] == 3 and
              sqlite3.sqlite_version_info[1] < 3)):
         trace.warning('Needs at least sqlite 3.3.x')
         raise bzrlib.errors.BzrError("incompatible sqlite library")
@@ -241,7 +241,7 @@ try:
     try:
         import sqlite3
         check_pysqlite_version(sqlite3)
-    except (ImportError, bzrlib.errors.BzrError), e: 
+    except (ImportError, bzrlib.errors.BzrError), e:
         from pysqlite2 import dbapi2 as sqlite3
         check_pysqlite_version(sqlite3)
 except:

@@ -67,7 +67,7 @@ def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
             yield "", (mercurial.node.nullid, mercurial.node.nullid), mercurial.node.nullid
             continue
         rev = repo.get_revision(revid)
-        (manifest_id, user, date, desc, extra) = mapping.export_revision(rev, 
+        (manifest_id, user, date, desc, extra) = mapping.export_revision(rev,
             lossy=lossy, fileids=fileids.get(revid, {}))
         if manifest_id is None:
             manifest_id = manifest_ids[revid]
@@ -81,7 +81,7 @@ def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
         yield text, ps, hgid
 
 
-def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts, 
+def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts,
                  fileids, lossy=True):
     def get_manifest(revid):
         if revid in manifest_ids:
@@ -104,7 +104,7 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts,
             lookup_text_node.append(get_manifest(parent)[0].__getitem__)
         while len(lookup_text_node) < 2:
             lookup_text_node.append(lambda path: mercurial.node.nullid)
-        # TODO: This refetches the parent trees, which we'll likely have seen 
+        # TODO: This refetches the parent trees, which we'll likely have seen
         # earlier in this loop.
         parent_trees = list(repo.revision_trees(rev.parent_ids[:2]))
         (manifest, flags, extrafileids) = manifest_and_flags_from_tree(
@@ -115,9 +115,9 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts,
             base_tree = parent_trees[0]
         except IndexError:
             base_tree = repo.revision_tree(_mod_revision.NULL_REVISION)
-        files[revid] = files_from_delta(tree.changes_from(base_tree), 
+        files[revid] = files_from_delta(tree.changes_from(base_tree),
             tree.inventory, revid)
-        # Avoid sending texts for first revision, it's listed so we get the 
+        # Avoid sending texts for first revision, it's listed so we get the
         # base text for the manifest delta's.
         if revid != skip_revid:
             for p in files[revid]:
@@ -192,7 +192,7 @@ def dchangegroup(repo, mapping, revids, lossy=True):
     assert revids[0] != _mod_revision.NULL_REVISION
     base_revid = repo.get_parent_map([revids[0]])[revids[0]][0]
     todo = [base_revid] + revids # add base text revid
-    fileids = {} 
+    fileids = {}
     manifests = list(dinventories(repo, mapping, todo, manifest_ids, files, overlay, texts, fileids, lossy=lossy))
     # 00changelog.i
     write_delta_chunks(ret, drevisions(repo, mapping, todo, files, changelog_ids, manifest_ids, overlay, fileids=fileids, lossy=lossy))
@@ -205,7 +205,7 @@ def dchangegroup(repo, mapping, revids, lossy=True):
     for path, keys in texts.iteritems():
         # FIXME: Mangle path in the same way that mercurial does
         write_chunk(ret, path)
-        write_delta_chunks(ret, 
+        write_delta_chunks(ret,
             text_contents(repo, changelog_ids, path, keys, overlay))
     write_chunk(ret, "")
     ret.seek(0)

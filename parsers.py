@@ -74,7 +74,7 @@ def format_changeset(manifest, files, user, date, desc, extra):
 
 def parse_changeset(text):
     """Parse a Mercurial changeset.
-    
+
     :param text: Text to parse
     :return: Tuple with (manifest, user, (time, timezone), files, desc, extra)
     """
@@ -104,7 +104,7 @@ def parse_changeset(text):
 def pack_chunk_iter(entries):
     """Create a chained series of Mercurial deltas.
 
-    The first entry is not packed but rather used as a base for the delta 
+    The first entry is not packed but rather used as a base for the delta
     for the second.
 
     :param entries: Iterator over (fulltext, (p1, p2), link) tuples.
@@ -130,8 +130,7 @@ def unpack_chunk_iter(chunk_iter, lookup_base):
     """Unpack a series of Mercurial deltas.
 
     :param chunk_iter: Iterator over chunks to unpack
-    :param lookup_base: Function to look up contents of 
-        bases for deltas.
+    :param lookup_base: Function to look up contents of bases for deltas.
     :return: Iterator over (fulltext, node, (p1, p2), link) tuples.
     """
     fulltext_cache = {}

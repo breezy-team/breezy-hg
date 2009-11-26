@@ -51,7 +51,7 @@ class HgBranchFormat(BranchFormat):
     """Mercurial Branch Format.
 
     This is currently not aware of different branch formats,
-    but simply relies on the installed copy of mercurial to 
+    but simply relies on the installed copy of mercurial to
     support the branch format.
     """
 
@@ -152,7 +152,7 @@ class HgBranch(ForeignBranch):
 
     def lock_write(self):
         self.control_files.lock_write()
-    
+
     @needs_read_lock
     def revision_history(self):
         revs = list(self.repository.iter_reverse_revision_history(self.last_revision()))
@@ -162,7 +162,7 @@ class HgBranch(ForeignBranch):
     @needs_read_lock
     def last_revision(self):
         tip = self._hgrepo.lookup("tip")
-        return self.repository.lookup_foreign_revision_id(tip, 
+        return self.repository.lookup_foreign_revision_id(tip,
             mapping=self.mapping)
 
     def lock_read(self):
@@ -204,14 +204,14 @@ class InterHgBranch(InterBranch):
         """See InterBranch.is_compatible()."""
         return (isinstance(source, HgBranch) and isinstance(target, HgBranch))
 
-    def pull(self, overwrite=False, stop_revision=None, 
+    def pull(self, overwrite=False, stop_revision=None,
              possible_transports=None, local=False):
         """See InterBranch.pull()."""
         result = PullResult()
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revno, result.old_revid = self.target.last_revision_info()
-        inter = InterRepository.get(self.source.repository, 
+        inter = InterRepository.get(self.source.repository,
                                     self.target.repository)
         inter.fetch(revision_id=stop_revision)
         result.new_revno, result.new_revid = self.target.last_revision_info()
@@ -223,7 +223,7 @@ class InterHgBranch(InterBranch):
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revid = self.target.last_revision()
-        inter = InterRepository.get(self.source.repository, 
+        inter = InterRepository.get(self.source.repository,
                                     self.target.repository)
         inter.fetch(revision_id=stop_revision)
         result.new_revid = self.target.last_revision()
@@ -243,24 +243,24 @@ class FromHgBranch(InterBranch):
     @staticmethod
     def is_compatible(source, target):
         """See InterBranch.is_compatible()."""
-        return (isinstance(source, HgBranch) and 
+        return (isinstance(source, HgBranch) and
                 not isinstance(target, HgBranch))
 
-    def pull(self, overwrite=False, stop_revision=None, 
+    def pull(self, overwrite=False, stop_revision=None,
              possible_transports=None, local=False):
         """See InterBranch.pull()."""
         result = PullResult()
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revno, result.old_revid = self.target.last_revision_info()
-        inter = InterRepository.get(self.source.repository, 
+        inter = InterRepository.get(self.source.repository,
                                     self.target.repository)
         inter.fetch(revision_id=stop_revision)
         if overwrite:
             req_base = None
         else:
             req_base = self.target.last_revision()
-        self.target.generate_revision_history(self.source.last_revision(), 
+        self.target.generate_revision_history(self.source.last_revision(),
             req_base, self.source)
         result.new_revno, result.new_revid = self.target.last_revision_info()
         return result
@@ -271,10 +271,10 @@ class FromHgBranch(InterBranch):
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revid = self.target.last_revision()
-        inter = InterRepository.get(self.source.repository, 
+        inter = InterRepository.get(self.source.repository,
                                     self.target.repository)
         inter.fetch(revision_id=stop_revision)
-        self.target.generate_revision_history(self.source.last_revision(), 
+        self.target.generate_revision_history(self.source.last_revision(),
                                               self.target.last_revision(),
                                               self.source)
         result.new_revid = self.target.last_revision()
@@ -310,7 +310,7 @@ class ToHgBranch(InterBranch):
 
     @classmethod
     def is_compatible(self, source, target):
-        return (not isinstance(source, HgBranch) and 
+        return (not isinstance(source, HgBranch) and
                 isinstance(target, HgBranch))
 
     def _push_helper(self, stop_revision=None, overwrite=False,
@@ -318,9 +318,9 @@ class ToHgBranch(InterBranch):
         graph = self.source.repository.get_graph()
         if stop_revision is None:
             stop_revision = self.source.last_revision()
-        revs = graph.find_difference(self.target.last_revision(), 
+        revs = graph.find_difference(self.target.last_revision(),
                                      stop_revision)[1]
-        cg, revidmap = dchangegroup(self.source.repository, 
+        cg, revidmap = dchangegroup(self.source.repository,
                                     self.target.mapping, revs, lossy=lossy)
         heads = [revidmap[stop_revision]]
         remote = self.target.repository._hgrepo
@@ -333,7 +333,7 @@ class ToHgBranch(InterBranch):
             return dict((k, self.target.mapping.revision_id_foreign_to_bzr(v)) for (k, v) in revidmap.iteritems())
 
     @needs_read_lock
-    def push(self, overwrite=True, stop_revision=None, 
+    def push(self, overwrite=True, stop_revision=None,
              _override_hook_source_branch=None):
         result = HgBranchPushResult()
         result.source_branch = self.source
@@ -356,7 +356,7 @@ class ToHgBranch(InterBranch):
         if stop_revision is None:
             stop_revision = self.source.last_revision()
         if stop_revision != result.old_revid:
-            revidmap = self._push_helper(stop_revision=stop_revision, 
+            revidmap = self._push_helper(stop_revision=stop_revision,
                 lossy=True)
             result.new_revid = revidmap.get(stop_revision, result.old_revid)
         else:

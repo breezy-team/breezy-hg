@@ -30,6 +30,8 @@
 
   * Remove empty directories during fetch. (Jelmer Vernooij)
 
+  * Mark Mercurial 1.4 as supported. (#486899, Jelmer Vernooij)
+
 0.1.0		2009-09-24
 
  Initial release.

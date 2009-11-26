@@ -11,4 +11,4 @@ bzr_plugin_version = (0, 2, 0, 'dev', 0)
 
 bzr_control_formats = {"Mercurial": {'.hg/': None}}
 
-hg_compatible_versions = ["1.3.1"]
+hg_compatible_versions = ["1.3.1", "1.4"]

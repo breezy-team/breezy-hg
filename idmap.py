@@ -206,19 +206,19 @@ class SqliteIdmap(Idmap):
     def lookup_revision_by_manifest_id(self, manifest_id):
         row = self.db.execute("select revid from revision where manifest_id = ?", (manifest_id,)).fetchone()
         if row is not None:
-            return row[0].encode("utf-8")
+            return row[0]
         raise KeyError
 
     def lookup_changeset_id_by_revid(self, revid):
         row = self.db.execute("select csid, mapping from revision where revid = ?").fetchone()
         if row is not None:
-            return row[0].encode("utf-8"), mapping_registry.get(row[1].encode("utf-8"))
+            return row[0], mapping_registry.get(row[1])
         raise KeyError
 
     def revids(self):
         ret = set()
         for row in self.db.execute("select revid from revision").fetchall():
-            ret.add(row[0].encode("utf-8"))
+            ret.add(row[0])
         return ret
 
     def insert_revision(self, revid, manifest_id, changeset_id, mapping):

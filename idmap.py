@@ -172,9 +172,11 @@ class SqliteIdmap(Idmap):
     def __init__(self, path=None):
         if path is None:
             self.db = sqlite3.connect(":memory:")
+            self.db.text_factory = str
         else:
             if not mapdbs().has_key(path):
                 mapdbs()[path] = sqlite3.connect(path)
+                mapdbs()[path].text_factory = str
             self.db = mapdbs()[path]
         self.db.executescript("""
         create table if not exists revision (

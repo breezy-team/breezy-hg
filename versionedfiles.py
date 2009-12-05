@@ -164,5 +164,5 @@ class RevlogVersionedFiles(VersionedFiles):
                     'unordered', include_delta_closure):
                 x.key = (fileid, revid)
                 if x.parents is not None:
-                    x.parents = tuple([(fileid, x) for x in x.parents])
+                    x.parents = tuple([(fileid, y) for y in x.parents])
                 yield x

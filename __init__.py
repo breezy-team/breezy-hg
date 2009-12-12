@@ -158,9 +158,8 @@ class HgDir(bzrlib.bzrdir.BzrDir):
         return result
 
     def create_branch(self):
-        """'crate' a branch for this dir."""
-        from bzrlib.plugins.hg.branch import HgBranch
-        return HgBranch(self._hgrepo, self, self._lockfiles)
+        """'create' a branch for this dir."""
+        return self.open_branch()
 
     def create_repository(self, shared=False):
         """'create' a repository for this dir."""
@@ -191,8 +190,12 @@ class HgDir(bzrlib.bzrdir.BzrDir):
 
     def open_branch(self, ignored=None):
         """'crate' a branch for this dir."""
-        from bzrlib.plugins.hg.branch import HgBranch
-        return HgBranch(self._hgrepo, self, self._lockfiles)
+        from bzrlib.plugins.hg.branch import HgLocalBranch, HgRemoteBranch
+        if self._hgrepo.local():
+            branch_klass = HgLocalBranch
+        else:
+            branch_klass = HgRemoteBranch
+        return branch_klass(self._hgrepo, self, self._lockfiles)
 
     def open_repository(self, shared=False):
         """'open' a repository for this dir."""

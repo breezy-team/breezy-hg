@@ -159,12 +159,6 @@ class HgBranch(ForeignBranch):
         revs.reverse()
         return revs
 
-    @needs_read_lock
-    def last_revision(self):
-        tip = self._hgrepo.lookup("tip")
-        return self.repository.lookup_foreign_revision_id(tip,
-            mapping=self.mapping)
-
     def lock_read(self):
         self.control_files.lock_read()
 
@@ -190,6 +184,23 @@ class HgBranch(ForeignBranch):
         if revision_id is None:
             revision_id = source_revision_id
         destination.generate_revision_history(revision_id)
+
+
+class HgLocalBranch(HgBranch):
+
+    @needs_read_lock
+    def last_revision(self):
+        tip = self._hgrepo.lookup("tip")
+        return self.repository.lookup_foreign_revision_id(tip,
+            mapping=self.mapping)
+
+
+class HgRemoteBranch(HgBranch):
+
+    @needs_read_lock
+    def last_revision(self):
+        tip = self._hgrepo.lookup("tip")
+        return self.mapping.revision_id_foreign_to_bzr(tip)
 
 
 class InterHgBranch(InterBranch):

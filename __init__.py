@@ -263,10 +263,6 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         # we dont grok readonly - hg isn't integrated with transport.
         if transport.base.startswith('readonly+'):
             transport = transport._decorated
-        if not _create and not transport.has(".hg"):
-            # Explicitly check for .hg directories here, so we avoid
-            # loading foreign branches through Mercurial.
-            raise errors.NotBranchError(path=transport.base)
         if transport.base.startswith('file://'):
             path = transport.local_abspath('.').encode('utf-8')
             lock_class = HgLock
@@ -288,6 +284,10 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         from bzrlib.transport.local import LocalTransport
         lazy_load_mercurial()
         from mercurial import error as hg_errors
+        if isinstance(transport, LocalTransport) and not transport.has(".hg"):
+            # Explicitly check for .hg directories here, so we avoid
+            # loading foreign branches through Mercurial.
+            raise errors.NotBranchError(path=transport.base)
         try:
             format.open(transport)
         except hg_errors.RepoError, e:

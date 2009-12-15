@@ -395,12 +395,15 @@ class FromHgRepository(InterRepository):
                     )
 
     def _unpack_changesets(self, chunkiter, mapping, pb):
-        def get_hg_revision(hgid):
-            revid = self.source.lookup_foreign_revision_id(hgid, mapping)
-            return self._target_overlay.get_changeset_text_by_revid(revid)
         def lookup_foreign_revid(foreign_revid):
-            # TODO: Handle round-tripped revisions
+            lookup_foreign_revid = getattr(self.source,
+                "lookup_foreign_revision_id", None)
+            if lookup_foreign_revid is not None:
+                return lookup_foreign_revid(foreign_revid, mapping)
             return mapping.revision_id_foreign_to_bzr(foreign_revid)
+        def get_hg_revision(hgid):
+            revid = lookup_foreign_revid(hgid)
+            return self._target_overlay.get_changeset_text_by_revid(revid)
         for i, (fulltext, hgkey, hgparents, csid) in enumerate(
                 unpack_chunk_iter(chunkiter, get_hg_revision)):
             pb.update("fetching changesets", i)

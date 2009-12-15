@@ -74,7 +74,9 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
         return "hg"
 
     def get_foreign_tests_repository_factory(self):
-        from bzrlib.plugins.hg.tests.test_repository import ForeignTestsRepositoryFactory
+        from bzrlib.plugins.hg.tests.test_repository import (
+            ForeignTestsRepositoryFactory,
+            )
         return ForeignTestsRepositoryFactory()
 
 

@@ -643,7 +643,10 @@ class FromHgRepository(InterRepository):
         self.target.start_write_group()
         try:
             self.addchangegroup(cg, mapping)
-        finally:
+        except:
+            self.target.abort_write_group()
+            raise
+        else:
             self.target.commit_write_group()
 
     @staticmethod

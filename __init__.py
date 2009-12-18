@@ -324,7 +324,7 @@ else:
 
 def test_suite():
     from unittest import TestSuite, TestLoader
-    import tests
+    from bzrlib.plugins.hg import tests
 
     suite = TestSuite()
 

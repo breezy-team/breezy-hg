@@ -54,7 +54,7 @@ def lazy_load_mercurial():
     except ImportError:
         pass
     from mercurial.__version__ import version as hg_version
-    if hg_version not in hg_compatible_versions:
+    if hg_version not in hg_compatible_versions and not "+" in hg_version:
         raise errors.DependencyNotPresent("mercurial",
             'bzr-hg: Mercurial version %s not supported.' % hg_version)
     trace.mutter("bzr-hg: using Mercurial %s" % hg_version)

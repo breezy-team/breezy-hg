@@ -180,10 +180,10 @@ class SqliteIdmap(Idmap):
             self.db = mapdbs()[path]
         self.db.executescript("""
         create table if not exists revision (
-            revid text,
-            csid text,
-            manifest_id text,
-            mapping text
+            revid text not null,
+            csid text not null,
+            manifest_id text not null,
+            mapping text not null
         );
         create unique index if not exists revision_revid on revision(revid);
         create unique index if not exists revision_csid on revision(csid, mapping);

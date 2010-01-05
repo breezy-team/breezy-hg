@@ -226,6 +226,10 @@ class SqliteIdmap(Idmap):
             manifest_id = mercurial.node.bin(manifest_id)
         if len(changeset_id) == 40:
             changeset_id = mercurial.node.bin(changeset_id)
+        if len(changeset_id) != 20:
+            raise AssertionError
+        if len(manifest_id) != 20:
+            raise AssertionError
         self.db.execute("insert into revision (revid, csid, manifest_id, mapping) values (?, ?, ?, ?)", (revid, changeset_id, manifest_id, str(mapping)))
 
 

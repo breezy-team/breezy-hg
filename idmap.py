@@ -181,8 +181,8 @@ class SqliteIdmap(Idmap):
         self.db.executescript("""
         create table if not exists revision (
             revid text not null,
-            csid text not null,
-            manifest_id text not null,
+            csid text not null check(length(csid) == 40),
+            manifest_id text not null check(length(manifest_id) == 40),
             mapping text not null
         );
         create unique index if not exists revision_revid on revision(revid);
@@ -195,15 +195,17 @@ class SqliteIdmap(Idmap):
         try:
             transport = getattr(repo, "_transport", None)
             if transport is not None:
-                return cls(os.path.join(transport.local_abspath("."), "hg.db"))
+                return cls(os.path.join(transport.local_abspath("."), "hg-v2.db"))
         except errors.NotLocalUrl:
             pass
-        return cls(os.path.join(get_cache_dir(), "remote.db"))
+        return cls(os.path.join(get_cache_dir(), "remote-v2.db"))
 
     def get_files_by_revid(self, revid):
         raise KeyError(revid)
 
     def lookup_revision_by_manifest_id(self, manifest_id):
+        if len(manifest_id) == 20:
+            manifest_id = mercurial.node.hex(manifest_id)
         row = self.db.execute("select revid from revision where manifest_id = ?", (manifest_id,)).fetchone()
         if row is not None:
             return row[0]
@@ -222,13 +224,13 @@ class SqliteIdmap(Idmap):
         return ret
 
     def insert_revision(self, revid, manifest_id, changeset_id, mapping):
-        if len(manifest_id) == 40:
-            manifest_id = mercurial.node.bin(manifest_id)
-        if len(changeset_id) == 40:
-            changeset_id = mercurial.node.bin(changeset_id)
-        if len(changeset_id) != 20:
+        if len(manifest_id) == 20:
+            manifest_id = mercurial.node.hex(manifest_id)
+        if len(changeset_id) == 20:
+            changeset_id = mercurial.node.hex(changeset_id)
+        if len(changeset_id) != 40:
             raise AssertionError
-        if len(manifest_id) != 20:
+        if len(manifest_id) != 40:
             raise AssertionError
         self.db.execute("insert into revision (revid, csid, manifest_id, mapping) values (?, ?, ?, ?)", (revid, changeset_id, manifest_id, str(mapping)))
 

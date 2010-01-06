@@ -19,6 +19,8 @@
 
   * New revision specified 'hg:'. (Jelmer Vernooij)
 
+  * Add extra constraints in sqlite cache. (Jelmer Vernooij)
+
  BUG FIXES
 
   * Mark as compatible with Bazaar 2.1. (Jelmer Vernooij)
@@ -34,6 +36,8 @@
 
   * Don't warn about development versions of Mercurial. (#492292, Jelmer 
     Vernooij)
+
+  * Cope with unusual characters in changeset ids. (#498945, Jelmer Vernooij)
 
 0.1.0		2009-09-24
 

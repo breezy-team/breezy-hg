@@ -41,6 +41,9 @@
 
   * Only mention Mercurial version to use yet. (#517345, Jelmer Vernooij)
 
+  * Only consider major version numbers in compatibility checks.
+    (#517343, Jelmer Vernooij)
+
 0.1.0		2009-09-24
 
  Initial release.

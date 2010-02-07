@@ -39,6 +39,8 @@
 
   * Cope with unusual characters in changeset ids. (#498945, Jelmer Vernooij)
 
+  * Only mention Mercurial version to use yet. (#517345, Jelmer Vernooij)
+
 0.1.0		2009-09-24
 
  Initial release.

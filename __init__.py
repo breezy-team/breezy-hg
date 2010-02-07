@@ -44,9 +44,14 @@ from bzrlib.send import (
     format_registry as send_format_registry,
     )
 
+_mercurial_loaded = False
 LockWarner = bzrlib.lockable_files._LockWarner
 
 def lazy_load_mercurial():
+    global _mercurial_loaded
+    if _mercurial_loaded:
+        return
+    _mercurial_loaded = True
     import mercurial
     try:
         from mercurial import demandimport

@@ -25,7 +25,6 @@ This code should probably be submitted to upstream Mercurial for inclusion.
 """
 
 import mercurial.changelog
-import mercurial.encoding
 import mercurial.manifest
 import mercurial.mdiff
 import mercurial.node
@@ -55,9 +54,13 @@ def format_changeset(manifest, files, user, date, desc, extra):
         raise ValueError("empty username")
     if "\n" in user:
         raise ValueError("username %s contains a newline" % repr(user))
+    if type(user) != unicode:
+        raise TypeError("user should be unicode string")
+    if type(desc) != unicode:
+        raise TypeError("desc should be unicode string")
 
-    user = mercurial.encoding.fromlocal(user)
-    desc = mercurial.encoding.fromlocal(desc)
+    user = user.encode("utf-8")
+    desc = desc.encode("utf-8")
 
     if not isinstance(date, tuple):
         raise TypeError("date is not a tuple")
@@ -79,10 +82,10 @@ def parse_changeset(text):
     :return: Tuple with (manifest, user, (time, timezone), files, desc, extra)
     """
     last = text.index("\n\n")
-    desc = mercurial.encoding.tolocal(text[last + 2:])
+    desc = text[last + 2:].decode("utf-8")
     l = text[:last].split('\n')
     manifest = mercurial.node.bin(l[0])
-    user = mercurial.encoding.tolocal(l[1])
+    user = l[1].decode("utf-8")
 
     extra_data = l[2].split(' ', 2)
     if len(extra_data) != 3:

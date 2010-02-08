@@ -121,7 +121,7 @@ class ExportRevisionTests(TestCase):
             self.mapping.export_revision(rev)
         self.assertEquals("Jelmer <foo>", user)
         self.assertEquals(None, manifest)
-        self.assertEquals("ürk", desc)
+        self.assertEquals(u"ürk", desc)
         self.assertEquals({"bzr-revprop-something": "else", "foo": "bar"}, 
                           extra)
 

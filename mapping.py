@@ -288,7 +288,7 @@ class HgMappingv1(foreign.VcsMapping):
         return unescape_path(fileid[len("hg:"):])
 
     def export_revision(self, rev, lossy=True, fileids={}):
-        user = rev.committer.encode("utf-8")
+        user = rev.committer
         time = rev.timestamp
         timezone = -rev.timezone
         extra = {}
@@ -320,18 +320,22 @@ class HgMappingv1(foreign.VcsMapping):
                 extra["bzr-extra-parents"] = " ".join(rev.parent_ids[2:])
             if fileids:
                 extra["bzr-fileids"] = bencode.bencode(sorted(fileids.items()))
-        desc = rev.message.encode("utf-8")
+        desc = rev.message
         return (manifest, user, (time, timezone), desc, extra)
 
     def import_revision(self, revid, parent_ids, hgrevid, manifest, user,
                         (time, timezone), desc, extra):
         result = foreign.ForeignRevision(hgrevid, self, revid)
         result.parent_ids = parent_ids
-        result.message = desc.decode("utf-8")
+        if type(desc) != unicode:
+            raise AssertionError
+        result.message = desc
         result.inventory_sha1 = ""
         result.timezone = -timezone
         result.timestamp = time
-        result.committer = user.decode("utf-8")
+        if type(user) != unicode:
+            raise AssertionError
+        result.committer = user
         result.properties = {
                 'manifest': mercurial.node.hex(manifest)
                 }

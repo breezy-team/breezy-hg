@@ -349,7 +349,7 @@ class HgLocalRepository(HgRepository):
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)
         parent_ids = as_bzr_parents(hgparents, self.lookup_foreign_revision_id)
-        return mapping.import_revision(revision_id, parent_ids, hgrevid, hgchange[0], hgchange[1], hgchange[2], hgchange[4], hgchange[5])[0]
+        return mapping.import_revision(revision_id, parent_ids, hgrevid, hgchange[0], hgchange[1].decode("utf-8"), hgchange[2], hgchange[4].decode("utf-8"), hgchange[5])[0]
 
     def iter_inventories(self, revision_ids, ordering=None):
         for revid in revision_ids:

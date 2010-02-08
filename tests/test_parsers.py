@@ -36,8 +36,8 @@ Some
 commit
 message""",
             format_changeset(mercurial.node.nullid, ["myfile"],
-                "Jelmer Vernooij <jelmer@samba.org>",
-                (1253260798.0, -7200), "Some\ncommit\nmessage",
+                u"Jelmer Vernooij <jelmer@samba.org>",
+                (1253260798.0, -7200), u"Some\ncommit\nmessage",
                 {}))
 
     def test_extra(self):
@@ -50,27 +50,27 @@ Some
 commit
 message""",
             format_changeset(mercurial.node.nullid, ["myfile"],
-                "Jelmer Vernooij <jelmer@samba.org>",
-                (1253260798.0, -7200), "Some\ncommit\nmessage",
+                u"Jelmer Vernooij <jelmer@samba.org>",
+                (1253260798.0, -7200), u"Some\ncommit\nmessage",
                 {"extra": "data", "more":"extra"}))
 
     def test_invalid_author(self):
         self.assertRaises(ValueError, format_changeset, 
                 mercurial.node.nullid, ["myfile"],
-                "",
-                (1253260798.0, -7200), "Some\ncommit\nmessage",
+                u"",
+                (1253260798.0, -7200), u"Some\ncommit\nmessage",
                 {})
         self.assertRaises(ValueError, format_changeset, 
                 mercurial.node.nullid, ["myfile"],
-                "Jelmer\nVernooij",
-                (1253260798.0, -7200), "Some\ncommit\nmessage",
+                u"Jelmer\nVernooij",
+                (1253260798.0, -7200), u"Some\ncommit\nmessage",
                 {})
 
     def test_invalid_date(self):
         self.assertRaises(TypeError, format_changeset, 
                 mercurial.node.nullid, ["myfile"],
-                "Jelmer Vernooij <jelmer@samba.org>",
-                1253260798, "Some\ncommit\nmessage",
+                u"Jelmer Vernooij <jelmer@samba.org>",
+                1253260798, u"Some\ncommit\nmessage",
                 {})
 
 
@@ -78,8 +78,8 @@ class ParseChangesetTests(TestCase):
 
     def test_simple(self):
         self.assertEquals((mercurial.node.nullid, 
-                "Jelmer Vernooij <jelmer@samba.org>",
-                (1253260798.0, -7200), ["myfile"], "Some\ncommit\nmessage",
+                u"Jelmer Vernooij <jelmer@samba.org>",
+                (1253260798.0, -7200), ["myfile"], u"Some\ncommit\nmessage",
                 {}), parse_changeset("""0000000000000000000000000000000000000000
 Jelmer Vernooij <jelmer@samba.org>
 1253260798 -7200
@@ -91,8 +91,8 @@ message"""))
 
     def test_extra(self):
         self.assertEquals((mercurial.node.nullid, 
-                "Jelmer Vernooij <jelmer@samba.org>",
-                (1253260798.0, -7200), ["myfile"], "Some\ncommit\nmessage",
+                u"Jelmer Vernooij <jelmer@samba.org>",
+                (1253260798.0, -7200), ["myfile"], u"Some\ncommit\nmessage",
                 {"date": "extra"}), 
                 parse_changeset("""0000000000000000000000000000000000000000
 Jelmer Vernooij <jelmer@samba.org>

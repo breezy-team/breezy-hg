@@ -44,6 +44,9 @@
   * Only consider major version numbers in compatibility checks.
     (#517343, Jelmer Vernooij)
 
+  * Cope with non-ascii characters in committer names, messages when 
+    trying to create delta bases. (Jelmer Vernooij)
+
 0.1.0		2009-09-24
 
  Initial release.

@@ -484,7 +484,7 @@ class FromHgRepository(InterRepository):
                             revisions = filetext_map[fileid][node]
                             tp = self._find_most_recent_ancestor(revisions.keys(), revid)
                             text_parents.append(tp)
-                        elif path2id(fileid) == path:
+                        elif path2id(path) == fileid:
                             # FIXME: Handle situation where path is not actually in parent
                             text_parents.append(parent[fileid].revision)
                     filetext_map[fileid][manifest[path]][revid] = (kind, text_parents)

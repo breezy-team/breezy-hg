@@ -32,7 +32,7 @@
 
   * Remove empty directories during fetch. (Jelmer Vernooij)
 
-  * Mark Mercurial 1.4 as supported. (#486899, Jelmer Vernooij)
+  * Mark Mercurial 1.4 and 1.5 as supported. (#486899, Jelmer Vernooij)
 
   * Don't warn about development versions of Mercurial. (#492292, Jelmer 
     Vernooij)

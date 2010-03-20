@@ -168,11 +168,6 @@ class HgBranch(ForeignBranch):
     def unlock(self):
         self.control_files.unlock()
 
-    def clone(self, to_bzrdir, revision_id=None):
-        # hg repositories can only clone into hg repos.
-        # and have nothing to do as we follow the hg model.
-        return to_bzrdir.open_branch()
-
     def get_stacked_on_url(self):
         raise errors.UnstackableBranchFormat(self._format, self.base)
 

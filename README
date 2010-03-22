@@ -4,3 +4,15 @@ data for "bzr viz" to work against Mercurial branches.
 
 This plugin requires recent versions of Bazaar and Mercurial to be 
 installed to work.
+
+To install::
+
+  bzr branch lp:bzr-hg ~/.bazaar/plugins/hg
+
+To use:
+
+* Use bzr in folders with Mercurial repositories.  (Readonly commands only.)
+
+* Use ``bzr send --format hg``
+
+* Use ``-r hg:SPEC`` to look up Mercurial native revisions.

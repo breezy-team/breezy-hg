@@ -47,6 +47,10 @@
   * Cope with non-ascii characters in committer names, messages when 
     trying to create delta bases. (Jelmer Vernooij)
 
+ DOCUMENTATION
+
+  * Add some basic instructions in INSTALL. (Martin Pool)
+
 0.1.0		2009-09-24
 
  Initial release.

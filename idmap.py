@@ -219,8 +219,8 @@ class SqliteIdmap(Idmap):
 
     def revids(self):
         ret = set()
-        for row in self.db.execute("select revid from revision").fetchall():
-            ret.add(row[0])
+        ret.update((row for 
+            (row,) in self.db.execute("select revid from revision")))
         return ret
 
     def insert_revision(self, revid, manifest_id, changeset_id, mapping):

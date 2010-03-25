@@ -19,5 +19,5 @@ if __name__ == '__main__':
           Mercurial branches in Bazaar.
           """,
           package_dir={'bzrlib.plugins.hg':'.'},
-          packages=['bzrlib.plugins.hg']
+          packages=['bzrlib.plugins.hg', 'bzrlib.plugins.hg.tests']
           )

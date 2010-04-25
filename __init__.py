@@ -194,8 +194,8 @@ class HgDir(bzrlib.bzrdir.BzrDir):
     def needs_format_conversion(self, format=None):
         return (format is not HgBzrDirFormat)
 
-    def open_branch(self, ignored=None):
-        """'crate' a branch for this dir."""
+    def open_branch(self, ignored=None, unsupported=False):
+        """'create' a branch for this dir."""
         from bzrlib.plugins.hg.branch import HgLocalBranch, HgRemoteBranch
         if self._hgrepo.local():
             branch_klass = HgLocalBranch

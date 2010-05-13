@@ -104,6 +104,18 @@ class HgBranchConfig(object):
         return "long"
 
 
+class HgReadLock(object):
+
+    def __init__(self, unlock):
+        self.unlock = unlock
+
+
+class HgWriteLock(object):
+
+    def __init__(self, unlock):
+        self.unlock = unlock
+
+
 class HgBranch(ForeignBranch):
     """An adapter to mercurial repositories for bzr Branch objects."""
 
@@ -152,6 +164,7 @@ class HgBranch(ForeignBranch):
 
     def lock_write(self):
         self.control_files.lock_write()
+        return HgWriteLock(self.unlock)
 
     @needs_read_lock
     def revision_history(self):
@@ -161,6 +174,7 @@ class HgBranch(ForeignBranch):
 
     def lock_read(self):
         self.control_files.lock_read()
+        return HgReadLock(self.unlock)
 
     def is_locked(self):
         return self.control_files.is_locked()

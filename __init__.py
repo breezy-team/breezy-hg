@@ -319,6 +319,11 @@ from bzrlib.revisionspec import revspec_registry
 revspec_registry.register_lazy("hg:", "bzrlib.plugins.hg.revspec",
     "RevisionSpec_hg")
 
+from bzrlib.commands import (
+    plugin_cmds,
+    )
+plugin_cmds.register_lazy('cmd_hg_import', [], 'bzrlib.plugins.hg.commands')
+
 try:
     from bzrlib.revisionspec import dwim_revspecs
 except ImportError:

@@ -357,9 +357,11 @@ class FromHgRepository(InterRepository):
                     key = (fileid, revision)
                     if kind == "symlink":
                         self._symlink_targets[key] = fulltext
-                        fulltext = ""
-                    record = FulltextContentFactory(key, [(fileid, p) for p in parents], osutils.sha_string(fulltext), fulltext)
-                    self._text_metadata[key] = (record.sha1, len(fulltext))
+                        bzr_fulltext = ""
+                    else:
+                        bzr_fulltext = fulltext
+                    record = FulltextContentFactory(key, [(fileid, p) for p in parents], osutils.sha_string(bzr_fulltext), bzr_fulltext)
+                    self._text_metadata[key] = (record.sha1, len(bzr_fulltext))
                     yield record
 
     def _add_inventories(self, todo, mapping, pb):

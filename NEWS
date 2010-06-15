@@ -50,6 +50,8 @@
   * Cope with non-ascii characters in committer names, messages when 
     trying to create delta bases. (Jelmer Vernooij)
 
+  * Fix conversion of symlinks. (#594335, Max Bowser)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

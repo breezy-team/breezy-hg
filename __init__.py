@@ -163,9 +163,9 @@ class HgDir(bzrlib.bzrdir.BzrDir):
         result._hgrepo.pull(self._hgrepo)
         return result
 
-    def create_branch(self):
+    def create_branch(self, name=None):
         """'create' a branch for this dir."""
-        return self.open_branch()
+        return self.open_branch(name=name)
 
     def create_repository(self, shared=False):
         """'create' a repository for this dir."""
@@ -194,8 +194,10 @@ class HgDir(bzrlib.bzrdir.BzrDir):
     def needs_format_conversion(self, format=None):
         return (format is not HgBzrDirFormat)
 
-    def open_branch(self, ignored=None, unsupported=False):
+    def open_branch(self, name=None, ignored=None, unsupported=False):
         """'create' a branch for this dir."""
+        if name is not None:
+            raise errors.NoColocatedBranchSupport(self)
         from bzrlib.plugins.hg.branch import HgLocalBranch, HgRemoteBranch
         if self._hgrepo.local():
             branch_klass = HgLocalBranch

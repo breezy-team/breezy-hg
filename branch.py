@@ -217,7 +217,7 @@ class InterHgBranch(InterBranch):
 
     @staticmethod
     def _get_branch_formats_to_test():
-        return None, None
+        return []
 
     @staticmethod
     def is_compatible(source, target):
@@ -258,7 +258,7 @@ class FromHgBranch(InterBranch):
 
     @staticmethod
     def _get_branch_formats_to_test():
-        return None, None
+        return []
 
     @staticmethod
     def is_compatible(source, target):
@@ -326,7 +326,7 @@ class ToHgBranch(InterBranch):
 
     @staticmethod
     def _get_branch_formats_to_test():
-        return None, None
+        return []
 
     @classmethod
     def is_compatible(self, source, target):

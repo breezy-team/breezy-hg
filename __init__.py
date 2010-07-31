@@ -174,8 +174,13 @@ class HgDir(bzrlib.bzrdir.BzrDir):
             raise errors.IncompatibleFormat(self._format, self._format)
         return self.open_repository()
 
-    def create_workingtree(self, shared=False):
+    def create_workingtree(self, revision_id=None, from_branch=None,
+            accelerator_tree=None, hardlink=False):
         """'create' a workingtree for this dir."""
+        if revision_id is not None:
+            raise NotImplementedError("revision_id argument not yet supported")
+        if from_branch is not None:
+            raise NotImplementedError("from_branch argument not yet supported")
         return self.open_workingtree()
 
     def get_branch_transport(self, branch_format, name=None):

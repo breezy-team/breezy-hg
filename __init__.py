@@ -188,6 +188,12 @@ class HgDir(bzrlib.bzrdir.BzrDir):
             raise errors.NoColocatedBranchSupport(self)
         raise errors.UnsupportedOperation(self.destroy_branch, self)
 
+    def destroy_workingtree(self):
+        raise errors.UnsupportedOperation(self.destroy_workingtree, self)
+
+    def destroy_repository(self):
+        raise errors.UnsupportedOperation(self.destroy_repository, self)
+
     def get_branch_transport(self, branch_format, name=None):
         if name is not None:
             raise errors.NoColocatedBranchSupport(self)

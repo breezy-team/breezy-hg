@@ -178,7 +178,9 @@ class HgDir(bzrlib.bzrdir.BzrDir):
         """'create' a workingtree for this dir."""
         return self.open_workingtree()
 
-    def get_branch_transport(self, branch_format):
+    def get_branch_transport(self, branch_format, name=None):
+        if name is not None:
+            raise errors.NoColocatedBranchSupport(self)
         if branch_format is None:
             return self.transport
         if isinstance(branch_format, HgBzrDirFormat):

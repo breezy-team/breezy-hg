@@ -338,6 +338,7 @@ class HgLocalRepository(HgRepository):
 
     def lookup_bzr_revision_id(self, revision_id):
         """See ForeignRepository.lookup_bzr_revision_id()."""
+        assert type(revision_id) is str
         # TODO: Handle round-tripped revisions
         try:
             return mapping_registry.revision_id_bzr_to_foreign(revision_id)

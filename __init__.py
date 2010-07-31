@@ -183,6 +183,11 @@ class HgDir(bzrlib.bzrdir.BzrDir):
             raise NotImplementedError("from_branch argument not yet supported")
         return self.open_workingtree()
 
+    def destroy_branch(self, name=None):
+        if name is not None:
+            raise errors.NoColocatedBranchSupport(self)
+        raise errors.UnsupportedOperation(self.destroy_branch, self)
+
     def get_branch_transport(self, branch_format, name=None):
         if name is not None:
             raise errors.NoColocatedBranchSupport(self)

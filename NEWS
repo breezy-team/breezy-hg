@@ -52,6 +52,9 @@
 
   * Fix conversion of symlinks. (#594335, Max Bowser)
 
+  * Don't allow probing for Mercurial repositories over HTTP to break 
+    bzr. (Jelmer Vernooij)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

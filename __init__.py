@@ -305,11 +305,15 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
             # Explicitly check for .hg directories here, so we avoid
             # loading foreign branches through Mercurial.
             raise errors.NotBranchError(path=transport.base)
+        import urllib2
         try:
             format.open(transport)
         except hg_errors.RepoError, e:
             raise errors.NotBranchError(path=transport.base)
         except hg_errors.Abort, e:
+            trace.mutter('not a hg branch: %s', e)
+            raise errors.NotBranchError(path=transport.base)
+        except urllib2.HTTPError, e:
             trace.mutter('not a hg branch: %s', e)
             raise errors.NotBranchError(path=transport.base)
         return format

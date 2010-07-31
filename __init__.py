@@ -255,6 +255,9 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         """We should write a converter."""
         return HgToSomethingConverter(format)
 
+    def network_name(self):
+        return "hg"
+
     def get_format_description(self):
         return "Mercurial Branch"
 

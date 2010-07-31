@@ -63,6 +63,9 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     """
     rich_root_data = True
 
+    def initialize(self, url, shared=False, _internal=False):
+        raise errors.UninitializableFormat(self)
+
     def is_supported(self):
         return True
 

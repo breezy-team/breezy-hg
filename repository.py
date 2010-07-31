@@ -346,6 +346,7 @@ class HgLocalRepository(HgRepository):
             raise errors.NoSuchRevision(self, revision_id)
 
     def get_revision(self, revision_id):
+        assert type(revision_id) is str
         hgrevid, mapping = self.lookup_bzr_revision_id(revision_id)
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)

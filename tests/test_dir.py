@@ -1,4 +1,4 @@
-# Copyright (C) 2006 Canonical Ltd
+# Copyright (C) 2010 Jelmer Vernooij <jelmer@samba.org>
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,24 +14,25 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-def test_suite():
-    from unittest import TestSuite, TestLoader
-    
-    from bzrlib.tests import TestUtil
+from bzrlib.bzrdir import (
+    format_registry,
+    )
 
-    loader = TestUtil.TestLoader()
+from bzrlib.tests import (
+    TestCase,
+    )
 
-    suite = TestSuite()
+from bzrlib.plugins.hg import (
+    HgBzrDirFormat,
+    )
 
-    testmod_names = [
-        'test_branch',
-        'test_dir',
-        'test_idmap',
-        'test_mapping',
-        'test_parsers',
-        'test_pull',
-        ]
 
-    suite.addTest(loader.loadTestsFromModuleNames(["%s.%s" % (__name__, i) for i in testmod_names]))
+class HgBzrDirFormatTests(TestCase):
 
-    return suite
+    def test_eq(self):
+        format1 = HgBzrDirFormat()
+        format2 = HgBzrDirFormat()
+        self.assertEquals(format1, format2)
+        self.assertEquals(format1, format1)
+        bzr_format = format_registry.make_bzrdir("default")
+        self.assertNotEquals(bzr_format, format1)

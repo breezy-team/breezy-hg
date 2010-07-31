@@ -262,6 +262,9 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         """Initialize a new .not dir in the base directory of a Transport."""
         return self.open(transport, _create=True)
 
+    def __eq__(self, other):
+        return type(self) == type(other)
+
     @classmethod
     def _known_formats(self):
         return set([HgBzrDirFormat()])

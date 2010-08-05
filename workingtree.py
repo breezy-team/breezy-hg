@@ -64,7 +64,7 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             files = [files]
         # hg does not canonicalise paths : make them absolute
         paths = [(file).encode('utf8') for file in files]
-        self._hgrepo.add(paths)
+        self._hgrepo[None].add(paths)
 
     @needs_write_lock
     def commit(self, message, revprops=None, *args, **kwargs):

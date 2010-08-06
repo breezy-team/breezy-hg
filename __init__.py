@@ -213,7 +213,8 @@ class HgDir(bzrlib.bzrdir.BzrDir):
     def needs_format_conversion(self, format=None):
         return (format is not HgBzrDirFormat)
 
-    def open_branch(self, name=None, ignored=None, unsupported=False):
+    def open_branch(self, name=None, unsupported=False,
+            ignore_fallbacks=False):
         """'create' a branch for this dir."""
         if name is not None:
             raise errors.NoColocatedBranchSupport(self)
@@ -269,6 +270,10 @@ class HgToSomethingConverter(bzrlib.bzrdir.Converter):
 
 class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
     """The .hg directory control format."""
+
+    def __init__(self):
+        super(HgBzrDirFormat, self).__init__()
+        self.workingtree_format = None
 
     def get_converter(self, format):
         """We should write a converter."""

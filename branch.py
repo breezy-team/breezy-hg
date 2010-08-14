@@ -26,6 +26,7 @@ from bzrlib.branch import (
     BranchCheckResult,
     BranchFormat,
     BranchPushResult,
+    GenericInterBranch,
     InterBranch,
     PullResult,
     )
@@ -212,7 +213,7 @@ class HgRemoteBranch(HgBranch):
         return self.mapping.revision_id_foreign_to_bzr(tip)
 
 
-class InterHgBranch(InterBranch):
+class InterHgBranch(GenericInterBranch):
     """InterBranch for two native Mercurial branches."""
 
     @staticmethod
@@ -253,7 +254,7 @@ class InterHgBranch(InterBranch):
 InterBranch.register_optimiser(InterHgBranch)
 
 
-class FromHgBranch(InterBranch):
+class FromHgBranch(GenericInterBranch):
     """InterBranch pulling from a Mercurial branch."""
 
     @staticmethod

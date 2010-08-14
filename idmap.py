@@ -22,7 +22,11 @@ import threading
 
 from bzrlib import (
     errors,
+    registry,
     trace,
+    )
+from bzrlib.transport import (
+    get_transport,
     )
 
 from bzrlib.plugins.hg.mapping import (
@@ -42,7 +46,45 @@ def get_cache_dir():
     return ret
 
 
-class Idmap(object):
+_mapdbs = threading.local()
+def mapdbs():
+    """Get a cache for this thread's db connections."""
+    try:
+        return _mapdbs.cache
+    except AttributeError:
+        _mapdbs.cache = {}
+        return _mapdbs.cache
+
+
+TDB_MAP_VERSION = 1
+TDB_HASH_SIZE = 50000
+
+
+def check_pysqlite_version(sqlite3):
+    """Check that sqlite library is compatible.
+
+    """
+    if (sqlite3.sqlite_version_info[0] < 3 or
+            (sqlite3.sqlite_version_info[0] == 3 and
+             sqlite3.sqlite_version_info[1] < 3)):
+        trace.warning('Needs at least sqlite 3.3.x')
+        raise errors.BzrError("incompatible sqlite library")
+
+try:
+    try:
+        import sqlite3
+        check_pysqlite_version(sqlite3)
+    except (ImportError, errors.BzrError), e:
+        from pysqlite2 import dbapi2 as sqlite3
+        check_pysqlite_version(sqlite3)
+except:
+    trace.warning('Needs at least Python2.5 or Python2.4 with the pysqlite2 '
+            'module')
+    raise errors.BzrError("missing sqlite library")
+
+
+class BzrHgIdmap(object):
+    """Caching backend."""
 
     def lookup_revision_by_manifest_id(self):
         raise NotImplementedError(self.lookup_revision_by_manifest_id)
@@ -60,7 +102,7 @@ class Idmap(object):
         raise NotImplementedError(self.insert_revision)
 
 
-class MemoryIdmap(Idmap):
+class MemoryIdmap(BzrHgIdmap):
     """In-memory idmap implementation."""
 
     def __init__(self):
@@ -88,21 +130,7 @@ class MemoryIdmap(Idmap):
         self._revid_to_changeset_id[revid] = changeset_id, mapping
 
 
-_mapdbs = threading.local()
-def mapdbs():
-    """Get a cache for this thread's db connections."""
-    try:
-        return _mapdbs.cache
-    except AttributeError:
-        _mapdbs.cache = {}
-        return _mapdbs.cache
-
-
-TDB_MAP_VERSION = 1
-TDB_HASH_SIZE = 50000
-
-
-class TdbIdmap(Idmap):
+class TdbIdmap(BzrHgIdmap):
     """Idmap that stores in tdb.
 
     format:
@@ -127,16 +155,6 @@ class TdbIdmap(Idmap):
                 self.db["version"] = str(TDB_MAP_VERSION)
         except KeyError:
             self.db["version"] = str(TDB_MAP_VERSION)
-
-    @classmethod
-    def from_repository(cls, repo):
-        try:
-            transport = getattr(repo, "_transport", None)
-            if transport is not None:
-                return cls(os.path.join(transport.local_abspath("."), "hg.tdb"))
-        except errors.NotLocalUrl:
-            pass
-        return cls(os.path.join(get_cache_dir(), "remote.tdb"))
 
     def get_files_by_revid(self, revid):
         raise KeyError(revid)
@@ -165,7 +183,8 @@ class TdbIdmap(Idmap):
         self.db["revid/" + revid] = changeset_id + str(mapping)
 
 
-class SqliteIdmap(Idmap):
+
+class SqliteIdmap(BzrHgIdmap):
     """Idmap that stores in SQLite.
     """
 
@@ -189,16 +208,6 @@ class SqliteIdmap(Idmap):
         create unique index if not exists revision_csid on revision(csid, mapping);
         create index if not exists revision_manifest on revision(manifest_id);
         """)
-
-    @classmethod
-    def from_repository(cls, repo):
-        try:
-            transport = getattr(repo, "_transport", None)
-            if transport is not None:
-                return cls(os.path.join(transport.local_abspath("."), "hg-v2.db"))
-        except errors.NotLocalUrl:
-            pass
-        return cls(os.path.join(get_cache_dir(), "remote-v2.db"))
 
     def get_files_by_revid(self, revid):
         raise KeyError(revid)
@@ -235,34 +244,131 @@ class SqliteIdmap(Idmap):
         self.db.execute("insert into revision (revid, csid, manifest_id, mapping) values (?, ?, ?, ?)", (revid, changeset_id, manifest_id, str(mapping)))
 
 
-def check_pysqlite_version(sqlite3):
-    """Check that sqlite library is compatible.
+class BzrHgCacheFormat(object):
+    """Bazaar-Hg Cache Format."""
 
-    """
-    if (sqlite3.sqlite_version_info[0] < 3 or
-            (sqlite3.sqlite_version_info[0] == 3 and
-             sqlite3.sqlite_version_info[1] < 3)):
-        trace.warning('Needs at least sqlite 3.3.x')
-        raise bzrlib.errors.BzrError("incompatible sqlite library")
+    def get_format_string(self):
+        """Return a single-line unique format string for this cache format."""
+        raise NotImplementedError(self.get_format_string)
 
+    def open(self, transport):
+        """Open this format on a transport."""
+        raise NotImplementedError(self.open)
+
+    def initialize(self, transport):
+        """Create a new instance of this cache format at transport."""
+        transport.put_bytes('format', self.get_format_string())
+
+    @classmethod
+    def from_transport(self, transport):
+        """Open a cache file present on a transport, or initialize one.
+
+        :param transport: Transport to use
+        :return: A BzHgCache instance
+        """
+        try:
+            format_name = transport.get_bytes('format')
+            format = formats.get(format_name)
+        except errors.NoSuchFile:
+            format = formats.get('default')
+            format.initialize(transport)
+        return format.open(transport)
+
+    @classmethod
+    def from_repository(cls, repository):
+        """Open a cache file for a repository.
+
+        This will use the repository's transport to store the cache file, or
+        use the users global cache directory if the repository has no 
+        transport associated with it.
+
+        :param repository: Repository to open the cache for
+        :return: A `BzrHgCache`
+        """
+        repo_transport = getattr(repository, "_transport", None)
+        if repo_transport is not None:
+            # Even if we don't write to this repo, we should be able
+            # to update its cache.
+            repo_transport = remove_readonly_transport_decorator(repo_transport)
+            try:
+                repo_transport.mkdir('hg')
+            except errors.FileExists:
+                pass
+            transport = repo_transport.clone('hg')
+        else:
+            transport = get_remote_cache_transport()
+        return cls.from_transport(transport)
+
+
+class SqliteBzrHgCacheFormat(BzrHgCacheFormat):
+
+    def get_format_string(self):
+        return 'bzr-hg sqlite cache v1\n'
+
+    def open(self, transport):
+        return SqliteIdmap(transport.local_abspath('idmap.db'))
+
+
+class TdbBzrHgCacheFormat(BzrHgCacheFormat):
+
+    def get_format_string(self):
+        return 'bzr-hg tdb cache v1\n'
+
+    def open(self, transport):
+        return TdbIdmap(transport.local_abspath('idmap.tdb'))
+
+
+formats = registry.Registry()
+formats.register(TdbBzrHgCacheFormat().get_format_string(),
+    TdbBzrHgCacheFormat())
+formats.register(SqliteBzrHgCacheFormat().get_format_string(),
+    SqliteBzrHgCacheFormat())
 try:
-    try:
-        import sqlite3
-        check_pysqlite_version(sqlite3)
-    except (ImportError, bzrlib.errors.BzrError), e:
-        from pysqlite2 import dbapi2 as sqlite3
-        check_pysqlite_version(sqlite3)
-except:
-    trace.warning('Needs at least Python2.5 or Python2.4 with the pysqlite2 '
-            'module')
-    raise errors.BzrError("missing sqlite library")
+    import tdb
+except ImportError:
+    formats.register('default', SqliteBzrHgCacheFormat())
+else:
+    formats.register('default', TdbBzrHgCacheFormat())
+
+
+def get_remote_cache_transport():
+    return get_transport(get_cache_dir())
+
+
+def remove_readonly_transport_decorator(transport):
+    if transport.is_readonly():
+        return transport._decorated
+    return transport
+
+
+def migrate_ancient_formats(repo_transport):
+    # Prefer migrating hg-v2.db over hg.tdb, since the latter may not
+    # be openable on some platforms.
+    if repo_transport.has("hg-v2.db"):
+        SqliteBzrHgCacheFormat().initialize(repo_transport.clone("hg"))
+        repo_transport.rename("hg-v2.db", "hg/idmap.db")
+    elif repo_transport.has("hg.tdb"):
+        TdbBzrHgCacheFormat().initialize(repo_transport.clone("hg"))
+        repo_transport.rename("hg.tdb", "hg/idmap.tdb")
 
 
 def from_repository(repository):
-    try:
-        return TdbIdmap.from_repository(repository)
-    except ImportError:
-        return SqliteIdmap.from_repository(repository)
+    """Open a cache file for a repository.
 
+    If the repository is remote and there is no transport available from it
+    this will use a local file in the users cache directory
+    (typically ~/.cache/bazaar/hg/)
 
-
+    :param repository: A repository object
+    """
+    repo_transport = getattr(repository, "_transport", None)
+    if repo_transport is not None:
+        # Migrate older cache formats
+        repo_transport = remove_readonly_transport_decorator(repo_transport)
+        try:
+            repo_transport.mkdir("hg")
+        except errors.FileExists:
+            pass
+        else:
+            migrate_ancient_formats(repo_transport)
+    return BzrHgCacheFormat.from_repository(repository)

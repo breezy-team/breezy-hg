@@ -185,7 +185,8 @@ def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
             else:
                 entry_factory = InventoryFile
             ie = entry_factory(fileid, basename, parent_id)
-            ie.executable = ('x' in f)
+            if ie.kind == "file":
+                ie.executable = ('x' in f)
             if utf8_path not in files:
                 # Not changed in this revision, so pick one of the parents
                 if (manifest.get(utf8_path) == basis_manifest.get(utf8_path) and
@@ -194,14 +195,17 @@ def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
                 else:
                     orig_inv = other_inv
                 ie.revision = orig_inv[fileid].revision
-                ie.text_sha1 = orig_inv[fileid].text_sha1
-                ie.text_size = orig_inv[fileid].text_size
-                ie.symlink_target = orig_inv[fileid].symlink_target
+                if ie.kind == "symlink":
+                    ie.symlink_target = orig_inv[fileid].symlink_target
+                elif ie.kind == "file":
+                    ie.text_sha1 = orig_inv[fileid].text_sha1
+                    ie.text_size = orig_inv[fileid].text_size
             else:
                 ie.revision = revid
-                ie.text_sha1, ie.text_size = lookup_metadata(
-                    (fileid, ie.revision))
-                if ie.kind == "symlink":
+                if ie.kind == "file":
+                    ie.text_sha1, ie.text_size = lookup_metadata(
+                        (fileid, ie.revision))
+                elif ie.kind == "symlink":
                     ie.symlink_target = lookup_symlink((fileid, ie.revision))
             yield (old_path, path, fileid, ie)
     # Remove empty directories

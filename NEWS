@@ -24,6 +24,9 @@
   * New 'bzr hg-import' command similar to 'bzr svn-import' and 
     'bzr git-import'. (Jelmer Vernooij)
 
+  * Put idmap information in a bzr-hg-specific directory. (Jelmer Vernooij,
+    #599397)
+
  BUG FIXES
 
   * Mark as compatible with Bazaar 2.1. (Jelmer Vernooij)

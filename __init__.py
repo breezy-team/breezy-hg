@@ -31,7 +31,6 @@ from info import (
 
 bzrlib.api.require_any_api(bzrlib, bzr_compatible_versions)
 
-import bzrlib.bzrdir
 from bzrlib import (
     errors,
     trace,
@@ -43,6 +42,23 @@ import bzrlib.lockable_files
 from bzrlib.send import (
     format_registry as send_format_registry,
     )
+
+try:
+    from bzrlib.controldir import (
+        ControlDirFormat,
+        ControlDir,
+        )
+except ImportError:
+    # bzr < 2.3
+    from bzrlib.bzrdir import (
+        BzrDirFormat,
+        BzrDir,
+        )
+    ControlDirFormat = BzrDirFormat
+    ControlDir = BzrDir
+    has_controldir = False
+else:
+    has_controldir = True
 
 _mercurial_loaded = False
 LockWarner = bzrlib.lockable_files._LockWarner
@@ -135,8 +151,16 @@ class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
         self._lock_warner = LockWarner(repr(self))
 
 
-class HgDir(bzrlib.bzrdir.BzrDir):
+class HgDir(ControlDir):
     """An adapter to the '.hg' dir used by mercurial."""
+
+    @property
+    def user_transport(self):
+        return self.root_transport
+
+    @property
+    def control_transport(self):
+        return self.transport
 
     def __init__(self, hgrepo, transport, lockfiles, format):
         self._format = format
@@ -200,7 +224,7 @@ class HgDir(bzrlib.bzrdir.BzrDir):
             raise errors.NoColocatedBranchSupport(self)
         if branch_format is None:
             return self.transport
-        if isinstance(branch_format, HgBzrDirFormat):
+        if isinstance(branch_format, HgControlDirFormat):
             return self.transport
         raise errors.IncompatibleFormat(branch_format, self._format)
 
@@ -211,7 +235,7 @@ class HgDir(bzrlib.bzrdir.BzrDir):
         return True
 
     def needs_format_conversion(self, format=None):
-        return (format is not HgBzrDirFormat)
+        return (format is not HgControlDirFormat)
 
     def open_branch(self, name=None, unsupported=False,
             ignore_fallbacks=False):
@@ -253,7 +277,7 @@ class HgToSomethingConverter(bzrlib.bzrdir.Converter):
     def __init__(self, format):
         self.format = format
         if self.format is None:
-            self.format = bzrlib.bzrdir.BzrDirFormat.get_default_format()
+            self.format = ControlDirFormat.get_default_format()
 
     def convert(self, bzrdir, pb):
         source_repo = bzrdir.open_repository()
@@ -268,11 +292,11 @@ class HgToSomethingConverter(bzrlib.bzrdir.Converter):
         return target
 
 
-class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
+class HgControlDirFormat(ControlDirFormat):
     """The .hg directory control format."""
 
     def __init__(self):
-        super(HgBzrDirFormat, self).__init__()
+        super(HgControlDirFormat, self).__init__()
         self.workingtree_format = None
 
     def get_converter(self, format):
@@ -294,12 +318,13 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
 
     @classmethod
     def _known_formats(self):
-        return set([HgBzrDirFormat()])
+        return set([HgControlDirFormat()])
 
     def open(self, transport, _create=False, _found=None):
         """Open this directory.
 
-        :param _create: create the hg dir on the fly. private to HgBzrDirFormat.
+        :param _create: create the hg dir on the fly. private to
+            HgControlDirFormat.
         """
         # we dont grok readonly - hg isn't integrated with transport.
         if transport.base.startswith('readonly+'):
@@ -343,10 +368,13 @@ class HgBzrDirFormat(bzrlib.bzrdir.BzrDirFormat):
         return format
 
 
-bzrlib.bzrdir.BzrDirFormat.register_control_format(HgBzrDirFormat)
+if has_controldir:
+    ControlDirFormat.register_format(HgControlDirFormat)
+else:
+    ControlDirFormat.register_control_format(HgControlDirFormat)
 
 bzrlib.bzrdir.format_registry.register("hg",
-    HgBzrDirFormat, "Mercurial repository. ", native=False, hidden=False)
+    HgControlDirFormat, "Mercurial repository. ", native=False, hidden=False)
 
 send_format_registry.register_lazy('hg', 'bzrlib.plugins.hg.send',
                                    'send_hg', 'Mecurial bundle format')

@@ -16,10 +16,10 @@
 
 
 from bzrlib.plugins.hg import (
-    HgBzrDirFormat,
+    HgControlDirFormat,
     )
 
 class ForeignTestsRepositoryFactory(object):
 
     def make_repository(self, transport):
-        return HgBzrDirFormat().initialize_on_transport(transport).open_repository()
+        return HgControlDirFormat().initialize_on_transport(transport).open_repository()

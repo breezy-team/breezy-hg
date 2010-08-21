@@ -15,7 +15,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 from bzrlib.inventory import Inventory
-from bzrlib.plugins.hg import HgBzrDirFormat
+from bzrlib.plugins.hg import HgControlDirFormat
 from bzrlib.tests import TestCaseWithTransport
 
 import base64
@@ -30,7 +30,7 @@ class TestPulling(TestCaseWithTransport):
     def setUp(self):
         super(TestPulling, self).setUp()
         self.build_tree(['hg/', 'hg/a', 'hg/b', 'hg/dir/', 'hg/dir/c'])
-        hgdir = HgBzrDirFormat().initialize('hg')
+        hgdir = HgControlDirFormat().initialize('hg')
         self.tree = hgdir.open_workingtree()
         mode = os.lstat('hg/b').st_mode
         os.chmod('hg/b', mode | stat.S_IEXEC)

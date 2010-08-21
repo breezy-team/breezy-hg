@@ -19,7 +19,7 @@ from bzrlib.tests import (
     )
 
 from bzrlib.plugins.hg import (
-    HgBzrDirFormat,
+    HgControlDirFormat,
     )
 from bzrlib.plugins.hg.branch import (
     HgBranchFormat,
@@ -35,6 +35,6 @@ class BranchFormatTests(TestCase):
 class ForeignTestsBranchFactory(object):
 
     def make_empty_branch(self, transport):
-        return HgBzrDirFormat().initialize_on_transport(transport).open_branch()
+        return HgControlDirFormat().initialize_on_transport(transport).open_branch()
 
     make_branch = make_empty_branch

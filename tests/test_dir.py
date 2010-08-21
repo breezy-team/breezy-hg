@@ -23,20 +23,20 @@ from bzrlib.tests import (
     )
 
 from bzrlib.plugins.hg import (
-    HgBzrDirFormat,
+    HgControlDirFormat,
     )
 
 
-class HgBzrDirFormatTests(TestCase):
+class HgControlDirFormatTests(TestCase):
 
     def test_eq(self):
-        format1 = HgBzrDirFormat()
-        format2 = HgBzrDirFormat()
+        format1 = HgControlDirFormat()
+        format2 = HgControlDirFormat()
         self.assertEquals(format1, format2)
         self.assertEquals(format1, format1)
         bzr_format = format_registry.make_bzrdir("default")
         self.assertNotEquals(bzr_format, format1)
 
     def test_network_name(self):
-        format = HgBzrDirFormat()
+        format = HgControlDirFormat()
         self.assertEquals("hg", format.network_name())

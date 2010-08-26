@@ -151,6 +151,15 @@ class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
         self._lock_warner = LockWarner(repr(self))
 
 
+class HgControlDirConfig(object):
+
+    def get_default_stack_on(self):
+        return None
+
+    def set_default_stack_on(self, value):
+        raise errors.BzrError("Cannot set configuration")
+
+
 class HgDir(ControlDir):
     """An adapter to the '.hg' dir used by mercurial."""
 
@@ -269,6 +278,9 @@ class HgDir(ControlDir):
 
     def cloning_metadir(self, stacked=False):
         return bzrlib.bzrdir.format_registry.make_bzrdir("default-rich-root")
+
+    def get_config(self):
+        return HgControlDirConfig()
 
 
 class HgToSomethingConverter(bzrlib.bzrdir.Converter):

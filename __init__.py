@@ -369,9 +369,21 @@ class HgControlDirFormat(ControlDirFormat):
 
 
 if has_controldir:
-    ControlDirFormat.register_format(HgControlDirFormat)
+    ControlDirFormat.register_format(HgControlDirFormat())
 else:
     ControlDirFormat.register_control_format(HgControlDirFormat)
+
+try:
+    from bzrlib.controldir import (
+        network_format_registry as controldir_network_format_registry,
+        )
+except ImportError:
+    from bzrlib.bzrdir import (
+        network_format_registry as controldir_network_format_registry,
+        )
+
+controldir_network_format_registry.register("hg",
+    HgControlDirFormat)
 
 bzrlib.bzrdir.format_registry.register("hg",
     HgControlDirFormat, "Mercurial repository. ", native=False, hidden=False)

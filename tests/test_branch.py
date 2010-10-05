@@ -28,7 +28,7 @@ from bzrlib.plugins.hg.branch import (
 class BranchFormatTests(TestCase):
 
     def test_description(self):
-        self.assertEquals("Mercurial Branch", 
+        self.assertEquals("Mercurial Branch",
             HgBranchFormat().get_format_description())
 
 

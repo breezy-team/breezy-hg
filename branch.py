@@ -39,6 +39,9 @@ from bzrlib.foreign import (
 from bzrlib.repository import (
     InterRepository,
     )
+from bzrlib.tag import (
+    BasicTags,
+    )
 
 from bzrlib.plugins.hg.changegroup import (
     dchangegroup,
@@ -46,6 +49,19 @@ from bzrlib.plugins.hg.changegroup import (
 
 class NoPushSupport(errors.BzrError):
     _fmt = "Push is not yet supported for bzr-hg. Try dpush instead."
+
+
+class HgTags(BasicTags):
+
+    def __init__(self, branch):
+        self.branch = branch
+
+    def get_tag_dict(self):
+        ret = {}
+        hgtags = self.branch.repository._hgrepo.tags()
+        for name, value in hgtags.iteritems():
+            ret[name] = self.branch.repository.lookup_foreign_revision_id(value)
+        return ret
 
 
 class HgBranchFormat(BranchFormat):
@@ -63,9 +79,17 @@ class HgBranchFormat(BranchFormat):
     def network_name(self):
         return "hg"
 
+    def supports_tags(self):
+        """True if this format supports tags stored in the branch"""
+        return True
+
     def get_foreign_tests_branch_factory(self):
         from bzrlib.plugins.hg.tests.test_branch import ForeignTestsBranchFactory
         return ForeignTestsBranchFactory()
+
+    def make_tags(self, branch):
+        """See bzrlib.branch.BranchFormat.make_tags()."""
+        return HgTags(branch)
 
 
 class HgBranchConfig(object):

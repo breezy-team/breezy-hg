@@ -27,6 +27,8 @@
   * Put idmap information in a bzr-hg-specific directory. (Jelmer Vernooij,
     #599397)
 
+  * Add basic support for tags. (Jelmer Vernooij)
+
  BUG FIXES
 
   * Mark as compatible with Bazaar 2.1. (Jelmer Vernooij)

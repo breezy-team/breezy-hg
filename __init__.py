@@ -47,6 +47,7 @@ try:
     from bzrlib.controldir import (
         ControlDirFormat,
         ControlDir,
+        Prober,
         )
 except ImportError:
     # bzr < 2.3
@@ -56,6 +57,7 @@ except ImportError:
         )
     ControlDirFormat = BzrDirFormat
     ControlDir = BzrDir
+    Prober = object
     has_controldir = False
 else:
     has_controldir = True
@@ -304,6 +306,32 @@ class HgToSomethingConverter(bzrlib.bzrdir.Converter):
         return target
 
 
+class HgProber(Prober):
+
+    def probe_transport(self, transport):
+        # little ugly, but works
+        format = HgControlDirFormat()
+        from bzrlib.transport.local import LocalTransport
+        lazy_load_mercurial()
+        from mercurial import error as hg_errors
+        if isinstance(transport, LocalTransport) and not transport.has(".hg"):
+            # Explicitly check for .hg directories here, so we avoid
+            # loading foreign branches through Mercurial.
+            raise errors.NotBranchError(path=transport.base)
+        import urllib2
+        try:
+            format.open(transport)
+        except hg_errors.RepoError, e:
+            raise errors.NotBranchError(path=transport.base)
+        except hg_errors.Abort, e:
+            trace.mutter('not a hg branch: %s', e)
+            raise errors.NotBranchError(path=transport.base)
+        except urllib2.HTTPError, e:
+            trace.mutter('not a hg branch: %s', e)
+            raise errors.NotBranchError(path=transport.base)
+        return format
+
+
 class HgControlDirFormat(ControlDirFormat):
     """The .hg directory control format."""
 
@@ -356,31 +384,12 @@ class HgControlDirFormat(ControlDirFormat):
 
     @classmethod
     def probe_transport(klass, transport):
-        """Our format is present if the transport ends in '.not/'."""
-        # little ugly, but works
-        format = klass()
-        from bzrlib.transport.local import LocalTransport
-        lazy_load_mercurial()
-        from mercurial import error as hg_errors
-        if isinstance(transport, LocalTransport) and not transport.has(".hg"):
-            # Explicitly check for .hg directories here, so we avoid
-            # loading foreign branches through Mercurial.
-            raise errors.NotBranchError(path=transport.base)
-        import urllib2
-        try:
-            format.open(transport)
-        except hg_errors.RepoError, e:
-            raise errors.NotBranchError(path=transport.base)
-        except hg_errors.Abort, e:
-            trace.mutter('not a hg branch: %s', e)
-            raise errors.NotBranchError(path=transport.base)
-        except urllib2.HTTPError, e:
-            trace.mutter('not a hg branch: %s', e)
-            raise errors.NotBranchError(path=transport.base)
-        return format
+        prober = HgProber()
+        return prober.probe_transport(transport)
 
 
 if has_controldir:
+    ControlDirFormat.register_prober(HgProber)
     ControlDirFormat.register_format(HgControlDirFormat())
 else:
     ControlDirFormat.register_control_format(HgControlDirFormat)

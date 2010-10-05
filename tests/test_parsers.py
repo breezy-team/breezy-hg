@@ -17,13 +17,15 @@
 import mercurial
 
 from bzrlib.plugins.hg.parsers import (
+    deserialize_file_text,
     format_changeset,
     parse_changeset,
+    serialize_file_text,
     )
 from bzrlib.tests import (
     TestCase,
     )
-       
+
 class ChangesetFormatterTests(TestCase):
 
     def test_simple(self):
@@ -116,3 +118,12 @@ myfile
 Some
 commit
 message"""))
+
+
+class TextSerializers(TestCase):
+
+    def test_serialize(self):
+        self.assertEquals("\1\ncopy: bla\n\1\nfoo\n", serialize_file_text({"copy": "bla"}, "foo\n"))
+
+    def test_deserialize(self):
+        self.assertEquals(({"copy": "bla"}, "foo\n"), deserialize_file_text("\1\ncopy: bla\n\1\nfoo\n"))

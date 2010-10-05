@@ -179,3 +179,23 @@ def format_manifest(manifest, flags):
             node = mercurial.node.hex(node)
         lines.append("%s\0%s%s\n" % (path, node, flags.get(path, "")))
     return "".join(lines)
+
+
+def serialize_file_text(meta, text):
+    if meta or text.startswith('\1\n'):
+        mt = ["%s: %s\n" % (k, v) for k, v in sorted(meta.iteritems())]
+        text = "\1\n%s\1\n%s" % ("".join(mt), text)
+    return text
+
+
+def deserialize_file_text(text):
+    if not text.startswith("\1\n"):
+        return ({}, text)
+    s = text.index('\1\n', 2)
+    mt = text[2:s]
+    meta = {}
+    for l in mt.splitlines():
+        k, v = l.split(": ", 1)
+        meta[k] = v
+    return meta, text[s+2:]
+

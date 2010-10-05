@@ -70,6 +70,7 @@ from bzrlib.plugins.hg.overlay import (
     get_overlay,
     )
 from bzrlib.plugins.hg.parsers import (
+    deserialize_file_text,
     parse_changeset,
     parse_manifest,
     unpack_chunk_iter,
@@ -363,7 +364,7 @@ class FromHgRepository(InterRepository):
                         self._symlink_targets[key] = fulltext
                         bzr_fulltext = ""
                     else:
-                        bzr_fulltext = fulltext
+                        (meta, bzr_fulltext) = deserialize_file_text(fulltext)
                     record = FulltextContentFactory(key, [(fileid, p) for p in parents], osutils.sha_string(bzr_fulltext), bzr_fulltext)
                     self._text_metadata[key] = (record.sha1, len(bzr_fulltext))
                     yield record
@@ -514,7 +515,8 @@ class FromHgRepository(InterRepository):
         todo = []
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            self._target_overlay.remember_manifest_texts(self._unpack_manifests(manifestchunks, mapping, filetext_map, todo, pb))
+            self._target_overlay.remember_manifest_texts(
+                self._unpack_manifests(manifestchunks, mapping, filetext_map, todo, pb))
         finally:
             pb.finished()
         # Texts

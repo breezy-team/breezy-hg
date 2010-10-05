@@ -63,6 +63,12 @@ class HgTags(BasicTags):
             ret[name] = self.branch.repository.lookup_foreign_revision_id(value)
         return ret
 
+    def set_tag(self, name, value):
+        self.branch.repository._hgrepo.tag([name], self.branch.repository.lookup_bzr_revision_id(value)[0], 
+            "Create tag %s" % name,
+            True,
+            self.branch.get_config().username(), None)
+
 
 class HgBranchFormat(BranchFormat):
     """Mercurial Branch Format.
@@ -101,6 +107,9 @@ class HgBranchConfig(object):
     def __init__(self, branch):
         self._branch = branch
         self._ui = branch.repository._hgrepo.ui
+
+    def username(self):
+        return self._ui.config("username", "default")
 
     def get_nickname(self):
         # remove the trailing / and take the basename.

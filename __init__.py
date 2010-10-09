@@ -25,7 +25,7 @@ import bzrlib.api
 
 from info import (
     bzr_compatible_versions,
-    hg_compatible_versions,
+    hg_compatible_version_strings,
     bzr_plugin_version as version_info,
     )
 
@@ -79,7 +79,7 @@ def lazy_load_mercurial():
     from mercurial.__version__ import version as hg_version
     if hg_version != "unknown":
         hg_major_version = ".".join(hg_version.split(".")[:2])
-        if hg_major_version not in hg_compatible_versions and not "+" in hg_version:
+        if hg_major_version not in hg_compatible_version_strings and not "+" in hg_version:
             raise errors.DependencyNotPresent("mercurial",
                 'bzr-hg: Mercurial version %s not supported.' % hg_version)
     trace.mutter("bzr-hg: using Mercurial %s" % hg_version)

@@ -175,6 +175,7 @@ def manifest_and_flags_from_tree(parent_trees, tree, mapping, parent_node_lookup
     :param parent_node_lookup: 2-tuple with functions to look up the nodes
         of paths in the tree's parents
     """
+    assert len(parent_node_lookup) == 2
     unusual_fileids = {}
     def get_text_parents(path):
         assert type(path) == str
@@ -184,6 +185,7 @@ def manifest_and_flags_from_tree(parent_trees, tree, mapping, parent_node_lookup
                 ret.append(lookup(path))
             except KeyError:
                 ret.append(mercurial.node.nullid)
+        assert len(ret) == 2
         return tuple(ret)
     manifest = {}
     flags = {}

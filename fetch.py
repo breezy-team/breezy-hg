@@ -265,7 +265,10 @@ def check_roundtrips(repository, mapping, revid, expected_files,
     if expected_files != files:
         raise AssertionError
     lookup = [m.__getitem__ for m, f in manifest_parents[:2]]
-    (manifest, flags) = manifest_and_flags_from_tree(parent_trees, tree,
+    for i in range(2):
+        if len(lookup) <= i:
+            lookup.append({}.__getitem__)
+    (manifest, flags, unusual_fileids) = manifest_and_flags_from_tree(parent_trees, tree,
         mapping, lookup)
     if set(manifest.keys()) != set(expected_manifest.keys()):
         raise AssertionError("Different contents in manifests: %r, %r" %

@@ -53,7 +53,7 @@ class TestPulling(TestCaseWithTransport):
             file_id='hg:dir')
         entry.revision = tip
         entry = revone_inventory.add_path('dir/c', kind='file',
-            file_id='hg:dir:c')
+            file_id='hg:dir_sc')
         entry.revision = tip
         entry.text_size = len('contents of hg/dir/c\n')
         entry.text_sha1 = "958be752affac0fee70471331b96fb3fc1809425"
@@ -68,7 +68,7 @@ class TestPulling(TestCaseWithTransport):
         self.revtwo_inventory = copy.deepcopy(revone_inventory)
         tip = self.tree.last_revision()
         entry = self.revtwo_inventory.add_path('dir/d', kind='file',
-            file_id='hg:dir:d')
+            file_id='hg:dir_sd')
         entry.revision = tip
         entry.text_size = len('contents of hg/dir/d\n')
         entry.text_sha1 = "f48fc342f707bfb4711790e1813c0df4d44e1a23"
@@ -91,7 +91,7 @@ class TestPulling(TestCaseWithTransport):
         self.tree.commit('change dir/c')
         self.revfour_inventory = copy.deepcopy(self.revthree_inventory)
         tip = self.tree.last_revision()
-        entry = self.revfour_inventory['hg:dir:c']
+        entry = self.revfour_inventory['hg:dir_sc']
         entry.revision = tip
         entry.text_size = len('new contents')
         entry.text_sha1 = "7ffa72b76d5d66da37f4b614b7a822c01f23c183"

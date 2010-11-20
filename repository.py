@@ -126,6 +126,7 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
             return ancestry_cache[some_revision_id]
         except KeyError:
             pass
+        assert some_revision_id in all_relevant_revisions
         ancestry = set()
         # add what can be reached from some_revision_id
         # TODO: must factor this trivial iteration in bzrlib.graph cleanly.
@@ -348,13 +349,25 @@ class HgLocalRepository(HgRepository):
         except errors.InvalidRevisionId:
             raise errors.NoSuchRevision(self, revision_id)
 
+    def get_parent_map(self, revids):
+        ret = {}
+        for revid in revids:
+            hgrevid, mapping = self.lookup_bzr_revision_id(revid)
+            # FIXME: what about extra parents?
+            hgparents = self._hgrepo.changelog.parents(hgrevid)
+            ret[revid] = as_bzr_parents(hgparents, self.lookup_foreign_revision_id)
+        return ret
+
     def get_revision(self, revision_id):
         assert type(revision_id) is str, "revid is %r" % revision_id
         hgrevid, mapping = self.lookup_bzr_revision_id(revision_id)
+        assert mapping is not None
         hgchange = self._hgrepo.changelog.read(hgrevid)
         hgparents = self._hgrepo.changelog.parents(hgrevid)
         parent_ids = as_bzr_parents(hgparents, self.lookup_foreign_revision_id)
-        return mapping.import_revision(revision_id, parent_ids, hgrevid, hgchange[0], hgchange[1].decode("utf-8"), hgchange[2], hgchange[4].decode("utf-8"), hgchange[5])[0]
+        return mapping.import_revision(revision_id, parent_ids, hgrevid,
+            hgchange[0], hgchange[1].decode("utf-8"), hgchange[2],
+            hgchange[4].decode("utf-8"), hgchange[5])[0]
 
     def iter_inventories(self, revision_ids, ordering=None):
         for revid in revision_ids:
@@ -365,6 +378,7 @@ class HgLocalRepository(HgRepository):
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
         all_relevant_revisions = self.get_ancestry(revision_id)[1:] + [NULL_REVISION]
+
         pb = ui.ui_factory.nested_progress_bar()
         try:
             inv = manifest_to_inventory(self._hgrepo, hgid, log, manifest,

@@ -210,17 +210,20 @@ def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
                     ie.symlink_target = lookup_symlink((fileid, ie.revision))
             yield (old_path, path, fileid, ie)
     # Remove empty directories
-    for path in sorted(maybe_empty_dirs.keys(), reverse=True):
-        if maybe_empty_dirs[path] is None:
-            # Stuff was added to this directory in this revision, don't bother
-            continue
-        file_id = basis_inv.path2id(path)
-        # Is this directory really empty ?
-        if set(basis_inv[file_id].children.keys()) == maybe_empty_dirs[path]:
-            yield (path, None, file_id, None)
-            dirname = os.path.dirname(path)
-            if maybe_empty_dirs[dirname] is not None:
-                maybe_empty_dirs[dirname].add(basis_inv[file_id].name)
+    while maybe_empty_dirs:
+        for path in sorted(maybe_empty_dirs.keys(), reverse=True):
+            removed_children = maybe_empty_dirs.pop(path)
+            if removed_children is None:
+                # Stuff was added to this directory in this revision,
+                # don't bother
+                continue
+            file_id = basis_inv.path2id(path)
+            # Is this directory really empty ?
+            if set(basis_inv[file_id].children.keys()) == removed_children:
+                yield (path, None, file_id, None)
+                dirname = os.path.dirname(path)
+                if maybe_empty_dirs[dirname] is not None:
+                    maybe_empty_dirs[dirname].add(basis_inv[file_id].name)
 
 
 def create_directory_texts(texts, invdelta):

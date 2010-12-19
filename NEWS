@@ -61,6 +61,9 @@
   * Don't allow probing for Mercurial repositories over HTTP to break 
     bzr. (Jelmer Vernooij)
 
+  * Fix recursive removing of parent empty directories. (#691994,
+    Leonid Borisenko)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

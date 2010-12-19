@@ -30,6 +30,7 @@ def test_suite():
         'test_mapping',
         'test_parsers',
         'test_pull',
+        'test_fetch',
         ]
 
     suite.addTest(loader.loadTestsFromModuleNames(["%s.%s" % (__name__, i) for i in testmod_names]))

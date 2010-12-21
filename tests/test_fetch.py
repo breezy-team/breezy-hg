@@ -16,6 +16,8 @@
 
 """Tests for fetching from Mercurial into Bazaar."""
 
+from testtools.matchers import Not, raises
+
 from bzrlib.plugins.hg import HgControlDirFormat
 from bzrlib.plugins.hg.ui import ui as hgui
 from bzrlib.tests import TestCaseWithTransport
@@ -51,3 +53,44 @@ class TestFetching(TestCaseWithTransport):
 
         # Self-assurance check that history was really imported.
         self.failUnlessExists('bzr/f1')
+
+    def test_getting_existing_text_metadata(self):
+        # Create directory of Mercurial repository.
+        self.build_tree(["hg/"])
+
+        # Create Mercurial repository and Bazaar branch to import into.
+        hgrepo = mercurial.localrepo.localrepository(hgui(), "hg", create=True)
+        hgdir = HgControlDirFormat().open(self.get_transport("hg"))
+        hgbranch = hgdir.open_branch()
+        bzrtree = self.make_branch_and_tree("bzr")
+
+        # Create file 'f1' in Mercurial repository, commit it
+        # and pull commited changeset to Bazaar branch.
+        self.build_tree_contents([("hg/f1", "Initial content")])
+        hgrepo[None].add(["f1"])
+        hgrepo.commit("Initial commit")
+        bzrtree.pull(hgbranch)
+
+        # Change content of file 'f1' in Mercurial repository and commit
+        # change.
+        self.build_tree_contents([("hg/f1", "Changed content")])
+        hgrepo.commit("Change content of file f1")
+
+        # Pull commited changeset to Bazaar branch.
+        #
+        # Prefer named function instead lambda to slightly more informative
+        # fail message.
+        def pull_to_bzr_repo_with_existing_text_metadata():
+            bzrtree.pull(hgbranch)
+
+        # Not expected KeyError looked like:
+        #
+        #  <...full traceback skipped...>
+        #  File "/tmp/hg/fetch.py", line 208, in manifest_to_inventory_delta
+        #      (fileid, ie.revision))
+        # KeyError: ('hg:f1', 'hg-v1:97562cfbcf3b26e7eacf17ca9b6f742f98bd0719')
+        self.assertThat(pull_to_bzr_repo_with_existing_text_metadata,
+                        Not(raises(KeyError)))
+
+        # Self-assurance check that changesets was really pulled in.
+        self.assertFileEqual("Changed content", "bzr/f1")

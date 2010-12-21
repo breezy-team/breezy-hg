@@ -349,7 +349,16 @@ class FromHgRepository(InterRepository):
             return self._symlink_targets[key]
         return self._target_overlay.get_file_fulltext(key)
 
-    def _unpack_texts(self, cg, mapping, filetext_map, pb):
+    def _get_target_fulltext_key_from_revision_ancestry(self, fileid, revid):
+        graph = self.target.get_graph()
+        revision_parents_ids = self._revisions[revid].parent_ids
+        for ancestor_revid, _ in graph.iter_ancestry(revision_parents_ids):
+            ids = self.target.fileids_altered_by_revision_ids([ancestor_revid])
+            if fileid in ids:
+                return fileid, ancestor_revid
+
+    def _unpack_texts(self, cg, mapping, filetext_map, first_imported_revid,
+                      pb):
         i = 0
         # Texts
         while 1:
@@ -361,7 +370,11 @@ class FromHgRepository(InterRepository):
             fileid = mapping.generate_file_id(f)
             chunkiter = mercurial.changegroup.chunkiter(cg)
             def get_text(node):
-                key = iter(filetext_map[fileid][node]).next()
+                if node in filetext_map[fileid]:
+                    key = iter(filetext_map[fileid][node]).next()
+                else:
+                    key = self._get_target_fulltext_key_from_revision_ancestry(
+                               fileid, first_imported_revid)
                 return self._get_target_fulltext(key)
             for fulltext, hgkey, hgparents, csid in unpack_chunk_iter(chunkiter, get_text):
                 for revision, (kind, parents) in filetext_map[fileid][hgkey].iteritems():
@@ -529,7 +542,7 @@ class FromHgRepository(InterRepository):
         pb = ui.ui_factory.nested_progress_bar()
         try:
             self.target.texts.insert_record_stream(
-                self._unpack_texts(cg, mapping, filetext_map, pb))
+                self._unpack_texts(cg, mapping, filetext_map, todo[0], pb))
         finally:
             pb.finished()
         # Adding actual data

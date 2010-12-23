@@ -53,9 +53,6 @@ class TestFetching(TestCaseWithTransport):
         self.failUnlessExists("bzr/f1")
 
     def test_getting_existing_text_metadata(self):
-        # Create directory of Mercurial repository.
-        self.build_tree(["hg/"])
-
         # Create Mercurial repository and Bazaar branch to import into.
         hgrepo = mercurial.localrepo.localrepository(hgui(), "hg", create=True)
         hgdir = HgControlDirFormat().open(self.get_transport("hg"))

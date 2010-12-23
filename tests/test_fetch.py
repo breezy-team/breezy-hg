@@ -16,8 +16,6 @@
 
 """Tests for fetching from Mercurial into Bazaar."""
 
-from testtools.matchers import Not, raises
-
 from bzrlib.plugins.hg import HgControlDirFormat
 from bzrlib.plugins.hg.ui import ui as hgui
 from bzrlib.tests import TestCaseWithTransport
@@ -78,19 +76,13 @@ class TestFetching(TestCaseWithTransport):
 
         # Pull commited changeset to Bazaar branch.
         #
-        # Prefer named function instead lambda to slightly more informative
-        # fail message.
-        def pull_to_bzr_repo_with_existing_text_metadata():
-            bzrtree.pull(hgbranch)
-
-        # Not expected KeyError looked like:
+        # Should not raise KeyError which looked like:
         #
         #  <...full traceback skipped...>
         #  File "/tmp/hg/fetch.py", line 208, in manifest_to_inventory_delta
         #      (fileid, ie.revision))
         # KeyError: ('hg:f1', 'hg-v1:97562cfbcf3b26e7eacf17ca9b6f742f98bd0719')
-        self.assertThat(pull_to_bzr_repo_with_existing_text_metadata,
-                        Not(raises(KeyError)))
+        bzrtree.pull(hgbranch)
 
         # Self-assurance check that changesets was really pulled in.
         self.assertFileEqual("Changed content", "bzr/f1")

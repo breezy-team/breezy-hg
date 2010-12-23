@@ -20,6 +20,7 @@ from bzrlib.plugins.hg import HgControlDirFormat
 from bzrlib.plugins.hg.ui import ui as hgui
 from bzrlib.tests import TestCaseWithTransport
 
+from mercurial import hg
 import mercurial.localrepo
 
 class TestFetching(TestCaseWithTransport):
@@ -83,3 +84,126 @@ class TestFetching(TestCaseWithTransport):
 
         # Self-assurance check that changesets was really pulled in.
         self.assertFileEqual("Changed content", "bzr/f1")
+
+    def test_incremental_fetching_of_repository_with_non_conflict_merge(self):
+        # Create Mercurial configuration and override possible definition
+        # of external interactive merge tools.
+        ui = hgui()
+        ui.setconfig("ui", "merge", "internal:merge")
+
+        # Create Mercurial repository and Bazaar branch to import into.
+        hgrepo = mercurial.localrepo.localrepository(ui, "hg", create=True)
+        hgdir = HgControlDirFormat().open(self.get_transport("hg"))
+        hgbranch = hgdir.open_branch()
+        bzrtree = self.make_branch_and_tree("bzr")
+
+        # Create history graph in Mercurial repository
+        # (history flows from left to right):
+        #
+        # A--B--D
+        # |
+        # \--C
+        self.build_tree_contents([("hg/f1", "f1")])
+        hgrepo[None].add(["f1"])
+        hgrepo.commit("A (initial commit; first commit to main branch)")
+        self.build_tree_contents([("hg/f2", "f2")])
+        hgrepo[None].add(["f2"])
+        hgrepo.commit("B (second commit to main branch)")
+        hg.update(hgrepo, 0)
+        self.build_tree_contents([("hg/f3", "f3")])
+        hgrepo[None].add(["f3"])
+        hgrepo.commit("C (first commit to secondary branch)")
+        hg.update(hgrepo, 1)
+        self.build_tree_contents([("hg/f4", "f4")])
+        hgrepo[None].add(["f4"])
+        hgrepo.commit("D (third commit to main branch)")
+
+        # Pull commited changesets to Bazaar branch.
+        bzrtree.pull(hgbranch)
+
+        # Continue history graph in Mercurial repository
+        # (history flows from up to down):
+        #
+        # a--b--d--E
+        # |       |
+        # \--c--F-/
+        hg.update(hgrepo, 2)
+        self.build_tree_contents([("hg/f5", "f5")])
+        hgrepo[None].add(["f5"])
+        hgrepo.commit("F (second commit to secondary branch)")
+        hg.update(hgrepo, 3)
+        hg.merge(hgrepo, 4)
+        hgrepo.commit("E (commit merge of main branch with secondary branch)")
+
+        # Pull commited changesets to Bazaar branch.
+        bzrtree.pull(hgbranch)
+
+        # Self-assurance check that all changesets was really pulled in.
+        for i in range(1, 6):
+            file_content = "f%d" % i
+            file_path = "bzr/%s" % file_content
+            self.assertFileEqual(file_content, file_path)
+
+    def test_incremental_fetching_of_repository_with_conflict_merge(self):
+        # Create Mercurial configuration and override possible definition
+        # of external interactive merge tools.
+        ui = hgui()
+        ui.setconfig("ui", "merge", "internal:local")
+
+        # Create Mercurial repository and Bazaar branch to import into.
+        hgrepo = mercurial.localrepo.localrepository(ui, "hg", create=True)
+        hgdir = HgControlDirFormat().open(self.get_transport("hg"))
+        hgbranch = hgdir.open_branch()
+        bzrtree = self.make_branch_and_tree("bzr")
+
+        # Create history graph with conflict in Mercurial repository
+        # (history flows from left to right, conflict made at commits B and C):
+        #
+        # A--B--D
+        # |
+        # \--C
+        self.build_tree_contents([("hg/f1", "f1")])
+        hgrepo[None].add(["f1"])
+        hgrepo.commit("A (initial commit; first commit to main branch)")
+        self.build_tree_contents([("hg/conflict_file", "Main branch")])
+        hgrepo[None].add(["conflict_file"])
+        hgrepo.commit("B (second commit to main branch)")
+        hg.update(hgrepo, 0)
+        self.build_tree_contents([("hg/conflict_file", "Secondary branch")])
+        hgrepo[None].add(["conflict_file"])
+        hgrepo.commit("C (first commit to secondary branch)")
+        hg.update(hgrepo, 1)
+        self.build_tree_contents([("hg/f2", "f2")])
+        hgrepo[None].add(["f2"])
+        hgrepo.commit("D (third commit to main branch)")
+
+        # Pull commited changesets to Bazaar branch.
+        bzrtree.pull(hgbranch)
+
+        # Continue history graph in Mercurial repository
+        # (history flows from up to down):
+        #
+        # a--b--d--E
+        # |       |
+        # \--c--F-/
+        hg.update(hgrepo, 2)
+        self.build_tree_contents([("hg/f3", "f3")])
+        hgrepo[None].add(["f3"])
+        hgrepo.commit("F (second commit to secondary branch)")
+        hg.update(hgrepo, 3)
+        hg.merge(hgrepo, 4)
+        self.build_tree_contents([("hg/conflict_file",
+                                   "Main branch\nSecondary branch")])
+        hgrepo.commit("E (commit merge of main branch with secondary branch)")
+
+        # Pull commited changesets to Bazaar branch.
+        bzrtree.pull(hgbranch)
+
+        # Self-assurance check that all changesets was really pulled in.
+        for i in range(1, 4):
+            file_content = "f%d" % i
+            file_path = "bzr/%s" % file_content
+            self.assertFileEqual(file_content, file_path)
+
+        self.assertFileEqual("bzr/conflict_file",
+                             "Main branch\nSecondary branch")

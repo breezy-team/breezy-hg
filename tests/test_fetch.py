@@ -42,15 +42,15 @@ class TestFetching(TestCaseWithTransport):
         hgrepo.commit("Remove file f2, so parent directories d2, d1 are empty")
 
         # Import history from Mercurial repository into Bazaar repository.
-        bzrtree = self.make_branch_and_tree('bzr')
-        hgdir = HgControlDirFormat().open(self.get_transport('hg'))
+        bzrtree = self.make_branch_and_tree("bzr")
+        hgdir = HgControlDirFormat().open(self.get_transport("hg"))
         bzrtree.pull(hgdir.open_branch())
 
         # As file f2 was deleted, directories d1 and d2 should not exists.
-        self.failIfExists('bzr/d1')
+        self.failIfExists("bzr/d1")
 
         # Self-assurance check that history was really imported.
-        self.failUnlessExists('bzr/f1')
+        self.failUnlessExists("bzr/f1")
 
     def test_getting_existing_text_metadata(self):
         # Create directory of Mercurial repository.

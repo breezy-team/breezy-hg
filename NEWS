@@ -64,6 +64,9 @@
   * Fix recursive removing of parent empty directories. (#691994,
     Leonid Borisenko)
 
+  * WorkingTree.commit()'s message argument is now optional, consistent
+    with bzr.dev. (#692902, Jelmer Vernooij)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

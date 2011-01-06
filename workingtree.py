@@ -67,7 +67,7 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self._hgrepo[None].add(paths)
 
     @needs_write_lock
-    def commit(self, message, revprops=None, *args, **kwargs):
+    def commit(self, message=None, revprops=None, *args, **kwargs):
         # TODO: selected file lists -> match function
         if revprops is None:
             extra = {}

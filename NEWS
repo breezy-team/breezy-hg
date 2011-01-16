@@ -31,7 +31,7 @@
 
  BUG FIXES
 
-  * Mark as compatible with Bazaar 2.1, 2.2 and 2.3. (Jelmer Vernooij)
+  * Mark as compatible with Bazaar 2.1, 2.2, 2.3 and 2.4. (Jelmer Vernooij)
 
   * Check for Mercurial version before attempting to import it.
     (#432100, Jelmer Vernooij)

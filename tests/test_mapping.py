@@ -25,6 +25,8 @@ from mercurial.node import (
 from bzrlib.plugins.hg.mapping import (
     ExperimentalHgMapping,
     HgMappingv1,
+    convert_converted_from,
+    generate_convert_revision,
     as_bzr_parents,
     as_hg_parents,
     escape_path,
@@ -41,7 +43,7 @@ from bzrlib.revision import (
 from bzrlib.tests import (
     TestCase,
     )
-       
+
 class HgMappingTests(object):
 
     def test_revid_foreign_to_bzr(self):
@@ -168,3 +170,33 @@ class AsBzrParentsTests(TestCase):
         m = {"a" * 20: "reva"}
         self.assertEquals(("reva",), 
                 as_bzr_parents(("a" * 20, nullid), m.__getitem__))
+
+
+class ConvertConvertedFromTests(TestCase):
+
+    def test_unspecified(self):
+        self.assertEquals("unspecified foo\n",
+            convert_converted_from("foo"))
+
+    def test_svn(self):
+        self.assertEquals("svn myuuid:42:path\n",
+            convert_converted_from("svn:myuuid/path@42"))
+
+    def test_unknown(self):
+        self.assertRaises(KeyError,
+            convert_converted_from, "unknown:myuuid:42:path")
+
+
+class GenerateConvertRevisionTests(TestCase):
+
+    def test_generate_convert_revision_svn(self):
+        self.assertEquals("svn:myuuid/path@42",
+            generate_convert_revision("svn myuuid:42:path"))
+
+    def test_generate_convert_revision_unspecified(self):
+        self.assertEquals("bla",
+            generate_convert_revision("unspecified bla"))
+
+    def test_generate_convert_revision_unknown(self):
+        self.assertRaises(KeyError,
+            generate_convert_revision, "bla bla")

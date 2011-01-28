@@ -67,6 +67,9 @@
   * WorkingTree.commit()'s message argument is now optional, consistent
     with bzr.dev. (#692902, Jelmer Vernooij)
 
+  * Fix handling of unknown strings in converted_from extra. 
+    (#670870, Jelmer Vernooij)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

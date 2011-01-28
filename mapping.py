@@ -42,12 +42,15 @@ def convert_converted_from(rev):
     """Convert a Mercurial 'convert_revision' extra to a Bazaar 'converted-from' revprop.
 
     """
-    (kind, revid) = rev.split(":", 1)
+    try:
+        (kind, revid) = rev.split(":", 1)
+    except ValueError:
+        return "unspecified %s\n" % rev
     if kind == "svn":
         url, revnum = revid.rsplit('@', 1)
         revnum = int(revnum)
         parts = url.split('/', 1)
-        uuid = parts.pop(0)[4:]
+        uuid = parts.pop(0)
         mod = ''
         if parts:
             mod = parts[0]
@@ -65,7 +68,9 @@ def generate_convert_revision(line):
         (uuid, revnumstr, branchpathstr) = revid.split(":", 2)
         revnum = int(revnumstr)
         branchpath = urllib.unquote(branchpathstr)
-        return "svn:%s%s@%s" % (uuid, branchpath, revnum)
+        return "svn:%s/%s@%s" % (uuid, branchpath, revnum)
+    elif kind == "unspecified":
+        return revid
     else:
         raise KeyError("Unknown VCS '%s'" % kind)
 

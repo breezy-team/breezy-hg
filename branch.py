@@ -240,6 +240,9 @@ class HgLocalBranch(HgBranch):
 
 class HgRemoteBranch(HgBranch):
 
+    def supports_tags(self):
+        return getattr(self.repository._hgrepo, "tags", None) is not None
+
     @needs_read_lock
     def last_revision(self):
         tip = self._hgrepo.lookup("tip")

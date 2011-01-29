@@ -115,11 +115,9 @@ def has_hg_smart_server(transport):
 
 def has_hg_dumb_repository(transport):
     try:
-        transport.clone(".hg").get_bytes("requires")
-    except (errors.NoSuchFile, errors.PermissionDenied):
+        return transport.has(".hg/requires")
+    except errors.PermissionDenied:
         return False
-    else:
-        return True
 
 
 class HgProber(Prober):

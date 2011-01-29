@@ -73,15 +73,57 @@ def lazy_load_mercurial():
 foreign_vcs_registry.register_lazy("hg",
     "bzrlib.plugins.hg.mapping", "foreign_hg", "Mercurial")
 
+def has_hg_smart_server(transport):
+    from bzrlib.transport.http._urllib import HttpTransport_urllib, Request
+    url = transport.external_url() + "?pairs=%s-%s&cmd=between" % (
+        "0" * 40, "0" * 40)
+    if isinstance(transport, HttpTransport_urllib):
+        req = Request('GET', url, accepted_errors=[200, 403, 404, 405])
+        req.follow_redirections = True
+        resp = transport._perform(req)
+        if resp.code == 404:
+            raise NoSuchFile(transport._path)
+        headers = resp.headers
+    else:
+        try:
+            from bzrlib.transport.http._pycurl import PyCurlTransport
+        except DependencyNotPresent:
+            return False
+        else:
+            import pycurl
+            from cStringIO import StringIO
+            if isinstance(transport, PyCurlTransport):
+                conn = transport._get_curl()
+                conn.setopt(pycurl.URL, url)
+                transport._set_curl_options(conn)
+                conn.setopt(pycurl.HTTPGET, 1)
+                conn.setopt(pycurl.NOBODY, 1)
+                header = StringIO()
+                data = StringIO()
+                conn.setopt(pycurl.HEADERFUNCTION, header.write)
+                conn.setopt(pycurl.WRITEFUNCTION, data.write)
+                transport._curl_perform(conn, header)
+                code = conn.getinfo(pycurl.HTTP_CODE)
+                if code == 404:
+                    raise NoSuchFile(transport._path)
+                headers = transport._parse_headers(header)
+            else:
+                return False
+    ct = headers.getheader("Content-Type")
+    return ct.startswith("application/mercurial")
+
+
 class HgProber(Prober):
 
     def probe_transport(self, transport):
         # little ugly, but works
-        import pdb; pdb.set_trace()
         from bzrlib.transport.local import LocalTransport
         lazy_load_mercurial()
         from mercurial import error as hg_errors
-        if isinstance(transport, LocalTransport) and not transport.has(".hg"):
+        # Over http, look for the hg smart server
+
+        if (not transport.has(".hg/requires") and
+            not has_hg_smart_server(transport)):
             # Explicitly check for .hg directories here, so we avoid
             # loading foreign branches through Mercurial.
             raise errors.NotBranchError(path=transport.base)
@@ -102,6 +144,7 @@ class HgProber(Prober):
 
 
 ControlDirFormat.register_prober(HgProber)
+ControlDirFormat._server_probers.insert(0, HgProber)
 from bzrlib.plugins.hg.dir import HgControlDirFormat
 ControlDirFormat.register_format(HgControlDirFormat())
 

@@ -146,6 +146,12 @@ def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
     # Set of directories that have been created in this delta, their file id
     # as value.
     directories = {}
+    if basis_inv is None:
+        # Root is mandatory
+        extra, root_id = inventory_create_directory(directories,
+            basis_inv, other_inv, "", lookup_file_id, revid)
+        for e in extra:
+            yield e
     # Dictionary of directories that could have been made empty in this delta,
     # with the set of removed children as value.
     maybe_empty_dirs = defaultdict(set)

@@ -73,6 +73,8 @@
   * Fix handling of unknown strings in converted_from extra. 
     (#670870, Jelmer Vernooij)
 
+  * Fix handling of first revision without changes. (Jelmer Vernooij, #688459)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

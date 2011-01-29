@@ -290,13 +290,12 @@ class HgControlDirFormat(ControlDirFormat):
             HgControlDirFormat.
         """
         # we dont grok readonly - hg isn't integrated with transport.
-        if transport.base.startswith('readonly+'):
-            transport = transport._decorated
-        if transport.base.startswith('file://'):
+        url = transport.external_url()
+        if url.startswith('file://'):
             path = transport.local_abspath('.').encode('utf-8')
             lock_class = HgLock
         else:
-            path = transport.base
+            path = url
             lock_class = HgDummyLock
         lazy_load_mercurial()
         import mercurial.hg

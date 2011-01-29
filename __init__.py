@@ -77,6 +77,7 @@ class HgProber(Prober):
 
     def probe_transport(self, transport):
         # little ugly, but works
+        import pdb; pdb.set_trace()
         from bzrlib.transport.local import LocalTransport
         lazy_load_mercurial()
         from mercurial import error as hg_errors

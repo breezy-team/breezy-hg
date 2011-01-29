@@ -75,6 +75,8 @@
 
   * Fix handling of first revision without changes. (Jelmer Vernooij, #688459)
 
+  * Support stop_revision in Branch.pull(). (Jelmer Vernooij, #544701)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

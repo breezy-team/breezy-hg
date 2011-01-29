@@ -270,7 +270,15 @@ class InterHgBranch(GenericInterBranch):
         result.old_revno, result.old_revid = self.target.last_revision_info()
         inter = InterRepository.get(self.source.repository,
                                     self.target.repository)
+        if stop_revision is None:
+            stop_revision = self.source.last_revision()
         inter.fetch(revision_id=stop_revision)
+        if overwrite:
+            req_base = None
+        else:
+            req_base = self.target.last_revision()
+        self.target.generate_revision_history(stop_revision,
+            req_base, self.source)
         result.new_revno, result.new_revid = self.target.last_revision_info()
         return result
 
@@ -330,10 +338,15 @@ class FromHgBranch(GenericInterBranch):
         result.old_revid = self.target.last_revision()
         inter = InterRepository.get(self.source.repository,
                                     self.target.repository)
+        if stop_revision is not None:
+            stop_revision = self.source.last_revision()
         inter.fetch(revision_id=stop_revision)
-        self.target.generate_revision_history(self.source.last_revision(),
-                                              self.target.last_revision(),
-                                              self.source)
+        if overwrite:
+            req_base = None
+        else:
+            req_base = self.target.last_revision()
+        self.target.generate_revision_history(stop_revision, req_base,
+            self.source)
         result.new_revid = self.target.last_revision()
         return result
 

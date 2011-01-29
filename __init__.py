@@ -82,7 +82,7 @@ def has_hg_smart_server(transport):
         req.follow_redirections = True
         resp = transport._perform(req)
         if resp.code == 404:
-            raise NoSuchFile(transport._path)
+            raise errors.NoSuchFile(transport._path)
         headers = resp.headers
     else:
         try:
@@ -105,12 +105,21 @@ def has_hg_smart_server(transport):
                 transport._curl_perform(conn, header)
                 code = conn.getinfo(pycurl.HTTP_CODE)
                 if code == 404:
-                    raise NoSuchFile(transport._path)
+                    raise errors.NoSuchFile(transport._path)
                 headers = transport._parse_headers(header)
             else:
                 return False
     ct = headers.getheader("Content-Type")
     return ct.startswith("application/mercurial")
+
+
+def has_hg_dumb_repository(transport):
+    try:
+        transport.clone(".hg").get_bytes("requires")
+    except (errors.NoSuchFile, errors.PermissionDenied):
+        return False
+    else:
+        return True
 
 
 class HgProber(Prober):
@@ -122,7 +131,7 @@ class HgProber(Prober):
         from mercurial import error as hg_errors
         # Over http, look for the hg smart server
 
-        if (not transport.has(".hg/requires") and
+        if (not has_hg_dumb_repository(transport) and
             not has_hg_smart_server(transport)):
             # Explicitly check for .hg directories here, so we avoid
             # loading foreign branches through Mercurial.

@@ -1,7 +1,6 @@
 bzr_plugin_name = 'hg'
 
-bzr_compatible_versions = [(1, x, 0) for x in [13, 14, 15, 16, 17, 18]] + \
-                          [(2, x, 0) for x in [0, 1, 2, 3, 4]]
+bzr_compatible_versions = [(2, x, 0) for x in [3, 4]]
 
 bzr_minimum_version = bzr_compatible_versions[0]
 

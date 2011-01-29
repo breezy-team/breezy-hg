@@ -43,24 +43,11 @@ from bzrlib.send import (
     format_registry as send_format_registry,
     )
 
-try:
-    from bzrlib.controldir import (
-        ControlDirFormat,
-        ControlDir,
-        Prober,
-        )
-except ImportError:
-    # bzr < 2.3
-    from bzrlib.bzrdir import (
-        BzrDirFormat,
-        BzrDir,
-        )
-    ControlDirFormat = BzrDirFormat
-    ControlDir = BzrDir
-    Prober = object
-    has_controldir = False
-else:
-    has_controldir = True
+from bzrlib.controldir import (
+    ControlDirFormat,
+    ControlDir,
+    Prober,
+    )
 
 _mercurial_loaded = False
 LockWarner = bzrlib.lockable_files._LockWarner
@@ -388,20 +375,12 @@ class HgControlDirFormat(ControlDirFormat):
         return prober.probe_transport(transport)
 
 
-if has_controldir:
-    ControlDirFormat.register_prober(HgProber)
-    ControlDirFormat.register_format(HgControlDirFormat())
-else:
-    ControlDirFormat.register_control_format(HgControlDirFormat)
+ControlDirFormat.register_prober(HgProber)
+ControlDirFormat.register_format(HgControlDirFormat())
 
-try:
-    from bzrlib.controldir import (
-        network_format_registry as controldir_network_format_registry,
-        )
-except ImportError:
-    from bzrlib.bzrdir import (
-        network_format_registry as controldir_network_format_registry,
-        )
+from bzrlib.controldir import (
+    network_format_registry as controldir_network_format_registry,
+    )
 
 controldir_network_format_registry.register("hg",
     HgControlDirFormat)
@@ -421,13 +400,9 @@ from bzrlib.commands import (
     )
 plugin_cmds.register_lazy('cmd_hg_import', [], 'bzrlib.plugins.hg.commands')
 
-try:
-    from bzrlib.revisionspec import dwim_revspecs
-except ImportError:
-    pass
-else:
-    from bzrlib.plugins.hg.revspec import RevisionSpec_hg
-    dwim_revspecs.append(RevisionSpec_hg)
+from bzrlib.revisionspec import dwim_revspecs
+from bzrlib.plugins.hg.revspec import RevisionSpec_hg
+dwim_revspecs.append(RevisionSpec_hg)
 
 
 def test_suite():

@@ -116,7 +116,7 @@ def has_hg_smart_server(transport):
 def has_hg_dumb_repository(transport):
     try:
         return transport.has(".hg/requires")
-    except errors.PermissionDenied:
+    except (errors.NoSuchFile, errors.PermissionDenied):
         return False
 
 

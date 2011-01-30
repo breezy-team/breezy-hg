@@ -16,9 +16,13 @@
 
 """Tests for fetching from Mercurial into Bazaar."""
 
+from bzrlib.branch import (
+    Branch,
+    )
+from bzrlib.tests import TestCaseWithTransport
+
 from bzrlib.plugins.hg import HgControlDirFormat
 from bzrlib.plugins.hg.ui import ui as hgui
-from bzrlib.tests import TestCaseWithTransport
 
 from mercurial import hg
 import mercurial.localrepo
@@ -56,8 +60,7 @@ class TestFetching(TestCaseWithTransport):
     def test_getting_existing_text_metadata(self):
         # Create Mercurial repository and Bazaar branch to import into.
         hgrepo = mercurial.localrepo.localrepository(hgui(), "hg", create=True)
-        hgdir = HgControlDirFormat().open(self.get_transport("hg"))
-        hgbranch = hgdir.open_branch()
+        hgbranch = Branch.open("hg")
         bzrtree = self.make_branch_and_tree("bzr")
 
         # Create file 'f1' in Mercurial repository, commit it
@@ -93,8 +96,7 @@ class TestFetching(TestCaseWithTransport):
 
         # Create Mercurial repository and Bazaar branch to import into.
         hgrepo = mercurial.localrepo.localrepository(ui, "hg", create=True)
-        hgdir = HgControlDirFormat().open(self.get_transport("hg"))
-        hgbranch = hgdir.open_branch()
+        hgbranch = Branch.open("hg")
         bzrtree = self.make_branch_and_tree("bzr")
 
         # Create history graph in Mercurial repository
@@ -152,8 +154,7 @@ class TestFetching(TestCaseWithTransport):
 
         # Create Mercurial repository and Bazaar branch to import into.
         hgrepo = mercurial.localrepo.localrepository(ui, "hg", create=True)
-        hgdir = HgControlDirFormat().open(self.get_transport("hg"))
-        hgbranch = hgdir.open_branch()
+        hgbranch = Branch.open("hg")
         bzrtree = self.make_branch_and_tree("bzr")
 
         # Create history graph with conflict in Mercurial repository

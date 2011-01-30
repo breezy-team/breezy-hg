@@ -206,5 +206,5 @@ class TestFetching(TestCaseWithTransport):
             file_path = "bzr/%s" % file_content
             self.assertFileEqual(file_content, file_path)
 
-        self.assertFileEqual("bzr/conflict_file",
-                             "Main branch\nSecondary branch")
+        self.assertFileEqual("Main branch\nSecondary branch",
+            "bzr/conflict_file")

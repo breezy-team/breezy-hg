@@ -457,6 +457,63 @@ class FromHgRepository(InterRepository):
                 return r
         raise AssertionError
 
+    def _determine_text_parent(self, parent, path, fileid, revid,
+            filetext_map):
+        path2id = getattr(parent, "path2id", None)
+        if path2id is None: # manifest
+            parent_node = parent.get(path)
+            if parent_node is None:
+                # Didn't exist in parent
+                return None
+            revisions = filetext_map[fileid][parent_node]
+            tp = self._find_most_recent_ancestor(revisions.keys(), revid)
+            return tp
+        elif path2id(path) == fileid:
+            # FIXME: Handle situation where path is not actually in
+            # parent
+            return parent[fileid].revision
+        else:
+            return None
+
+    def _process_manifest(self, manifest, flags, revid, mapping, filetext_map):
+        """Process a manifest.
+
+        :param manifest: Mercurial manifest (dict of path -> node)
+        :param flags: Mercurial manifest flags (dict of path -> mode)
+        :param revid: Bazaar revision id
+        :param mapping: Bzr<->Hg mapping to use
+        :param filetext_map: Mapping of (fileid, node, revid) -> (kind, parents)
+        """
+        self._target_overlay.remember_manifest(revid,
+            self._revisions[revid].parent_ids, (manifest, flags))
+        if not self._files[revid]:
+            # Avoid fetching inventories and parent manifests
+            # unnecessarily
+            return
+        rev = self._revisions[revid]
+        parents = []
+        for previd in rev.parent_ids:
+            try:
+                inv = self.target.get_inventory(previd)
+            except errors.NoSuchRevision:
+                parents.append(self._target_overlay.get_manifest_and_flags_by_revid(previd)[0])
+            else:
+                parents.append(inv)
+        for path in self._files[revid]:
+            assert type(path) is str
+            fileid = mapping.generate_file_id(path)
+            if not path in manifest:
+                # Path no longer exists
+                continue
+            kind = flags_kind(flags, path)
+            text_parents = []
+            for parent in parents:
+                tp = self._determine_text_parent(parent, path, fileid, revid, filetext_map)
+                if tp is not None:
+                    text_parents.append(tp)
+            node = manifest[path]
+            filetext_map[fileid][node][revid] = (kind, text_parents)
+
     def _unpack_manifests(self, chunkiter, mapping, filetext_map, todo, pb):
         """Unpack the manifest deltas.
 
@@ -471,42 +528,8 @@ class FromHgRepository(InterRepository):
             for revid in self._manifest2rev_map[hgkey]:
                 todo.append(revid)
                 yield (revid, self._revisions[revid].parent_ids, fulltext)
-                self._target_overlay.remember_manifest(revid,
-                    self._revisions[revid].parent_ids, (manifest, flags))
-                if not self._files[revid]:
-                    # Avoid fetching inventories and parent manifests
-                    # unnecessarily
-                    continue
-                rev = self._revisions[revid]
-                parents = []
-                for previd in rev.parent_ids:
-                    try:
-                        inv = self.target.get_inventory(previd)
-                    except errors.NoSuchRevision:
-                        parents.append(self._target_overlay.get_manifest_and_flags_by_revid(previd)[0])
-                    else:
-                        parents.append(inv)
-                for path in self._files[revid]:
-                    assert type(path) is str
-                    fileid = mapping.generate_file_id(path)
-                    if not path in manifest:
-                        # Path still has to actually exist..
-                        continue
-                    kind = flags_kind(flags, path)
-                    text_parents = []
-                    for parent in parents:
-                        path2id = getattr(parent, "path2id", None)
-                        if path2id is None: # manifest
-                            node = parent.get(path)
-                            if node is None:
-                                continue
-                            revisions = filetext_map[fileid][node]
-                            tp = self._find_most_recent_ancestor(revisions.keys(), revid)
-                            text_parents.append(tp)
-                        elif path2id(path) == fileid:
-                            # FIXME: Handle situation where path is not actually in parent
-                            text_parents.append(parent[fileid].revision)
-                    filetext_map[fileid][manifest[path]][revid] = (kind, text_parents)
+                self._process_manifest(manifest, flags, revid, mapping,
+                                       filetext_map)
 
     def addchangegroup(self, cg, mapping):
         """Import a Mercurial changegroup into the target repository.

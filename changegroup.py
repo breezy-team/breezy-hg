@@ -130,7 +130,7 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts,
         yield text, node_parents, revid
 
 
-def text_contents(repo, lookup_changelog_id, path, keys, overlay):
+def text_contents(repo, path, keys, overlay):
     """Generate revlog text tuples.
 
     :param repo: Bazaar repository
@@ -163,8 +163,9 @@ def text_contents(repo, lookup_changelog_id, path, keys, overlay):
             base_reported = True
         fulltext = record.get_bytes_as('fulltext')
         parents = as_hg_parents(record.parents, text_as_node)
-        text_nodes[record.key[1]] = hghash(fulltext, parents[0], parents[1])
-        yield (fulltext, parents, lookup_changelog_id(record.key[1]))
+        node = hghash(fulltext, parents[0], parents[1])
+        text_nodes[record.key[1]] = node
+        yield (record, parents, node)
 
 
 def write_chunk(f, buffer):
@@ -212,7 +213,7 @@ def dchangegroup(repo, mapping, revids, lossy=True):
         # FIXME: Mangle path in the same way that mercurial does
         write_chunk(ret, path)
         write_delta_chunks(ret,
-            text_contents(repo, changelog_ids.__getitem__, path, keys, overlay))
+            ((record.get_bytes_as('fulltext'), parents, changelog_ids[record.key[1]]) for (record, parents, node) in text_contents(repo, path, keys, overlay)))
     write_chunk(ret, "")
     ret.seek(0)
     return ret, changelog_ids

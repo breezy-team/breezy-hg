@@ -156,8 +156,9 @@ class MercurialRepositoryOverlay(object):
         def update_text(path, fileid, kind):
             if not kind in ("file", "symlink"):
                 return
-            for t in text_contents(self.repo, self.lookup, path, [(fileid, revid)], self):
-                self.idmap.insert_text(path, hghash(*t), fileid, revid)
+            for (record, parents, node) in text_contents(self.repo, path, [(fileid, revid)], self):
+                if parents is not None:
+                    self.idmap.insert_text(path.encode("utf-8"), node, fileid, revid)
         for (path, fileid, kind) in delta.added:
             update_text(path, fileid, kind)
         for (oldpath, newpath, fileid, kind, text_modified, meta_modified) in delta.renamed:
@@ -191,9 +192,8 @@ class MercurialRepositoryOverlay(object):
                 changeset_text = self.get_changeset_text_by_revid(revid, rev,
                     manifest_id=manifest_id)
                 changeset_id = hghash(changeset_text, *as_hg_parents(rev.parent_ids[:2], lambda x: self.lookup_changeset_id_by_revid(x)[0]))
+                self.idmap.insert_revision(revid, manifest_id, changeset_id, self.mapping)
                 self._update_texts(revid)
-                self.idmap.insert_revision(revid, manifest_id, changeset_id,
-                                           self.mapping)
         finally:
             pb.finished()
 

@@ -77,6 +77,9 @@
 
   * Support stop_revision in Branch.pull(). (Jelmer Vernooij, #544701)
 
+  * Fix crash with KeyError in incremental mirrorring.
+    (Leonid Borisenko, Jelmer Vernooij, #692901)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

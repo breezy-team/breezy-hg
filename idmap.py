@@ -16,6 +16,7 @@
 
 """Access to a map between Bazaar and Mercurial ids."""
 
+from collections import defaultdict
 import mercurial.node
 import os
 import threading
@@ -86,6 +87,9 @@ except:
 class BzrHgIdmap(object):
     """Caching backend."""
 
+    def lookup_text_by_path_and_node(self, path, node):
+        raise NotImplementedError(self.lookup_text_by_path_and_node)
+
     def lookup_revision_by_manifest_id(self):
         raise NotImplementedError(self.lookup_revision_by_manifest_id)
 
@@ -101,6 +105,9 @@ class BzrHgIdmap(object):
     def insert_revision(self, revid, manifest_id, changeset_id, mapping):
         raise NotImplementedError(self.insert_revision)
 
+    def insert_text(self, path, node, fileid, revision):
+        raise NotImplementedError(self.insert_text)
+
 
 class MemoryIdmap(BzrHgIdmap):
     """In-memory idmap implementation."""
@@ -108,6 +115,10 @@ class MemoryIdmap(BzrHgIdmap):
     def __init__(self):
         self._manifest_to_revid = {}
         self._revid_to_changeset_id = {}
+        self._path_node_text_id = defaultdict(set)
+
+    def lookup_text_by_path_and_node(self, path, node):
+        return self._path_node_text_id[(path, node)]
 
     def get_files_by_revid(self, revid):
         raise KeyError(revid)
@@ -120,6 +131,9 @@ class MemoryIdmap(BzrHgIdmap):
 
     def revids(self):
         return set(self._manifest_to_revid.values())
+
+    def insert_text(self, path, node, fileid, revision):
+        self._path_node_text_id[(path, node)].add((fileid, revision))
 
     def insert_revision(self, revid, manifest_id, changeset_id, mapping):
         if len(manifest_id) == 40:
@@ -182,6 +196,16 @@ class TdbIdmap(BzrHgIdmap):
         self.db["manifest/" + manifest_id] = revid
         self.db["revid/" + revid] = changeset_id + str(mapping)
 
+    def lookup_text_by_path_and_node(self, path, node):
+        try:
+            for l in self.db["text/" + node + path].splitlines():
+                yield tuple(l.split(" "))
+        except KeyError:
+            return
+
+    def insert_text(self, path, node, fileid, revid):
+        self.db["text/" + node + path] = "%s %s\n" % (fileid, revid)
+
 
 
 class SqliteIdmap(BzrHgIdmap):
@@ -207,6 +231,14 @@ class SqliteIdmap(BzrHgIdmap):
         create unique index if not exists revision_revid on revision(revid);
         create unique index if not exists revision_csid on revision(csid, mapping);
         create index if not exists revision_manifest on revision(manifest_id);
+        create table if not exists text_map (
+            path blob not null,
+            node blob not null,
+            fileid blob not null,
+            revid blob not null
+        );
+        create unique index if not exists text_map_bzr_id on text_map (fileid, revid);
+        create index if not exists text_map_hg_id on text_map (path, node);
         """)
 
     def get_files_by_revid(self, revid):
@@ -242,6 +274,13 @@ class SqliteIdmap(BzrHgIdmap):
         if len(manifest_id) != 40:
             raise AssertionError
         self.db.execute("insert into revision (revid, csid, manifest_id, mapping) values (?, ?, ?, ?)", (revid, changeset_id, manifest_id, str(mapping)))
+
+    def lookup_text_by_path_and_node(self, path, node):
+        cursor = self.db.execute("select (fileid, revid) from text_map where path = ? and node = ?", (path, node))
+        return cursor.fetchall()
+
+    def insert_text(self, path, node, fileid, revid):
+        self.db.execute("replace into text_map (path, node, fileid, revid) values (?, ?, ?, ?)", (path, node, fileid, revid))
 
 
 class BzrHgCacheFormat(object):

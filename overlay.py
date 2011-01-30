@@ -105,6 +105,10 @@ class MercurialRepositoryOverlay(object):
     def url(self):
         return self.repo.base
 
+    def get_text_by_path_and_node(self, path, node):
+        (fileid, revid) = self.idmap.lookup_text_by_path_and_node(path, node).next()
+        return "".join(self.repo.iter_files_bytes([(fileid, revid, None)]).next()[1])
+
     def remember_manifest_text(self, revid, parent_revids, text):
         """Convenience function for remembering the text of a single manifest.
 
@@ -170,6 +174,7 @@ class MercurialRepositoryOverlay(object):
                 changeset_id = hghash(changeset_text, *as_hg_parents(rev.parent_ids[:2], lambda x: self.lookup_changeset_id_by_revid(x)[0]))
                 self.idmap.insert_revision(revid, manifest_id, changeset_id,
                                            self.mapping)
+                # FIXME: self.idmap.insert_text
         finally:
             pb.finished()
 

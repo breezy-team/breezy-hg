@@ -335,13 +335,7 @@ class FromHgRepository(InterRepository):
         return self._symlink_targets[key]
 
     def _lookup_file_metadata(self, key):
-        try:
-            return self._text_metadata[key]
-        except KeyError:
-            (fileid, revision) = key
-            stream = self.target.texts.get_record_stream([key], 'unordered', True)
-            record = stream.next()
-            return (record.sha1, len(record.get_bytes_as("fulltext")))
+        return self._text_metadata[key]
 
     def _import_manifest_delta(self, manifest, flags, files, rev, mapping):
         parent_invs = self._get_inventories(rev.parent_ids)
@@ -392,14 +386,18 @@ class FromHgRepository(InterRepository):
             pb.update("fetching texts", i, len(kind_map))
             chunkiter = mercurial.changegroup.chunkiter(cg)
             def get_text(node):
-                key, kind = iter(kind_map[(path, node)]).next()
-                return self._get_target_fulltext(key)
+                if kind_map[(path, node)]:
+                    key, kind = iter(kind_map[(path, node)]).next()
+                    return self._get_target_fulltext(key)
+                else:
+                    return self._target_overlay.get_text_by_path_and_node(path, node)
             for fulltext, hgkey, hgparents, csid in unpack_chunk_iter(
                 chunkiter, get_text):
                 for (fileid, revision), kind in kind_map[(path, hgkey)]:
                     text_parents = () # FIXME
                     record = self._create_text_record(fileid, revision,
                             text_parents, kind, fulltext)
+                    self._target_overlay.idmap.insert_text(path, hgkey, fileid, revision)
                     self._text_metadata[record.key] = (record.sha1,
                         len(record.get_bytes_as("fulltext")))
                     yield record
@@ -583,7 +581,7 @@ class FromHgRepository(InterRepository):
         pb = ui.ui_factory.nested_progress_bar()
         try:
             self.target.texts.insert_record_stream(
-                list(self._unpack_texts(cg, mapping, kind_map, pb)))
+                self._unpack_texts(cg, mapping, kind_map, pb))
         finally:
             pb.finished()
         # Adding actual data

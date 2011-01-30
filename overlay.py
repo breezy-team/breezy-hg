@@ -199,7 +199,7 @@ class MercurialRepositoryOverlay(object):
         revid = self._lookup_revision_by_manifest_id(manifest_id)
         return self.get_manifest_text_by_revid(revid)
 
-    def _get_file_fulltext(self, key):
+    def get_file_fulltext(self, key):
         ret = "".join(self.repo.iter_files_bytes([key + (None,)]).next()[1])
         if ret == "": # could be a symlink
             ie = self.repo.get_inventory(key[1])[key[0]]

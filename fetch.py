@@ -241,7 +241,8 @@ def create_directory_texts(texts, invdelta):
     def generate_stream():
         for (old_path, new_path, fileid, ie) in invdelta:
             if old_path is None and ie.kind == "directory":
-                record = FulltextContentFactory((fileid, ie.revision), (), None, "")
+                record = FulltextContentFactory((fileid, ie.revision), (),
+                                                None, "")
                 record.parents = ()
                 yield record
     texts.insert_record_stream(generate_stream())
@@ -355,31 +356,38 @@ class FromHgRepository(InterRepository):
             return self._symlink_targets[key]
         return self._target_overlay.get_file_fulltext(key)
 
-    def _unpack_texts(self, cg, mapping, filetext_map, pb):
+    def _create_text_record(self, fileid, revision, parents, kind, fulltext):
+        key = (fileid, revision)
+        if kind == "symlink":
+            self._symlink_targets[key] = fulltext
+            bzr_fulltext = ""
+        else:
+            (meta, bzr_fulltext) = deserialize_file_text(fulltext)
+        record = FulltextContentFactory(key, [(fileid, p) for p in parents],
+                osutils.sha_string(bzr_fulltext), bzr_fulltext)
+        self._text_metadata[key] = (record.sha1, len(bzr_fulltext))
+        return record
+
+    def _unpack_texts(self, cg, mapping, kind_map, pb):
         i = 0
         # Texts
-        while 1:
+        while True:
             f = mercurial.changegroup.getchunk(cg)
             if not f:
                 break
             i += 1
-            pb.update("fetching texts", i, len(filetext_map))
+            pb.update("fetching texts", i, len(kind_map))
             fileid = mapping.generate_file_id(f)
             chunkiter = mercurial.changegroup.chunkiter(cg)
             def get_text(node):
-                key = iter(filetext_map[fileid][node]).next()
+                key = iter(kind_map[fileid][node]).next()
+                import pdb; pdb.set_trace()
                 return self._get_target_fulltext(key)
             for fulltext, hgkey, hgparents, csid in unpack_chunk_iter(chunkiter, get_text):
-                for revision, (kind, parents) in filetext_map[fileid][hgkey].iteritems():
-                    key = (fileid, revision)
-                    if kind == "symlink":
-                        self._symlink_targets[key] = fulltext
-                        bzr_fulltext = ""
-                    else:
-                        (meta, bzr_fulltext) = deserialize_file_text(fulltext)
-                    record = FulltextContentFactory(key, [(fileid, p) for p in parents], osutils.sha_string(bzr_fulltext), bzr_fulltext)
-                    self._text_metadata[key] = (record.sha1, len(bzr_fulltext))
-                    yield record
+                for revision, kind in kind_map[fileid][hgkey].iteritems():
+                    text_parents = ()
+                    yield self._create_text_record(fileid, revision,
+                            text_parents, kind, fulltext)
 
     def _add_inventories(self, todo, mapping, pb):
         assert isinstance(todo, list)
@@ -457,16 +465,23 @@ class FromHgRepository(InterRepository):
                 return r
         raise AssertionError
 
-    def _determine_text_parent(self, parent, path, fileid, revid,
-            filetext_map):
+    def _determine_text_parents(self, parents, path, fileid, revid, kind_map):
+        ret = []
+        for parent in parents:
+            tp = self._determine_text_parent(parent, path, fileid, revid, kind_map)
+            if tp is not None:
+                ret.append(tp)
+        return ret
+
+    def _determine_text_parent(self, parent, path, fileid, revid, kind_map):
         path2id = getattr(parent, "path2id", None)
         if path2id is None: # manifest
             parent_node = parent.get(path)
             if parent_node is None:
                 # Didn't exist in parent
                 return None
-            revisions = filetext_map[fileid][parent_node]
-            tp = self._find_most_recent_ancestor(revisions.keys(), revid)
+            revisions = kind_map[fileid][parent_node].keys()
+            tp = self._find_most_recent_ancestor(revisions, revid)
             return tp
         elif path2id(path) == fileid:
             # FIXME: Handle situation where path is not actually in
@@ -475,14 +490,14 @@ class FromHgRepository(InterRepository):
         else:
             return None
 
-    def _process_manifest(self, manifest, flags, revid, mapping, filetext_map):
+    def _process_manifest(self, manifest, flags, revid, mapping, kind_map):
         """Process a manifest.
 
         :param manifest: Mercurial manifest (dict of path -> node)
         :param flags: Mercurial manifest flags (dict of path -> mode)
         :param revid: Bazaar revision id
         :param mapping: Bzr<->Hg mapping to use
-        :param filetext_map: Mapping of (fileid, node, revid) -> (kind, parents)
+        :param kind_map: Mapping of (fileid, node, revid) -> kind
         """
         self._target_overlay.remember_manifest(revid,
             self._revisions[revid].parent_ids, (manifest, flags))
@@ -506,15 +521,10 @@ class FromHgRepository(InterRepository):
                 # Path no longer exists
                 continue
             kind = flags_kind(flags, path)
-            text_parents = []
-            for parent in parents:
-                tp = self._determine_text_parent(parent, path, fileid, revid, filetext_map)
-                if tp is not None:
-                    text_parents.append(tp)
             node = manifest[path]
-            filetext_map[fileid][node][revid] = (kind, text_parents)
+            kind_map[fileid][node][revid] = kind
 
-    def _unpack_manifests(self, chunkiter, mapping, filetext_map, todo, pb):
+    def _unpack_manifests(self, chunkiter, mapping, kind_map, todo, pb):
         """Unpack the manifest deltas.
 
         :param chunkiter: Iterator over delta chunks for the manifest.
@@ -529,7 +539,7 @@ class FromHgRepository(InterRepository):
                 todo.append(revid)
                 yield (revid, self._revisions[revid].parent_ids, fulltext)
                 self._process_manifest(manifest, flags, revid, mapping,
-                                       filetext_map)
+                                       kind_map)
 
     def addchangegroup(self, cg, mapping):
         """Import a Mercurial changegroup into the target repository.
@@ -546,19 +556,19 @@ class FromHgRepository(InterRepository):
             pb.finished()
         # Manifests
         manifestchunks = mercurial.changegroup.chunkiter(cg)
-        filetext_map = defaultdict(lambda: defaultdict(dict))
+        kind_map = defaultdict(lambda: defaultdict(dict))
         todo = []
         pb = ui.ui_factory.nested_progress_bar()
         try:
             self._target_overlay.remember_manifest_texts(
-                self._unpack_manifests(manifestchunks, mapping, filetext_map, todo, pb))
+                self._unpack_manifests(manifestchunks, mapping, kind_map, todo, pb))
         finally:
             pb.finished()
         # Texts
         pb = ui.ui_factory.nested_progress_bar()
         try:
             self.target.texts.insert_record_stream(
-                self._unpack_texts(cg, mapping, filetext_map, pb))
+                self._unpack_texts(cg, mapping, kind_map, pb))
         finally:
             pb.finished()
         # Adding actual data

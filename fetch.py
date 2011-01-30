@@ -327,6 +327,18 @@ class FromHgRepository(InterRepository):
                 ret.append(self._inventories[revid])
         return ret
 
+    def _lookup_file_target(self, key):
+        return self._symlink_targets[key]
+
+    def _lookup_file_metadata(self, key):
+        try:
+            return self._text_metadata[key]
+        except KeyError:
+            (fileid, revision) = key
+            stream = self.target.texts.get_record_stream([key], 'unordered', True)
+            record = stream.next()
+            return (record.sha1, len(record.get_bytes_as("fulltext")))
+
     def _import_manifest_delta(self, manifest, flags, files, rev,
                                mapping):
         parent_invs = self._get_inventories(rev.parent_ids)
@@ -347,8 +359,8 @@ class FromHgRepository(InterRepository):
         invdelta = list(manifest_to_inventory_delta(mapping.generate_file_id,
                 basis_inv, other_inv, (basis_manifest, basis_flags),
                 (manifest, flags), rev.revision_id, files,
-                self._text_metadata.__getitem__,
-                self._symlink_targets.__getitem__))
+                self._lookup_file_metadata,
+                self._lookup_file_target))
         return basis_inv, invdelta
 
     def _get_target_fulltext(self, key):

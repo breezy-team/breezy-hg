@@ -207,13 +207,17 @@ def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
                 elif ie.kind == "file":
                     ie.text_sha1 = orig_inv[fileid].text_sha1
                     ie.text_size = orig_inv[fileid].text_size
+                else:
+                    raise AssertionError
             else:
                 ie.revision = revid
                 if ie.kind == "file":
                     ie.text_sha1, ie.text_size = lookup_metadata(
-                        (fileid, ie.revision))
+                        (ie.file_id, ie.revision))
                 elif ie.kind == "symlink":
-                    ie.symlink_target = lookup_symlink((fileid, ie.revision))
+                    ie.symlink_target = lookup_symlink((ie.file_id, ie.revision))
+                else:
+                    raise AssertionError
             yield (old_path, path, fileid, ie)
     # Remove empty directories
     while maybe_empty_dirs:
@@ -241,7 +245,7 @@ def create_directory_texts(texts, invdelta):
     def generate_stream():
         for (old_path, new_path, fileid, ie) in invdelta:
             if old_path is None and ie.kind == "directory":
-                record = FulltextContentFactory((fileid, ie.revision), (),
+                record = FulltextContentFactory((ie.file_id, ie.revision), (),
                                                 None, "")
                 record.parents = ()
                 yield record
@@ -339,8 +343,7 @@ class FromHgRepository(InterRepository):
             record = stream.next()
             return (record.sha1, len(record.get_bytes_as("fulltext")))
 
-    def _import_manifest_delta(self, manifest, flags, files, rev,
-                               mapping):
+    def _import_manifest_delta(self, manifest, flags, files, rev, mapping):
         parent_invs = self._get_inventories(rev.parent_ids)
         if not len(rev.parent_ids) in (0, 1, 2):
             raise AssertionError
@@ -359,8 +362,7 @@ class FromHgRepository(InterRepository):
         invdelta = list(manifest_to_inventory_delta(mapping.generate_file_id,
                 basis_inv, other_inv, (basis_manifest, basis_flags),
                 (manifest, flags), rev.revision_id, files,
-                self._lookup_file_metadata,
-                self._lookup_file_target))
+                self._lookup_file_metadata, self._lookup_file_target))
         return basis_inv, invdelta
 
     def _get_target_fulltext(self, key):
@@ -375,31 +377,32 @@ class FromHgRepository(InterRepository):
             bzr_fulltext = ""
         else:
             (meta, bzr_fulltext) = deserialize_file_text(fulltext)
-        record = FulltextContentFactory(key, [(fileid, p) for p in parents],
-                osutils.sha_string(bzr_fulltext), bzr_fulltext)
-        self._text_metadata[key] = (record.sha1, len(bzr_fulltext))
-        return record
+        return FulltextContentFactory(key,
+            [(fileid, p) for p in parents],
+            osutils.sha_string(bzr_fulltext), bzr_fulltext)
 
     def _unpack_texts(self, cg, mapping, kind_map, pb):
         i = 0
         # Texts
         while True:
-            f = mercurial.changegroup.getchunk(cg)
-            if not f:
+            path = mercurial.changegroup.getchunk(cg)
+            if not path:
                 break
             i += 1
             pb.update("fetching texts", i, len(kind_map))
-            fileid = mapping.generate_file_id(f)
             chunkiter = mercurial.changegroup.chunkiter(cg)
             def get_text(node):
-                key = iter(kind_map[fileid][node]).next()
-                import pdb; pdb.set_trace()
+                key, kind = iter(kind_map[(path, node)]).next()
                 return self._get_target_fulltext(key)
-            for fulltext, hgkey, hgparents, csid in unpack_chunk_iter(chunkiter, get_text):
-                for revision, kind in kind_map[fileid][hgkey].iteritems():
-                    text_parents = ()
-                    yield self._create_text_record(fileid, revision,
+            for fulltext, hgkey, hgparents, csid in unpack_chunk_iter(
+                chunkiter, get_text):
+                for (fileid, revision), kind in kind_map[(path, hgkey)]:
+                    text_parents = () # FIXME
+                    record = self._create_text_record(fileid, revision,
                             text_parents, kind, fulltext)
+                    self._text_metadata[record.key] = (record.sha1,
+                        len(record.get_bytes_as("fulltext")))
+                    yield record
 
     def _add_inventories(self, todo, mapping, pb):
         assert isinstance(todo, list)
@@ -492,7 +495,7 @@ class FromHgRepository(InterRepository):
             if parent_node is None:
                 # Didn't exist in parent
                 return None
-            revisions = kind_map[fileid][parent_node].keys()
+            revisions = [r[1] for r, k in kind_map[(path, parent_node)]]
             tp = self._find_most_recent_ancestor(revisions, revid)
             return tp
         elif path2id(path) == fileid:
@@ -534,7 +537,7 @@ class FromHgRepository(InterRepository):
                 continue
             kind = flags_kind(flags, path)
             node = manifest[path]
-            kind_map[fileid][node][revid] = kind
+            kind_map[(path, node)].add(((fileid, revid), kind))
 
     def _unpack_manifests(self, chunkiter, mapping, kind_map, todo, pb):
         """Unpack the manifest deltas.
@@ -568,7 +571,7 @@ class FromHgRepository(InterRepository):
             pb.finished()
         # Manifests
         manifestchunks = mercurial.changegroup.chunkiter(cg)
-        kind_map = defaultdict(lambda: defaultdict(dict))
+        kind_map = defaultdict(set)
         todo = []
         pb = ui.ui_factory.nested_progress_bar()
         try:
@@ -580,7 +583,7 @@ class FromHgRepository(InterRepository):
         pb = ui.ui_factory.nested_progress_bar()
         try:
             self.target.texts.insert_record_stream(
-                self._unpack_texts(cg, mapping, kind_map, pb))
+                list(self._unpack_texts(cg, mapping, kind_map, pb)))
         finally:
             pb.finished()
         # Adding actual data

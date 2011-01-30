@@ -87,7 +87,7 @@ def has_hg_smart_server(transport):
     else:
         try:
             from bzrlib.transport.http._pycurl import PyCurlTransport
-        except DependencyNotPresent:
+        except errors.DependencyNotPresent:
             return False
         else:
             import pycurl

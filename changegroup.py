@@ -39,9 +39,6 @@ from bzrlib.plugins.hg.mapping import (
     files_from_delta,
     manifest_and_flags_from_tree,
     )
-from bzrlib.plugins.hg.overlay import (
-    get_overlay,
-    )
 from bzrlib.plugins.hg.parsers import (
     format_changeset,
     format_manifest,
@@ -133,7 +130,15 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts,
         yield text, node_parents, revid
 
 
-def text_contents(repo, changelog_ids, path, keys, overlay):
+def text_contents(repo, lookup_changelog_id, path, keys, overlay):
+    """Generate revlog text tuples.
+
+    :param repo: Bazaar repository
+    :param lookup_changeset_id: lookup function of hg csid by bzr revid
+    :param path: UTF8 path
+    :param keys: (fileid, revision) tuples of texts to convert
+    :param overlay: Overlay
+    """
     def text_as_node((fileid, revision)):
         try:
             return text_nodes[revision]
@@ -159,7 +164,7 @@ def text_contents(repo, changelog_ids, path, keys, overlay):
         fulltext = record.get_bytes_as('fulltext')
         parents = as_hg_parents(record.parents, text_as_node)
         text_nodes[record.key[1]] = hghash(fulltext, parents[0], parents[1])
-        yield (fulltext, parents, changelog_ids[record.key[1]])
+        yield (fulltext, parents, lookup_changelog_id(record.key[1]))
 
 
 def write_chunk(f, buffer):
@@ -180,6 +185,7 @@ def dchangegroup(repo, mapping, revids, lossy=True):
     :param revids: Iterable over the revision ids of the revisions to group
     :return: changegroup string
     """
+    from bzrlib.plugins.hg.overlay import get_overlay
     ret = StringIO()
     overlay = get_overlay(repo, mapping)
     files = {}
@@ -206,7 +212,7 @@ def dchangegroup(repo, mapping, revids, lossy=True):
         # FIXME: Mangle path in the same way that mercurial does
         write_chunk(ret, path)
         write_delta_chunks(ret,
-            text_contents(repo, changelog_ids, path, keys, overlay))
+            text_contents(repo, changelog_ids.__getitem__, path, keys, overlay))
     write_chunk(ret, "")
     ret.seek(0)
     return ret, changelog_ids

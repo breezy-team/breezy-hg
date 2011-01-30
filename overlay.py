@@ -39,6 +39,9 @@ from bzrlib.versionedfile import (
     FulltextContentFactory,
     )
 
+from bzrlib.plugins.hg.changegroup import (
+    text_contents,
+    )
 from bzrlib.plugins.hg.idmap import (
     MemoryIdmap,
     from_repository as idmap_from_repository,
@@ -148,6 +151,22 @@ class MercurialRepositoryOverlay(object):
                 return record.get_bytes_as('fulltext')
         raise KeyError(revid)
 
+    def _update_texts(self, revid):
+        delta = self.repo.get_revision_delta(revid)
+        def update_text(path, fileid, kind):
+            if not kind in ("file", "symlink"):
+                return
+            for t in text_contents(self.repo, self.lookup, path, [(fileid, revid)], self):
+                self.idmap.insert_text(path, hghash(*t), fileid, revid)
+        for (path, fileid, kind) in delta.added:
+            update_text(path, fileid, kind)
+        for (oldpath, newpath, fileid, kind, text_modified, meta_modified) in delta.renamed:
+            if text_modified:
+                update_text(newpath, fileid, kind)
+        for (path, fileid, kind, text_modified, meta_modified) in delta.modified:
+            if text_modified:
+                update_text(newpath, fileid, kind)
+
     def _update_idmap(self, stop_revision=None):
         present_revids = self.idmap.revids()
         if stop_revision is None:
@@ -172,9 +191,9 @@ class MercurialRepositoryOverlay(object):
                 changeset_text = self.get_changeset_text_by_revid(revid, rev,
                     manifest_id=manifest_id)
                 changeset_id = hghash(changeset_text, *as_hg_parents(rev.parent_ids[:2], lambda x: self.lookup_changeset_id_by_revid(x)[0]))
+                self._update_texts(revid)
                 self.idmap.insert_revision(revid, manifest_id, changeset_id,
                                            self.mapping)
-                # FIXME: self.idmap.insert_text
         finally:
             pb.finished()
 

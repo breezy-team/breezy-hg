@@ -129,7 +129,7 @@ class MercurialRepositoryOverlay(object):
         """
         if self.manifests_vf is not None:
             self.manifests_vf.insert_record_stream(
-                ((FulltextContentFactory((revid,), [(p,) for p in parent_revids] , None, text) for (revid, parent_revids, text) in entries)))
+                ((FulltextContentFactory((revid,), [(p,) for p in parent_revids], None, str(text)) for (revid, parent_revids, text) in entries)))
 
     def _get_cached_manifest(self, revid):
         """Attempt to retrieve a cached manifest.

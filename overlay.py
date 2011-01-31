@@ -166,7 +166,7 @@ class MercurialRepositoryOverlay(object):
                 update_text(newpath, fileid, kind)
         for (path, fileid, kind, text_modified, meta_modified) in delta.modified:
             if text_modified:
-                update_text(newpath, fileid, kind)
+                update_text(path, fileid, kind)
 
     def _update_idmap(self, stop_revision=None):
         present_revids = self.idmap.revids()

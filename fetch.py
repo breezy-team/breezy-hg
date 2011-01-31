@@ -417,7 +417,7 @@ class FromHgRepository(InterRepository):
                 basis_revid = rev.parent_ids[0]
             basis_inv, invdelta = self._import_manifest_delta(
                 manifest, flags, files, rev, mapping)
-            # FIXME: Add empty directories
+            # FIXME: Add empty directories if this revision was roundtripped.
             create_directory_texts(self.target.texts, invdelta)
             (validator, new_inv) = self.target.add_inventory_by_delta(
                 basis_revid, invdelta, rev.revision_id, rev.parent_ids,

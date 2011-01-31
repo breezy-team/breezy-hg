@@ -3,8 +3,7 @@ Development
 
 Unit testing
 ~~~~~~~~~~~~
-To run the bzr-hg testsuite, simply run 
-'bzr selftest --starting-with=bazaar.plugins.hg' or 
+To run the bzr-hg testsuite, simply run 'bzr selftest -s bp.hg' or
 run 'make check' in the top-level bzr-hg directory.
 
 Unavailable bzrlib API's
@@ -24,4 +23,3 @@ easy to clean up the code later, e.g.::
 Coding Style, etc
 ~~~~~~~~~~~~~~~~~
 Please refer to HACKING in the Bazaar source distribution.
-

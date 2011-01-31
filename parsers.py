@@ -25,6 +25,7 @@ This code should probably be submitted to upstream Mercurial for inclusion.
 """
 
 import mercurial.changelog
+import mercurial.changegroup
 import mercurial.manifest
 import mercurial.mdiff
 import mercurial.node
@@ -81,6 +82,7 @@ def parse_changeset(text):
     :param text: Text to parse
     :return: Tuple with (manifest, user, (time, timezone), files, desc, extra)
     """
+    text = str(text)
     last = text.index("\n\n")
     desc = text[last + 2:].decode("utf-8")
     l = text[:last].split('\n')
@@ -199,3 +201,14 @@ def deserialize_file_text(text):
         meta[k] = v
     return meta, text[s+2:]
 
+
+def chunkiter(source, progress=None):
+    """iterate through the chunks in source, yielding a sequence of chunks
+    (strings)"""
+    while 1:
+        c = mercurial.changegroup.getchunk(source)
+        if not c:
+            break
+        elif progress is not None:
+            progress()
+        yield c

@@ -70,6 +70,7 @@ from bzrlib.plugins.hg.overlay import (
     get_overlay,
     )
 from bzrlib.plugins.hg.parsers import (
+    chunkiter,
     deserialize_file_text,
     parse_changeset,
     parse_manifest,
@@ -374,7 +375,7 @@ class FromHgRepository(InterRepository):
             self._symlink_targets[key] = fulltext
             bzr_fulltext = ""
         else:
-            (meta, bzr_fulltext) = deserialize_file_text(fulltext)
+            (meta, bzr_fulltext) = deserialize_file_text(str(fulltext))
         record = FulltextContentFactory(key, [(fileid, p) for p in parents],
                 osutils.sha_string(bzr_fulltext), bzr_fulltext)
         self._text_metadata[key] = (record.sha1, len(bzr_fulltext))
@@ -390,12 +391,11 @@ class FromHgRepository(InterRepository):
             i += 1
             pb.update("fetching texts", i, len(kind_map))
             fileid = mapping.generate_file_id(f)
-            chunkiter = mercurial.changegroup.chunkiter(cg)
+            itertextchunks = chunkiter(cg)
             def get_text(node):
                 key = iter(kind_map[fileid][node]).next()
-                import pdb; pdb.set_trace()
                 return self._get_target_fulltext(key)
-            for fulltext, hgkey, hgparents, csid in unpack_chunk_iter(chunkiter, get_text):
+            for fulltext, hgkey, hgparents, csid in unpack_chunk_iter(itertextchunks, get_text):
                 for revision, kind in kind_map[fileid][hgkey].iteritems():
                     text_parents = ()
                     yield self._create_text_record(fileid, revision,
@@ -560,14 +560,14 @@ class FromHgRepository(InterRepository):
         :param mapping: Mercurial mapping
         """
         # Changesets
-        chunkiter = mercurial.changegroup.chunkiter(cg)
+        changesetchunks = chunkiter(cg)
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            self._unpack_changesets(chunkiter, mapping, pb)
+            self._unpack_changesets(changesetchunks, mapping, pb)
         finally:
             pb.finished()
         # Manifests
-        manifestchunks = mercurial.changegroup.chunkiter(cg)
+        manifestchunks = chunkiter(cg)
         kind_map = defaultdict(lambda: defaultdict(dict))
         todo = []
         pb = ui.ui_factory.nested_progress_bar()

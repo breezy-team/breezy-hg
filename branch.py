@@ -131,10 +131,6 @@ class RemoteHgBranchFormat(HgBranchFormat):
         """True if this format supports tags stored in the branch"""
         return False
 
-    def make_tags(self, branch):
-        """See bzrlib.branch.BranchFormat.make_tags()."""
-        raise NotImplementedError
-
 
 class HgBranchConfig(object):
     """Access Branch Configuration data for an HgBranch.

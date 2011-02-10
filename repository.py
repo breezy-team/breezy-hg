@@ -63,6 +63,11 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     """
     rich_root_data = True
 
+    @property
+    def _matchingbzrdir(self):
+        from bzrlib.plugins.hg import HgControlDirFormat
+        return HgControlDirFormat()
+
     def initialize(self, url, shared=False, _internal=False):
         raise errors.UninitializableFormat(self)
 

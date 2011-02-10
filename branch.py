@@ -56,18 +56,42 @@ class HgTags(BasicTags):
     def __init__(self, branch):
         self.branch = branch
 
+    def _get_hg_tags(self):
+        raise NotImplementedError(self._get_hg_tags)
+
     def get_tag_dict(self):
         ret = {}
-        hgtags = self.branch.repository._hgrepo.tags()
+        hgtags = self._get_hg_tags()
         for name, value in hgtags.iteritems():
             ret[name] = self.branch.repository.lookup_foreign_revision_id(value)
         return ret
 
     def set_tag(self, name, value):
-        self.branch.repository._hgrepo.tag([name], self.branch.repository.lookup_bzr_revision_id(value)[0], 
+        self.branch.repository._hgrepo.tag([name],
+            self.branch.repository.lookup_bzr_revision_id(value)[0],
             "Create tag %s" % name,
             True,
             self.branch.get_config().username(), None)
+
+
+class LocalHgTags(HgTags):
+
+    def _get_hg_tags(self):
+        return self.branch.repository._hgrepo.tags()
+
+
+class FileHgTags(HgTags):
+
+    def __init__(self, branch, revid):
+        self.branch = branch
+        self.revid = revid
+
+    def _get_hg_tags(self):
+        revtree = self.branch.repository.revision_tree(self.revid)
+        f = revtree.get_file_text(revtree.path2id(".hgtags"), ".hgtags")
+        for l in f.readlines():
+            (name, hgtag) = l.strip().split(" ")
+            yield name, hgtag
 
 
 class HgBranchFormat(BranchFormat):
@@ -85,17 +109,27 @@ class HgBranchFormat(BranchFormat):
     def network_name(self):
         return "hg"
 
-    def supports_tags(self):
-        """True if this format supports tags stored in the branch"""
-        return True
-
     def get_foreign_tests_branch_factory(self):
         from bzrlib.plugins.hg.tests.test_branch import ForeignTestsBranchFactory
         return ForeignTestsBranchFactory()
 
+
+class LocalHgBranchFormat(HgBranchFormat):
+
+    def supports_tags(self):
+        """True if this format supports tags stored in the branch"""
+        return True
+
     def make_tags(self, branch):
         """See bzrlib.branch.BranchFormat.make_tags()."""
-        return HgTags(branch)
+        return LocalHgTags(branch)
+
+
+class RemoteHgBranchFormat(HgBranchFormat):
+
+    def supports_tags(self):
+        """True if this format supports tags stored in the branch"""
+        return False
 
 
 class HgBranchConfig(object):
@@ -154,7 +188,6 @@ class HgBranch(ForeignBranch):
     """An adapter to mercurial repositories for bzr Branch objects."""
 
     def __init__(self, hgrepo, hgdir, lockfiles):
-        self._format = HgBranchFormat()
         self.repository = hgdir.open_repository()
         ForeignBranch.__init__(self, self.repository.get_mapping())
         self._hgrepo = hgrepo
@@ -231,6 +264,10 @@ class HgBranch(ForeignBranch):
 
 class HgLocalBranch(HgBranch):
 
+    def __init__(self, hgrepo, hgdir, lockfiles):
+        self._format = LocalHgBranchFormat()
+        super(HgLocalBranch, self).__init__(hgrepo, hgdir, lockfiles)
+
     @needs_read_lock
     def last_revision(self):
         tip = self._hgrepo.lookup("tip")
@@ -239,6 +276,10 @@ class HgLocalBranch(HgBranch):
 
 
 class HgRemoteBranch(HgBranch):
+
+    def __init__(self, hgrepo, hgdir, lockfiles):
+        self._format = RemoteHgBranchFormat()
+        super(HgRemoteBranch, self).__init__(hgrepo, hgdir, lockfiles)
 
     def supports_tags(self):
         return getattr(self.repository._hgrepo, "tags", None) is not None
@@ -328,6 +369,8 @@ class FromHgBranch(GenericInterBranch):
         self.target.generate_revision_history(self.source.last_revision(),
             req_base, self.source)
         result.new_revno, result.new_revid = self.target.last_revision_info()
+        tags = FileHgTags(self.target, result.new_revid)
+        result.tag_conflicts = tags.merge_to(self.target.tags, overwrite)
         return result
 
     def push(self, overwrite=False, stop_revision=None):
@@ -348,6 +391,8 @@ class FromHgBranch(GenericInterBranch):
         self.target.generate_revision_history(stop_revision, req_base,
             self.source)
         result.new_revid = self.target.last_revision()
+        tags = FileHgTags(self.target, result.new_revid)
+        result.tag_conflicts = tags.merge_to(self.target.tags, overwrite)
         return result
 
 

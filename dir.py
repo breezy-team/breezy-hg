@@ -54,6 +54,9 @@ class HgDir(ControlDir):
     def control_transport(self):
         return self.transport
 
+    def is_control_filename(self, filename):
+        return (filename == ".hg")
+
     def __init__(self, hgrepo, transport, lockfiles, format):
         self._format = format
         self.root_transport = transport

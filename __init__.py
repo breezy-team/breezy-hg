@@ -162,6 +162,22 @@ bzrlib.bzrdir.format_registry.register_lazy("hg",
     "bzrlib.plugins.hg.dir", "HgControlDirFormat",
     "Mercurial repository. ", native=False, hidden=False)
 
+from bzrlib.repository import (
+    format_registry as repository_format_registry,
+    network_format_registry as repository_network_format_registry,
+    )
+repository_network_format_registry.register_lazy('hg',
+    'bzrlib.plugins.hg.repository', 'HgRepositoryFormat')
+
+try:
+    register_extra_lazy_repository_format = getattr(repository_format_registry,
+        "register_extra_lazy")
+except AttributeError:
+    pass
+else:
+    register_extra_lazy_repository_format('bzrlib.plugins.hg.repository',
+        'HgRepositoryFormat')
+
 send_format_registry.register_lazy('hg', 'bzrlib.plugins.hg.send',
                                    'send_hg', 'Mecurial bundle format')
 

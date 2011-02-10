@@ -497,12 +497,13 @@ class FromHgRepository(InterRepository):
             revisions = [r[1] for r, k in kind_map[(path, parent_node)]]
             tp = self._find_most_recent_ancestor(revisions, revid)
             return tp
-        elif path2id(path) == fileid:
-            # FIXME: Handle situation where path is not actually in
-            # parent
-            return parent[fileid].revision
-        else:
-            return None
+        else: # inventory
+            if path2id(path) == fileid:
+                # FIXME: Handle situation where path is not actually in
+                # parent
+                return parent[fileid].revision
+            else:
+                return None
 
     def _process_manifest(self, manifest, flags, revid, mapping, kind_map):
         """Process a manifest.
@@ -536,7 +537,10 @@ class FromHgRepository(InterRepository):
                 continue
             kind = flags_kind(flags, path)
             node = manifest[path]
-            kind_map[(path, node)].add(((fileid, revid), kind))
+            key = (fileid, revid)
+            text_parents = self._determine_text_parents(parents, path, fileid, revid,
+                kind_map)
+            kind_map[(path, node)].add((key, kind))
 
     def _unpack_manifests(self, chunkiter, mapping, kind_map, todo, pb):
         """Unpack the manifest deltas.

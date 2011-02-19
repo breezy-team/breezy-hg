@@ -68,7 +68,10 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
         from bzrlib.plugins.hg import HgControlDirFormat
         return HgControlDirFormat()
 
-    def initialize(self, url, shared=False, _internal=False):
+    def initialize(self, controldir, shared=False, _internal=False):
+        from bzrlib.plugins.hg.dir import HgDir
+        if isinstance(controldir, HgDir):
+            return controldir.open_repository()
         raise errors.UninitializableFormat(self)
 
     def is_supported(self):

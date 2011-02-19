@@ -75,14 +75,17 @@ foreign_vcs_registry.register_lazy("hg",
 
 def has_hg_smart_server(transport):
     from bzrlib.transport.http._urllib import HttpTransport_urllib, Request
-    url = transport.external_url() + "?pairs=%s-%s&cmd=between" % (
-        "0" * 40, "0" * 40)
+    try:
+        url = transport.external_url() + "?pairs=%s-%s&cmd=between" % (
+            "0" * 40, "0" * 40)
+    except errors.InProcessTransport:
+        return False
     if isinstance(transport, HttpTransport_urllib):
         req = Request('GET', url, accepted_errors=[200, 403, 404, 405])
         req.follow_redirections = True
         resp = transport._perform(req)
         if resp.code == 404:
-            raise errors.NoSuchFile(transport._path)
+            return False
         headers = resp.headers
     else:
         try:

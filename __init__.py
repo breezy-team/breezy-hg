@@ -128,17 +128,15 @@ def has_hg_dumb_repository(transport):
 class HgProber(Prober):
 
     def probe_transport(self, transport):
-        # little ugly, but works
-        from bzrlib.transport.local import LocalTransport
-        lazy_load_mercurial()
-        from mercurial import error as hg_errors
-        # Over http, look for the hg smart server
-
         if (not has_hg_dumb_repository(transport) and
             not has_hg_http_smart_server(transport)):
             # Explicitly check for .hg directories here, so we avoid
             # loading foreign branches through Mercurial.
             raise errors.NotBranchError(path=transport.base)
+
+        lazy_load_mercurial()
+        from mercurial import error as hg_errors
+
         import urllib2
         from bzrlib.plugins.hg.dir import HgControlDirFormat
         format = HgControlDirFormat()

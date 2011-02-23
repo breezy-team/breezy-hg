@@ -116,6 +116,11 @@ class HgBranchFormat(BranchFormat):
 
 class LocalHgBranchFormat(HgBranchFormat):
 
+    @property
+    def _matchingbzrdir(self):
+        from bzrlib.plugins.hg.dir import HgControlDirFormat
+        return HgControlDirFormat
+
     def supports_tags(self):
         """True if this format supports tags stored in the branch"""
         return True

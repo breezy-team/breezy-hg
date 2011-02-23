@@ -173,9 +173,19 @@ repository_network_format_registry.register_lazy('hg',
     'bzrlib.plugins.hg.repository', 'HgRepositoryFormat')
 
 try:
+    from bzrlib.branch import (
+        format_registry as branch_format_registry,
+        )
+except ImportError: # bzr < 2.4
+    pass
+else:
+    branch_format_registry.register_extra_lazy(
+        "bzrlib.plugins.hg.branch", "LocalHgBranchFormat")
+
+try:
     register_extra_lazy_repository_format = getattr(repository_format_registry,
         "register_extra_lazy")
-except AttributeError:
+except AttributeError: # bzr < 2.4
     pass
 else:
     register_extra_lazy_repository_format('bzrlib.plugins.hg.repository',

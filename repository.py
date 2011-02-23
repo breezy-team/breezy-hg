@@ -296,6 +296,8 @@ class HgRepository(ForeignRepository):
 
     _serializer = None
 
+    chk_bytes = None
+
     def __init__(self, hgrepo, hgdir, lockfiles):
         ForeignRepository.__init__(self, HgRepositoryFormat(), hgdir, lockfiles)
         self._hgrepo = hgrepo

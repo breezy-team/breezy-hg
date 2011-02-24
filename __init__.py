@@ -183,6 +183,17 @@ else:
         "bzrlib.plugins.hg.branch", "LocalHgBranchFormat")
 
 try:
+    from bzrlib.workingtree import (
+        format_registry as workingtree_format_registry,
+        )
+except ImportError: # bzr < 2.4
+    pass
+else:
+    workingtree_format_registry.register_extra_lazy(
+        "bzrlib.plugins.hg.workingtree", "HgWorkingTreeFormat")
+
+
+try:
     register_extra_lazy_repository_format = getattr(repository_format_registry,
         "register_extra_lazy")
 except AttributeError: # bzr < 2.4

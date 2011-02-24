@@ -38,6 +38,11 @@ class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
     support the working tree format.
     """
 
+    @property
+    def _matchingbzrdir(self):
+        from bzrlib.plugins.hg.dir import HgControlDirFormat
+        return HgControlDirFormat()
+
     def get_format_description(self):
         """See WorkingTreeFormat.get_format_description()."""
         return "Mercurial Working Tree"

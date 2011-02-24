@@ -62,6 +62,7 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     support the repository format.
     """
     rich_root_data = True
+    fast_deltas = True
 
     @property
     def _matchingbzrdir(self):

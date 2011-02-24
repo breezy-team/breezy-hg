@@ -214,10 +214,13 @@ from bzrlib.commands import (
     )
 plugin_cmds.register_lazy('cmd_hg_import', [], 'bzrlib.plugins.hg.commands')
 
-from bzrlib.revisionspec import dwim_revspecs
-from bzrlib.plugins.hg.revspec import RevisionSpec_hg
-dwim_revspecs.append(RevisionSpec_hg)
-
+from bzrlib.revisionspec import dwim_revspecs, RevisionSpec_dwim
+if getattr(RevisionSpec_dwim, "append_possible_lazy_revspec", None):
+    RevisionSpec_dwim.append_possible_lazy_revspec(
+        "bzrlib.plugins.hg.revspec", "RevisionSpec_hg")
+else: # bzr < 2.4
+    from bzrlib.plugins.hg.revspec import RevisionSpec_hg
+    dwim_revspecs.append(RevisionSpec_hg)
 
 def test_suite():
     from unittest import TestSuite, TestLoader

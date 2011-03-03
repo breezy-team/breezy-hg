@@ -29,6 +29,10 @@ from bzrlib.controldir import (
     ControlDir,
     ControlDirFormat,
     )
+try:
+    from bzrlib.controldir import Converter
+except ImportError: # bzr < 2.4
+    from bzrlib.bzrdir import Converter
 from bzrlib.plugins.hg import (
     lazy_load_mercurial,
     )
@@ -169,7 +173,7 @@ class HgDir(ControlDir):
         return HgControlDirConfig()
 
 
-class HgToSomethingConverter(bzrlib.bzrdir.Converter):
+class HgToSomethingConverter(Converter):
     """A class to upgrade an hg dir to something else."""
 
     def __init__(self, format):

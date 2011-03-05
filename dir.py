@@ -297,7 +297,10 @@ class HgControlDirFormat(ControlDirFormat):
             HgControlDirFormat.
         """
         # we dont grok readonly - hg isn't integrated with transport.
-        url = transport.external_url()
+        try:
+            url = transport.external_url()
+        except errors.InProcessTransport:
+            raise errors.NotBranchError(transport.base)
         if url.startswith('file://'):
             path = transport.local_abspath('.').encode('utf-8')
             lock_class = HgLock

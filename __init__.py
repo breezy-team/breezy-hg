@@ -130,7 +130,7 @@ class HgProber(Prober):
         try:
             external_url = transport.external_url()
         except errors.InProcessTransport:
-            return False
+            raise errors.NotBranchError(path=transport.base)
         scheme = external_url.split(":")[0]
         if scheme not in self._supported_schemes:
             raise errors.NotBranchError(path=transport.base)

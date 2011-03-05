@@ -73,14 +73,10 @@ def lazy_load_mercurial():
 foreign_vcs_registry.register_lazy("hg",
     "bzrlib.plugins.hg.mapping", "foreign_hg", "Mercurial")
 
-def has_hg_http_smart_server(transport):
-    try:
-        url = transport.external_url() + "?pairs=%s-%s&cmd=between" % (
-            "0" * 40, "0" * 40)
-    except errors.InProcessTransport:
+def has_hg_http_smart_server(transport, external_url):
+    if not external_url.startswith("http:") and not external_url.startswith("https:"):
         return False
-    if not url.startswith("http:") and not url.startswith("https:"):
-        return False
+    url = external_url + "?pairs=%s-%s&cmd=between" % ("0" * 40, "0" * 40)
     from bzrlib.transport.http._urllib import HttpTransport_urllib, Request
     if isinstance(transport, HttpTransport_urllib):
         req = Request('GET', url, accepted_errors=[200, 403, 404, 405])
@@ -127,9 +123,19 @@ def has_hg_dumb_repository(transport):
 
 class HgProber(Prober):
 
+    # Perhaps retrieve list from mercurial.hg.schemes ?
+    _supported_schemes = ["http", "https", "file", "ssh"]
+
     def probe_transport(self, transport):
+        try:
+            external_url = transport.external_url()
+        except errors.InProcessTransport:
+            return False
+        scheme = external_url.split(":")[0]
+        if scheme not in self._supported_schemes:
+            raise errors.NotBranchError(path=transport.base)
         if (not has_hg_dumb_repository(transport) and
-            not has_hg_http_smart_server(transport)):
+            not has_hg_http_smart_server(transport, external_url)):
             # Explicitly check for .hg directories here, so we avoid
             # loading foreign branches through Mercurial.
             raise errors.NotBranchError(path=transport.base)

@@ -329,7 +329,7 @@ class FromHgRepository(InterRepository):
         return ret
 
     def _lookup_file_target(self, key):
-        return self._symlink_targets[key]
+        return str(self._symlink_targets[key]).decode("utf-8")
 
     def _lookup_file_metadata(self, key):
         try:

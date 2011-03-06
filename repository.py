@@ -409,6 +409,11 @@ class HgLocalRepository(HgRepository):
         except errors.NoSuchRevision:
             return False
 
+    def get_commit_builder(self, branch, parents, config, timestamp=None,
+                           timezone=None, committer=None, revprops=None,
+                           revision_id=None):
+        raise NotImplementedError(self.get_commit_builder)
+
 
 class HgRemoteRepository(HgRepository):
 

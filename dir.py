@@ -135,6 +135,8 @@ class HgDir(ControlDir):
     def open_branch(self, name=None, unsupported=False,
             ignore_fallbacks=False):
         """'create' a branch for this dir."""
+        if name is None:
+            name = 'default'
         from bzrlib.plugins.hg.branch import HgLocalBranch, HgRemoteBranch
         if self._hgrepo.local():
             branch_klass = HgLocalBranch

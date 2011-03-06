@@ -16,6 +16,9 @@
 
 """Mercurial working tree support."""
 
+from bzrlib.errors import (
+    IncompatibleFormat,
+    )
 from bzrlib.inventory import (
     Inventory,
     )
@@ -46,6 +49,12 @@ class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
     def get_format_description(self):
         """See WorkingTreeFormat.get_format_description()."""
         return "Mercurial Working Tree"
+
+    def initialize(self, to_bzrdir):
+        from bzrlib.plugins.hg.dir import HgDir
+        if not isinstance(to_bzrdir, HgDir):
+            raise IncompatibleFormat(self, to_bzrdir._format)
+        return to_bzrdir.create_workingtree()
 
 
 class HgWorkingTree(bzrlib.workingtree.WorkingTree):

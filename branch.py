@@ -287,7 +287,7 @@ class HgLocalBranch(HgBranch):
 
     @needs_read_lock
     def last_revision(self):
-        tip = self._hgrepo.branchmap()[self.name]
+        tip = self._hgrepo.branchmap()[self.name][0]
         return self.repository.lookup_foreign_revision_id(tip,
             mapping=self.mapping)
 
@@ -303,7 +303,7 @@ class HgRemoteBranch(HgBranch):
 
     @needs_read_lock
     def last_revision(self):
-        tip = self._hgrepo.branchmap()[self.name]
+        tip = self._hgrepo.branchmap()[self.name][0]
         return self.mapping.revision_id_foreign_to_bzr(tip)
 
 

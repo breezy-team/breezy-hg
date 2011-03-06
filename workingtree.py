@@ -72,7 +72,7 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self.views = self._make_views()
 
     @needs_write_lock
-    def add(self, files, ids=None):
+    def add(self, files, ids=None, kinds=None):
         # hg does not use ids, toss them out
         if isinstance(files, basestring):
             files = [files]

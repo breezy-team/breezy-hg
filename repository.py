@@ -353,7 +353,7 @@ class HgLocalRepository(HgRepository):
 
     def lookup_bzr_revision_id(self, revision_id):
         """See ForeignRepository.lookup_bzr_revision_id()."""
-        assert type(revision_id) is str
+        assert type(revision_id) is str, "invalid revid: %r" % revision_id
         # TODO: Handle round-tripped revisions
         try:
             return mapping_registry.revision_id_bzr_to_foreign(revision_id)
@@ -404,6 +404,8 @@ class HgLocalRepository(HgRepository):
         return foreign_revid in self._hgrepo.changelog.nodemap
 
     def has_revision(self, revision_id):
+        if revision_id == NULL_REVISION:
+            return True
         try:
             return self.has_foreign_revision(self.lookup_bzr_revision_id(revision_id)[0])
         except errors.NoSuchRevision:

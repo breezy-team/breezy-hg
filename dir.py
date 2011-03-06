@@ -197,6 +197,7 @@ class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
     """Hg specific lockable files abstraction."""
 
     def __init__(self, lock, transport):
+        self.lock_name = "hg lock"
         self._lock = lock
         self._transaction = None
         self._lock_mode = None

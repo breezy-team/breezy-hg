@@ -59,7 +59,7 @@ class HgDir(ControlDir):
         return self.transport
 
     def is_control_filename(self, filename):
-        return (filename == ".hg")
+        return (filename == ".hg" or filename.startswith(".hg/"))
 
     def __init__(self, hgrepo, transport, lockfiles, format):
         self._format = format

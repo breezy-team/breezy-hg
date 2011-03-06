@@ -278,6 +278,13 @@ class HgBranch(ForeignBranch):
             revision_id = source_revision_id
         destination.generate_revision_history(revision_id)
 
+    def _tip(self):
+        try:
+            return self._hgrepo.branchmap()[self.name][0]
+        except KeyError:
+            import mercurial.node
+            return mercurial.node.nullid
+
 
 class HgLocalBranch(HgBranch):
 
@@ -287,7 +294,7 @@ class HgLocalBranch(HgBranch):
 
     @needs_read_lock
     def last_revision(self):
-        tip = self._hgrepo.branchmap()[self.name][0]
+        tip = self._tip()
         return self.repository.lookup_foreign_revision_id(tip,
             mapping=self.mapping)
 
@@ -303,7 +310,7 @@ class HgRemoteBranch(HgBranch):
 
     @needs_read_lock
     def last_revision(self):
-        tip = self._hgrepo.branchmap()[self.name][0]
+        tip = self._tip()
         return self.mapping.revision_id_foreign_to_bzr(tip)
 
 

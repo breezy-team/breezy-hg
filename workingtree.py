@@ -16,6 +16,8 @@
 
 """Mercurial working tree support."""
 
+from bzrlib import osutils
+
 from bzrlib.errors import (
     IncompatibleFormat,
     )
@@ -71,14 +73,24 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self.basedir = hgdir.root_transport.local_abspath(".")
         self.views = self._make_views()
 
+    def flush(self):
+        pass
+
     @needs_write_lock
     def add(self, files, ids=None, kinds=None):
         # hg does not use ids, toss them out
         if isinstance(files, basestring):
             files = [files]
+        if kinds is None:
+            kinds = [osutils.file_kind(self.abspath(f)) for f in files]
+        hg_files = []
+        for file, kind in zip(files, kinds):
+            if kind == "directory":
+                continue
+            hg_files.append(file.encode('utf-8'))
+
         # hg does not canonicalise paths : make them absolute
-        paths = [(file).encode('utf8') for file in files]
-        self._hgrepo[None].add(paths)
+        self._hgrepo[None].add(hg_files)
 
     @needs_write_lock
     def commit(self, message=None, revprops=None, *args, **kwargs):

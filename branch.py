@@ -175,13 +175,13 @@ class HgBranchConfig(object):
         return False
 
     def get_user_option(self, name):
-        return None
+        return self._ui.config(name, "bazaar")
 
     def get_user_option_as_bool(self, name):
         return False
 
     def set_user_option(self, name, value, warn_masked=False):
-        pass # FIXME: Uhm?
+        self._ui.setconfig(name, "bazaar", value)
 
     def log_format(self):
         """What log format should be used"""

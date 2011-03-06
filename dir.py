@@ -108,8 +108,6 @@ class HgDir(ControlDir):
         return self.open_workingtree()
 
     def destroy_branch(self, name=None):
-        if name is not None:
-            raise errors.NoColocatedBranchSupport(self)
         raise errors.UnsupportedOperation(self.destroy_branch, self)
 
     def destroy_workingtree(self):
@@ -119,8 +117,6 @@ class HgDir(ControlDir):
         raise errors.UnsupportedOperation(self.destroy_repository, self)
 
     def get_branch_transport(self, branch_format, name=None):
-        if name is not None:
-            raise errors.NoColocatedBranchSupport(self)
         if branch_format is None:
             return self.transport
         if isinstance(branch_format, HgControlDirFormat):
@@ -139,14 +135,12 @@ class HgDir(ControlDir):
     def open_branch(self, name=None, unsupported=False,
             ignore_fallbacks=False):
         """'create' a branch for this dir."""
-        if name is not None:
-            raise errors.NoColocatedBranchSupport(self)
         from bzrlib.plugins.hg.branch import HgLocalBranch, HgRemoteBranch
         if self._hgrepo.local():
             branch_klass = HgLocalBranch
         else:
             branch_klass = HgRemoteBranch
-        return branch_klass(self._hgrepo, self, self._lockfiles)
+        return branch_klass(self._hgrepo, name, self, self._lockfiles)
 
     def open_repository(self, shared=False):
         """'open' a repository for this dir."""
@@ -264,6 +258,8 @@ class HgLock(object):
 
 class HgControlDirFormat(ControlDirFormat):
     """The .hg directory control format."""
+
+    colocated_branches = True
 
     def __init__(self):
         super(HgControlDirFormat, self).__init__()

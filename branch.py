@@ -113,6 +113,17 @@ class HgBranchFormat(BranchFormat):
         from bzrlib.plugins.hg.tests.test_branch import ForeignTestsBranchFactory
         return ForeignTestsBranchFactory()
 
+    def initialize(self, a_bzrdir, name=None, repository=None):
+        from bzrlib.plugins.hg.dir import HgDir
+        if name is None:
+            name = 'default'
+        if not isinstance(a_bzrdir, HgDir):
+            raise errors.IncompatibleFormat(self, a_bzrdir._format)
+        bm = a_bzrdir._hgrepo.branchmap()
+        if name in bm:
+            raise errors.AlreadyBranchError(a_bzrdir.user_url)
+        return a_bzrdir.open_branch(name=name)
+
 
 class LocalHgBranchFormat(HgBranchFormat):
 
@@ -192,13 +203,14 @@ class HgWriteLock(object):
 class HgBranch(ForeignBranch):
     """An adapter to mercurial repositories for bzr Branch objects."""
 
-    def __init__(self, hgrepo, hgdir, lockfiles):
+    def __init__(self, hgrepo, name, hgdir, lockfiles):
         self.repository = hgdir.open_repository()
         ForeignBranch.__init__(self, self.repository.get_mapping())
         self._hgrepo = hgrepo
         self.bzrdir = hgdir
         self.control_files = lockfiles
         self.base = hgdir.root_transport.base
+        self.name = name
 
     def _check(self):
         # TODO: Call out to mercurial for consistency checking?
@@ -269,29 +281,29 @@ class HgBranch(ForeignBranch):
 
 class HgLocalBranch(HgBranch):
 
-    def __init__(self, hgrepo, hgdir, lockfiles):
+    def __init__(self, hgrepo, name, hgdir, lockfiles):
         self._format = LocalHgBranchFormat()
-        super(HgLocalBranch, self).__init__(hgrepo, hgdir, lockfiles)
+        super(HgLocalBranch, self).__init__(hgrepo, name, hgdir, lockfiles)
 
     @needs_read_lock
     def last_revision(self):
-        tip = self._hgrepo.lookup("tip")
+        tip = self._hgrepo.branchmap()[self.name]
         return self.repository.lookup_foreign_revision_id(tip,
             mapping=self.mapping)
 
 
 class HgRemoteBranch(HgBranch):
 
-    def __init__(self, hgrepo, hgdir, lockfiles):
+    def __init__(self, hgrepo, name, hgdir, lockfiles):
         self._format = RemoteHgBranchFormat()
-        super(HgRemoteBranch, self).__init__(hgrepo, hgdir, lockfiles)
+        super(HgRemoteBranch, self).__init__(hgrepo, name, hgdir, lockfiles)
 
     def supports_tags(self):
         return getattr(self.repository._hgrepo, "tags", None) is not None
 
     @needs_read_lock
     def last_revision(self):
-        tip = self._hgrepo.lookup("tip")
+        tip = self._hgrepo.branchmap()[self.name]
         return self.mapping.revision_id_foreign_to_bzr(tip)
 
 

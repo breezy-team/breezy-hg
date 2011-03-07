@@ -178,6 +178,13 @@ from bzrlib.repository import (
 repository_network_format_registry.register_lazy('hg',
     'bzrlib.plugins.hg.repository', 'HgRepositoryFormat')
 
+
+from bzrlib.branch import (
+    network_format_registry as branch_network_format_registry,
+    )
+branch_network_format_registry.register_lazy(
+    "hg", "bzrlib.plugins.hg.branch", "LocalHgBranchFormat")
+
 try:
     from bzrlib.branch import (
         format_registry as branch_format_registry,

@@ -99,7 +99,8 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             extra = {}
         else:
             extra = revprops
-        self._hgrepo.commit(message, extra=extra)
+        hgid = self._hgrepo.commit(message, extra=extra, force=True)
+        return self.bzrdir.open_repository().lookup_foreign_revision_id(hgid)
 
     def _reset_data(self):
         """Reset all cached data."""

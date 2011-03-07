@@ -296,10 +296,10 @@ class HgControlDirFormat(ControlDirFormat):
         try:
             transport = do_catching_redirections(make_directory, transport,
                 redirected)
-        except bzr_errors.FileExists:
+        except errors.FileExists:
             if not use_existing_dir:
                 raise
-        except bzr_errors.NoSuchFile:
+        except errors.NoSuchFile:
             if not create_prefix:
                 raise
             transport.create_prefix()

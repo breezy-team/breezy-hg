@@ -264,6 +264,7 @@ class HgControlDirFormat(ControlDirFormat):
     """The .hg directory control format."""
 
     colocated_branches = True
+    fixed_components = True
 
     def __init__(self):
         super(HgControlDirFormat, self).__init__()

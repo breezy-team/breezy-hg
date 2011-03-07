@@ -121,12 +121,19 @@ def has_hg_dumb_repository(transport):
         return False
 
 
+def undecorate_readonly_transport(transport):
+    if transport.is_readonly():
+        return transport._decorated
+    return transport
+
+
 class HgProber(Prober):
 
     # Perhaps retrieve list from mercurial.hg.schemes ?
     _supported_schemes = ["http", "https", "file", "ssh"]
 
     def probe_transport(self, transport):
+        transport = undecorate_readonly_transport(transport)
         try:
             external_url = transport.external_url()
         except errors.InProcessTransport:

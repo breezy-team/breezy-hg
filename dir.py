@@ -35,6 +35,7 @@ except ImportError: # bzr < 2.4
     from bzrlib.bzrdir import Converter
 from bzrlib.plugins.hg import (
     lazy_load_mercurial,
+    undecorate_readonly_transport,
     )
 
 
@@ -324,6 +325,7 @@ class HgControlDirFormat(ControlDirFormat):
             HgControlDirFormat.
         """
         # we dont grok readonly - hg isn't integrated with transport.
+        transport = undecorate_readonly_transport(transport)
         try:
             url = transport.external_url()
         except errors.InProcessTransport:

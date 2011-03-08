@@ -66,6 +66,7 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self._inventory = Inventory()
         self._hgrepo = hgrepo
         self.bzrdir = hgdir
+        self.repository = hgdir.open_repository()
         self._control_files = lockfiles
         self._branch = hgbranch
         self._format = HgWorkingTreeFormat()

@@ -87,7 +87,7 @@ class HgDir(ControlDir):
         result._hgrepo.pull(self._hgrepo)
         return result
 
-    def create_branch(self, name=None):
+    def create_branch(self, name=None, repository=None):
         """'create' a branch for this dir."""
         return self.open_branch(name=name)
 

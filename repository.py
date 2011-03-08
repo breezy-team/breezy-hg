@@ -65,6 +65,7 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     fast_deltas = True
     supports_leaving_lock = False
     supports_funky_characters = True
+    supports_external_lookups = False
 
     @property
     def _matchingbzrdir(self):

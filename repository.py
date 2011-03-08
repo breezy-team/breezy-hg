@@ -319,6 +319,9 @@ class HgRepository(ForeignRepository):
             self.inventories = None
             self.texts = None
 
+    def revision_graph_can_have_wrong_parents(self):
+        return False
+
     def _warn_if_deprecated(self):
         # This class isn't deprecated
         pass

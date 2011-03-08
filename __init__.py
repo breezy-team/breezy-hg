@@ -183,7 +183,7 @@ from bzrlib.branch import (
     network_format_registry as branch_network_format_registry,
     )
 branch_network_format_registry.register_lazy(
-    "hg", "bzrlib.plugins.hg.branch", "LocalHgBranchFormat")
+    "hg", "bzrlib.plugins.hg.branch", "HgBranchFormat")
 
 try:
     from bzrlib.branch import (
@@ -193,7 +193,7 @@ except ImportError: # bzr < 2.4
     pass
 else:
     branch_format_registry.register_extra_lazy(
-        "bzrlib.plugins.hg.branch", "LocalHgBranchFormat")
+        "bzrlib.plugins.hg.branch", "HgBranchFormat")
 
 try:
     from bzrlib.workingtree import (

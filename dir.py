@@ -307,6 +307,10 @@ class HgControlDirFormat(ControlDirFormat):
         repository.lock_write()
         return (repository, controldir, False, CreateRepository(controldir))
 
+    def get_branch_format(self):
+        from bzrlib.plugins.hg.branch import HgBranchFormat
+        return HgBranchFormat()
+
     def initialize_on_transport(self, transport):
         """Initialize a new .not dir in the base directory of a Transport."""
         return self.open(transport, _create=True)

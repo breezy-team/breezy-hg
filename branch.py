@@ -102,6 +102,11 @@ class HgBranchFormat(BranchFormat):
     support the branch format.
     """
 
+    @property
+    def _matchingbzrdir(self):
+        from bzrlib.plugins.hg.dir import HgControlDirFormat
+        return HgControlDirFormat()
+
     def get_format_description(self):
         """See BranchFormat.get_format_description()."""
         return "Mercurial Branch"
@@ -124,28 +129,10 @@ class HgBranchFormat(BranchFormat):
             raise errors.AlreadyBranchError(a_bzrdir.user_url)
         return a_bzrdir.open_branch(name=name)
 
-
-class LocalHgBranchFormat(HgBranchFormat):
-
-    @property
-    def _matchingbzrdir(self):
-        from bzrlib.plugins.hg.dir import HgControlDirFormat
-        return HgControlDirFormat()
-
-    def supports_tags(self):
-        """True if this format supports tags stored in the branch"""
-        return True
-
     def make_tags(self, branch):
         """See bzrlib.branch.BranchFormat.make_tags()."""
         return LocalHgTags(branch)
 
-
-class RemoteHgBranchFormat(HgBranchFormat):
-
-    def supports_tags(self):
-        """True if this format supports tags stored in the branch"""
-        return False
 
 
 class HgBranchConfig(object):
@@ -297,8 +284,11 @@ class HgBranch(ForeignBranch):
 class HgLocalBranch(HgBranch):
 
     def __init__(self, hgrepo, name, hgdir, lockfiles):
-        self._format = LocalHgBranchFormat()
+        self._format = HgBranchFormat()
         super(HgLocalBranch, self).__init__(hgrepo, name, hgdir, lockfiles)
+
+    def supports_tags(self):
+        return True
 
     @needs_read_lock
     def last_revision(self):

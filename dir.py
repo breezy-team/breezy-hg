@@ -95,7 +95,6 @@ class HgDir(ControlDir):
     def create_repository(self, shared=False):
         """'create' a repository for this dir."""
         if shared:
-            # dont know enough about hg yet to do 'shared repositories' in it.
             raise errors.IncompatibleFormat(self._format, self._format)
         return self.open_repository()
 

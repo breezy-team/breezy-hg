@@ -73,6 +73,8 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
 
     def initialize(self, controldir, shared=False, _internal=False):
         from bzrlib.plugins.hg.dir import HgDir
+        if shared:
+            raise errors.IncompatibleFormat(self, controldir._format)
         if isinstance(controldir, HgDir):
             return controldir.open_repository()
         raise errors.UninitializableFormat(self)

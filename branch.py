@@ -207,6 +207,10 @@ class HgBranch(ForeignBranch):
     def control_url(self):
         return self.bzrdir.control_url
 
+    @property
+    def control_transport(self):
+        return self.bzrdir.control_transport
+
     def __init__(self, hgrepo, name, hgdir, lockfiles):
         self.repository = hgdir.open_repository()
         ForeignBranch.__init__(self, self.repository.get_mapping())

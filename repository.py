@@ -372,7 +372,8 @@ class HgLocalRepository(HgRepository):
         return ret
 
     def get_revision(self, revision_id):
-        assert type(revision_id) is str, "revid is %r" % revision_id
+        if not type(revision_id) is str:
+            raise errors.InvalidRevisionId(revision_id, self)
         hgrevid, mapping = self.lookup_bzr_revision_id(revision_id)
         assert mapping is not None
         hgchange = self._hgrepo.changelog.read(hgrevid)

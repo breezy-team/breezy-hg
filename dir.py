@@ -77,7 +77,8 @@ class HgDir(ControlDir):
         """Mercurial locks never break."""
         raise NotImplementedError(self.break_lock)
 
-    def clone(self, url, revision_id=None, basis=None, force_new_repo=False):
+    def clone(self, url, revision_id=None, basis=None, force_new_repo=False,
+            preserve_stacking=False):
         """Clone this hg dir to url."""
         self._make_tail(url)
         if url.startswith('file://'):

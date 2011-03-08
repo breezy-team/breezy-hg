@@ -300,7 +300,7 @@ class HgLocalBranch(HgBranch):
 class HgRemoteBranch(HgBranch):
 
     def __init__(self, hgrepo, name, hgdir, lockfiles):
-        self._format = RemoteHgBranchFormat()
+        self._format = HgBranchFormat()
         super(HgRemoteBranch, self).__init__(hgrepo, name, hgdir, lockfiles)
 
     def supports_tags(self):

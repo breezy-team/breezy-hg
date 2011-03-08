@@ -203,6 +203,10 @@ class HgWriteLock(object):
 class HgBranch(ForeignBranch):
     """An adapter to mercurial repositories for bzr Branch objects."""
 
+    @property
+    def control_url(self):
+        return self.bzrdir.control_url
+
     def __init__(self, hgrepo, name, hgdir, lockfiles):
         self.repository = hgdir.open_repository()
         ForeignBranch.__init__(self, self.repository.get_mapping())

@@ -22,7 +22,7 @@ from bzrlib.tests import (
     TestCase,
     )
 
-from bzrlib.plugins.hg import (
+from bzrlib.plugins.hg.dir import (
     HgControlDirFormat,
     )
 

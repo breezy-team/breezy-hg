@@ -16,7 +16,7 @@
 
 """Tests for fetching from Mercurial into Bazaar."""
 
-from bzrlib.plugins.hg import HgControlDirFormat
+from bzrlib.plugins.hg.dir import HgControlDirFormat
 from bzrlib.plugins.hg.ui import ui as hgui
 from bzrlib.tests import TestCaseWithTransport
 

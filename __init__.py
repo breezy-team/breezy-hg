@@ -166,7 +166,7 @@ class HgProber(Prober):
 
 ControlDirFormat.register_prober(HgProber)
 ControlDirFormat._server_probers.insert(0, HgProber)
-if not getattr(Prober, "known_formats", None): # bzr < 2.4
+if not getattr(Prober, "known_formats", False): # bzr < 2.4
     from bzrlib.plugins.hg.dir import HgControlDirFormat
     ControlDirFormat.register_format(HgControlDirFormat())
 

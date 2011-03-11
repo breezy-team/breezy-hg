@@ -70,7 +70,7 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
 
     @property
     def _matchingbzrdir(self):
-        from bzrlib.plugins.hg import HgControlDirFormat
+        from bzrlib.plugins.hg.dir import HgControlDirFormat
         return HgControlDirFormat()
 
     def initialize(self, controldir, shared=False, _internal=False):

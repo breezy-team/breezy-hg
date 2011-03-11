@@ -158,7 +158,8 @@ class HgProber(Prober):
             raise errors.NotBranchError(path=transport.base)
         return format
 
-    def known_formats(self):
+    @classmethod
+    def known_formats(cls):
         from bzrlib.plugins.hg.dir import HgControlDirFormat
         return set([HgControlDirFormat()])
 

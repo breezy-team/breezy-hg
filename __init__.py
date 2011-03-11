@@ -158,11 +158,16 @@ class HgProber(Prober):
             raise errors.NotBranchError(path=transport.base)
         return format
 
+    def known_formats(self):
+        from bzrlib.plugins.hg.dir import HgControlDirFormat
+        return set([HgControlDirFormat()])
+
 
 ControlDirFormat.register_prober(HgProber)
 ControlDirFormat._server_probers.insert(0, HgProber)
-from bzrlib.plugins.hg.dir import HgControlDirFormat
-ControlDirFormat.register_format(HgControlDirFormat())
+if not getattr(Prober, "known_formats", None): # bzr < 2.4
+    from bzrlib.plugins.hg.dir import HgControlDirFormat
+    ControlDirFormat.register_format(HgControlDirFormat())
 
 controldir_network_format_registry.register_lazy("hg",
     "bzrlib.plugins.hg.dir", "HgControlDirFormat")

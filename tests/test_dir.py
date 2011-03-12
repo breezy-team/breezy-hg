@@ -37,6 +37,13 @@ class HgControlDirFormatTests(TestCase):
         bzr_format = format_registry.make_bzrdir("default")
         self.assertNotEquals(bzr_format, format1)
 
+    def test_hash(self):
+        format1 = HgControlDirFormat()
+        format2 = HgControlDirFormat()
+        self.assertEquals(hash(format1), hash(format2))
+        bzr_format = format_registry.make_bzrdir("default")
+        self.assertNotEquals(hash(bzr_format), hash(format1))
+
     def test_network_name(self):
         format = HgControlDirFormat()
         self.assertEquals("hg", format.network_name())

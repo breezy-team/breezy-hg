@@ -323,9 +323,8 @@ class HgControlDirFormat(ControlDirFormat):
     def __eq__(self, other):
         return type(self) == type(other)
 
-    @classmethod
-    def _known_formats(self):
-        return set([HgControlDirFormat()])
+    def __hash__(self):
+        return hash((self.__class__,))
 
     def open(self, transport, _create=False, _found=None):
         """Open this directory.

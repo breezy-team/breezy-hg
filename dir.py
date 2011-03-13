@@ -23,6 +23,7 @@ import bzrlib.bzrdir
 import bzrlib.lockable_files
 from bzrlib import (
     errors,
+    urlutils,
     )
 
 from bzrlib.controldir import (
@@ -77,14 +78,12 @@ class HgDir(ControlDir):
         """Mercurial locks never break."""
         raise NotImplementedError(self.break_lock)
 
-    def clone(self, url, revision_id=None, basis=None, force_new_repo=False,
-            preserve_stacking=False):
-        """Clone this hg dir to url."""
-        self._make_tail(url)
-        if url.startswith('file://'):
-            url = url[len('file://'):]
-        url = url.encode('utf8')
-        result = self._format.initialize(url)
+    def clone_on_transport(self, transport, revision_id=None,
+        force_new_repo=False, preserve_stacking=False, stacked_on=None,
+        create_prefix=False, use_existing_dir=True, no_tree=False):
+        """See ControlDir.clone_on_transport."""
+        path = transport.local_abspath(".")
+        result = self._format.initialize(path)
         result._hgrepo.pull(self._hgrepo)
         return result
 

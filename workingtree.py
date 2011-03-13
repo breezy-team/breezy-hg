@@ -72,6 +72,8 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self._format = HgWorkingTreeFormat()
         self._transport = hgdir.get_workingtree_transport(None)
         self.basedir = hgdir.root_transport.local_abspath(".")
+        self._detect_case_handling()
+        self._rules_searcher = None
         self.views = self._make_views()
 
     def flush(self):

@@ -43,7 +43,7 @@
 
   * Remove empty directories during fetch. (Jelmer Vernooij)
 
-  * Mark Mercurial 1.6 and 1.7 as supported, drop support for earlier versions.
+  * Mark Mercurial 1.6, 1.7 and 1.8 as supported, drop support for earlier versions.
     (#486899, Jelmer Vernooij)
 
   * Don't warn about development versions of Mercurial. (#492292, Jelmer 

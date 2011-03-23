@@ -143,6 +143,9 @@ class HgDir(ControlDir):
             branch_klass = HgRemoteBranch
         return branch_klass(self._hgrepo, name, self, self._lockfiles)
 
+    def find_repository(self, shared=False):
+        return self.open_repository(shared)
+
     def open_repository(self, shared=False):
         """'open' a repository for this dir."""
         from bzrlib.plugins.hg.repository import (

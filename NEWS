@@ -77,6 +77,9 @@
 
   * Support stop_revision in Branch.pull(). (Jelmer Vernooij, #544701)
 
+  * Provide custom ControlDir.sprout() implementation. Required for
+    compatibility with bzr 2.4. (Jelmer Vernooij, #717937)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

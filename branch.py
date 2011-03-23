@@ -41,6 +41,7 @@ from bzrlib.repository import (
     )
 from bzrlib.tag import (
     BasicTags,
+    DisabledTags,
     )
 
 from bzrlib.plugins.hg.changegroup import (
@@ -131,7 +132,10 @@ class HgBranchFormat(BranchFormat):
 
     def make_tags(self, branch):
         """See bzrlib.branch.BranchFormat.make_tags()."""
-        return LocalHgTags(branch)
+        if getattr(branch.repository._hgrepo, "tags", None) is not None:
+            return LocalHgTags(branch)
+        else:
+            return DisabledTags(branch)
 
 
 

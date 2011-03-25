@@ -14,15 +14,19 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+"""Tests for Mercurial branches."""
+
 from bzrlib.tests import (
     TestCase,
+    TestCaseWithTransport,
     )
 
-from bzrlib.plugins.hg.dir import (
-    HgControlDirFormat,
-    )
 from bzrlib.plugins.hg.branch import (
     HgBranchFormat,
+    FileHgTags,
+    )
+from bzrlib.plugins.hg.dir import (
+    HgControlDirFormat,
     )
 
 class BranchFormatTests(TestCase):
@@ -38,3 +42,21 @@ class ForeignTestsBranchFactory(object):
         return HgControlDirFormat().initialize_on_transport(transport).open_branch()
 
     make_branch = make_empty_branch
+
+
+class TestFileHgTags(TestCaseWithTransport):
+
+    def test_no_tags_file(self):
+        branch = self.make_branch(".", format=HgControlDirFormat())
+        tags = FileHgTags(branch, branch.last_revision(), branch)
+        self.assertEquals({}, tags.get_tag_dict())
+
+    def test_tags(self):
+        tree = self.make_branch_and_tree(".", format=HgControlDirFormat())
+        self.build_tree_contents([
+            (".hgtags", "4ad63131870d4fbf2a88d7403705310b2d0b9b76 v0.1\n")])
+        tree.add([".hgtags"])
+        tree.commit("add tags")
+        tags = FileHgTags(tree.branch, tree.branch.last_revision(), tree.branch)
+        self.assertEquals({"v0.1": "hg-v1:4ad63131870d4fbf2a88d7403705310b2d0b9b76"},
+            tags.get_tag_dict())

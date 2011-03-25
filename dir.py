@@ -177,6 +177,7 @@ class HgDir(ControlDir):
         from bzrlib.repository import InterRepository
         from bzrlib.transport.local import LocalTransport
         from bzrlib.transport import get_transport
+        from bzrlib.plugins.hg.branch import FileHgTags
         target_transport = get_transport(url, possible_transports)
         target_transport.ensure_base()
         cloning_format = self.cloning_metadir()

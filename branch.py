@@ -32,6 +32,7 @@ from bzrlib.branch import (
     )
 from bzrlib.decorators import (
     needs_read_lock,
+    needs_write_lock,
     )
 from bzrlib.foreign import (
     ForeignBranch,
@@ -54,8 +55,9 @@ class NoPushSupport(errors.BzrError):
 
 class HgTags(BasicTags):
 
-    def __init__(self, branch):
+    def __init__(self, branch, lookup_foreign_revision_id):
         self.branch = branch
+        self.lookup_foreign_revision_id = lookup_foreign_revision_id
 
     def _get_hg_tags(self):
         raise NotImplementedError(self._get_hg_tags)
@@ -64,7 +66,7 @@ class HgTags(BasicTags):
         ret = {}
         hgtags = self._get_hg_tags()
         for name, value in hgtags.iteritems():
-            ret[name] = self.branch.repository.lookup_foreign_revision_id(value)
+            ret[name] = self.lookup_foreign_revision_id(value)
         return ret
 
     def set_tag(self, name, value):
@@ -77,22 +79,38 @@ class HgTags(BasicTags):
 
 class LocalHgTags(HgTags):
 
+    def __init__(self, branch):
+        super(LocalHgTags, self).__init__(branch,
+            branch.repository.lookup_foreign_revision_id)
+
     def _get_hg_tags(self):
         return self.branch.repository._hgrepo.tags()
 
 
 class FileHgTags(HgTags):
+    """File hg tags."""
 
-    def __init__(self, branch, revid):
-        self.branch = branch
+    def __init__(self, branch, revid, source_branch):
+        super(FileHgTags, self).__init__(branch,
+            getattr(branch.repository, "lookup_foreign_revision_id",
+                branch.mapping.revision_id_foreign_to_bzr))
+        self.source_branch = source_branch
         self.revid = revid
 
+    def __repr__(self):
+        return "<%s(%r, %r)>" % (self.__class__.__name__, self.branch, self.revid)
+
     def _get_hg_tags(self):
-        revtree = self.branch.repository.revision_tree(self.revid)
-        f = revtree.get_file_text(revtree.path2id(".hgtags"), ".hgtags")
+        revtree = self.source_branch.repository.revision_tree(self.revid)
+        file_id = revtree.path2id(".hgtags")
+        if file_id is None:
+            return {}
+        f = revtree.get_file(file_id, ".hgtags")
+        ret = {}
         for l in f.readlines():
-            (name, hgtag) = l.strip().split(" ")
-            yield name, hgtag
+            (hgtag, name) = l.strip().split(" ")
+            ret[name] = hgtag
+        return ret
 
 
 class HgBranchFormat(BranchFormat):
@@ -308,7 +326,7 @@ class HgRemoteBranch(HgBranch):
         super(HgRemoteBranch, self).__init__(hgrepo, name, hgdir, lockfiles)
 
     def supports_tags(self):
-        return getattr(self.repository._hgrepo, "tags", None) is not None
+        return True
 
     @needs_read_lock
     def last_revision(self):
@@ -395,7 +413,7 @@ class FromHgBranch(GenericInterBranch):
         self.target.generate_revision_history(self.source.last_revision(),
             req_base, self.source)
         result.new_revno, result.new_revid = self.target.last_revision_info()
-        tags = FileHgTags(self.target, result.new_revid)
+        tags = FileHgTags(self.source, result.new_revid, self.target)
         result.tag_conflicts = tags.merge_to(self.target.tags, overwrite)
         return result
 
@@ -417,9 +435,20 @@ class FromHgBranch(GenericInterBranch):
         self.target.generate_revision_history(stop_revision, req_base,
             self.source)
         result.new_revid = self.target.last_revision()
-        tags = FileHgTags(self.target, result.new_revid)
+        tags = FileHgTags(self.source, result.new_revid, self.target)
         result.tag_conflicts = tags.merge_to(self.target.tags, overwrite)
         return result
+
+    @needs_write_lock
+    def copy_content_into(self, revision_id=None):
+        """Copy the content of source into target
+
+        revision_id: if not None, the revision history in the new branch will
+                     be truncated to end with revision_id.
+        """
+        self.source._synchronize_history(self.target, revision_id)
+        tags = FileHgTags(self.source, revision_id, self.target)
+        tags.merge_to(self.target.tags, overwrite=True)
 
 
 class HgBranchPushResult(BranchPushResult):

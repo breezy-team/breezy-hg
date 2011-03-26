@@ -347,6 +347,14 @@ class InterHgBranch(GenericInterBranch):
         """See InterBranch.is_compatible()."""
         return (isinstance(source, HgBranch) and isinstance(target, HgBranch))
 
+    def fetch(self, stop_revision=None, fetch_tags=True):
+        """See InterBranch.fetch."""
+        if stop_revision is None:
+            stop_revision = self.source.last_revision()
+        inter = InterRepository.get(self.source.repository,
+                                    self.target.repository)
+        inter.fetch(revision_id=stop_revision)
+
     def pull(self, overwrite=False, stop_revision=None,
              possible_transports=None, local=False):
         """See InterBranch.pull()."""
@@ -354,11 +362,9 @@ class InterHgBranch(GenericInterBranch):
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revno, result.old_revid = self.target.last_revision_info()
-        inter = InterRepository.get(self.source.repository,
-                                    self.target.repository)
         if stop_revision is None:
             stop_revision = self.source.last_revision()
-        inter.fetch(revision_id=stop_revision)
+        self.fetch(stop_revision=stop_revision, fetch_tags=True)
         if overwrite:
             req_base = None
         else:
@@ -374,9 +380,7 @@ class InterHgBranch(GenericInterBranch):
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revno, result.old_revid = self.target.last_revision_info()
-        inter = InterRepository.get(self.source.repository,
-                                    self.target.repository)
-        inter.fetch(revision_id=stop_revision)
+        self.fetch(stop_revision=stop_revision)
         result.new_revno, result.new_revid = self.target.last_revision_info()
         return result
 
@@ -384,7 +388,7 @@ class InterHgBranch(GenericInterBranch):
 InterBranch.register_optimiser(InterHgBranch)
 
 
-class FromHgBranch(GenericInterBranch):
+class InterFromHgBranch(GenericInterBranch):
     """InterBranch pulling from a Mercurial branch."""
 
     @staticmethod
@@ -397,6 +401,15 @@ class FromHgBranch(GenericInterBranch):
         return (isinstance(source, HgBranch) and
                 not isinstance(target, HgBranch))
 
+    def fetch(self, stop_revision=None, fetch_tags=True):
+        """See InterBranch.fetch."""
+        if stop_revision is not None:
+            stop_revision = self.source.last_revision()
+        # FIXME: Fetch tags (#309682)
+        inter = InterRepository.get(self.source.repository,
+                                    self.target.repository)
+        inter.fetch(revision_id=stop_revision)
+
     def pull(self, overwrite=False, stop_revision=None,
              possible_transports=None, local=False):
         """See InterBranch.pull()."""
@@ -404,14 +417,14 @@ class FromHgBranch(GenericInterBranch):
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revno, result.old_revid = self.target.last_revision_info()
-        inter = InterRepository.get(self.source.repository,
-                                    self.target.repository)
-        inter.fetch(revision_id=stop_revision)
+        if stop_revision is not None:
+            stop_revision = self.source.last_revision()
+        self.fetch(stop_revision=stop_revision, fetch_tags=True)
         if overwrite:
             req_base = None
         else:
             req_base = self.target.last_revision()
-        self.target.generate_revision_history(self.source.last_revision(),
+        self.target.generate_revision_history(stop_revision,
             req_base, self.source)
         result.new_revno, result.new_revid = self.target.last_revision_info()
         tags = FileHgTags(self.source, result.new_revid, self.target)
@@ -424,11 +437,9 @@ class FromHgBranch(GenericInterBranch):
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revid = self.target.last_revision()
-        inter = InterRepository.get(self.source.repository,
-                                    self.target.repository)
         if stop_revision is not None:
             stop_revision = self.source.last_revision()
-        inter.fetch(revision_id=stop_revision)
+        self.fetch(stop_revision)
         if overwrite:
             req_base = None
         else:
@@ -472,7 +483,7 @@ class HgBranchPushResult(BranchPushResult):
         return self._lookup_revno(self.new_revid)
 
 
-class ToHgBranch(InterBranch):
+class InterToHgBranch(InterBranch):
     """InterBranch implementation that pushes into Hg."""
 
     @staticmethod
@@ -537,5 +548,5 @@ class ToHgBranch(InterBranch):
         return result
 
 
-InterBranch.register_optimiser(FromHgBranch)
-InterBranch.register_optimiser(ToHgBranch)
+InterBranch.register_optimiser(InterFromHgBranch)
+InterBranch.register_optimiser(InterToHgBranch)

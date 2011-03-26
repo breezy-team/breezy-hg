@@ -82,6 +82,9 @@
 
   * Tags are copied during cloning and fetching. (Jelmer Vernooij, #660790)
 
+  * Provide custom InterBranch.fetch() which works for remote hg branches.
+    (Jelmer Vernooij, #741760)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

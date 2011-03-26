@@ -80,7 +80,7 @@
   * Provide custom ControlDir.sprout() implementation. Required for
     compatibility with bzr 2.4. (Jelmer Vernooij, #717937)
 
-  * Tags are copied during cloning and fetching. (Jelmer Vernooij, #660790)
+  * Tags are copied during cloning and fetching. (Jelmer Vernooij, #660790, #716687)
 
  DOCUMENTATION
 

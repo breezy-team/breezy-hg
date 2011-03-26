@@ -29,6 +29,7 @@ from bzrlib.branch import (
     GenericInterBranch,
     InterBranch,
     PullResult,
+    format_registry as branch_format_registry,
     )
 from bzrlib.decorators import (
     needs_read_lock,
@@ -339,7 +340,7 @@ class InterHgBranch(GenericInterBranch):
 
     @staticmethod
     def _get_branch_formats_to_test():
-        return []
+        return [(HgBranchFormat(), HgBranchFormat())]
 
     @staticmethod
     def is_compatible(source, target):
@@ -388,7 +389,7 @@ class FromHgBranch(GenericInterBranch):
 
     @staticmethod
     def _get_branch_formats_to_test():
-        return []
+        return [(HgBranchFormat(), branch_format_registry.get_default())]
 
     @staticmethod
     def is_compatible(source, target):
@@ -476,7 +477,7 @@ class ToHgBranch(InterBranch):
 
     @staticmethod
     def _get_branch_formats_to_test():
-        return []
+        return [(branch_format_registry.get_default(), HgBranchFormat())]
 
     @classmethod
     def is_compatible(self, source, target):

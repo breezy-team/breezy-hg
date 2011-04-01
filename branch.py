@@ -313,7 +313,6 @@ class HgLocalBranch(HgBranch):
     def supports_tags(self):
         return True
 
-    @needs_read_lock
     def last_revision(self):
         tip = self._tip()
         return self.repository.lookup_foreign_revision_id(tip,
@@ -347,12 +346,13 @@ class InterHgBranch(GenericInterBranch):
         """See InterBranch.is_compatible()."""
         return (isinstance(source, HgBranch) and isinstance(target, HgBranch))
 
-    def fetch(self, stop_revision=None, fetch_tags=True):
+    def fetch(self, stop_revision=None, fetch_tags=False):
         """See InterBranch.fetch."""
         if stop_revision is None:
             stop_revision = self.source.last_revision()
         inter = InterRepository.get(self.source.repository,
                                     self.target.repository)
+        # FIXME: handle fetch_tags ?
         inter.fetch(revision_id=stop_revision)
 
     def pull(self, overwrite=False, stop_revision=None,
@@ -364,6 +364,8 @@ class InterHgBranch(GenericInterBranch):
         result.old_revno, result.old_revid = self.target.last_revision_info()
         if stop_revision is None:
             stop_revision = self.source.last_revision()
+        if type(stop_revision) != str:
+            raise TypeError(stop_revision)
         self.fetch(stop_revision=stop_revision, fetch_tags=True)
         if overwrite:
             req_base = None
@@ -379,8 +381,16 @@ class InterHgBranch(GenericInterBranch):
         result = BranchPushResult()
         result.source_branch = self.source
         result.target_branch = self.target
+        if stop_revision is None:
+            stop_revision = self.source.last_revision()
         result.old_revno, result.old_revid = self.target.last_revision_info()
-        self.fetch(stop_revision=stop_revision)
+        self.fetch(stop_revision=stop_revision, fetch_tags=True)
+        if overwrite:
+            req_base = None
+        else:
+            req_base = self.target.last_revision()
+        self.target.generate_revision_history(stop_revision,
+            req_base, self.source)
         result.new_revno, result.new_revid = self.target.last_revision_info()
         return result
 
@@ -405,10 +415,10 @@ class InterFromHgBranch(GenericInterBranch):
         """See InterBranch.fetch."""
         if stop_revision is not None:
             stop_revision = self.source.last_revision()
-        # FIXME: Fetch tags (#309682)
         inter = InterRepository.get(self.source.repository,
                                     self.target.repository)
         inter.fetch(revision_id=stop_revision)
+        # FIXME: Fetch tags (lp:309682) if fetch_tags is True
 
     def pull(self, overwrite=False, stop_revision=None,
              possible_transports=None, local=False):
@@ -417,8 +427,10 @@ class InterFromHgBranch(GenericInterBranch):
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revno, result.old_revid = self.target.last_revision_info()
-        if stop_revision is not None:
+        if stop_revision is None:
             stop_revision = self.source.last_revision()
+        if type(stop_revision) != str:
+            raise TypeError(stop_revision)
         self.fetch(stop_revision=stop_revision, fetch_tags=True)
         if overwrite:
             req_base = None
@@ -427,7 +439,7 @@ class InterFromHgBranch(GenericInterBranch):
         self.target.generate_revision_history(stop_revision,
             req_base, self.source)
         result.new_revno, result.new_revid = self.target.last_revision_info()
-        tags = FileHgTags(self.source, result.new_revid, self.target)
+        tags = self._get_tags(result.new_revid)
         result.tag_conflicts = tags.merge_to(self.target.tags, overwrite)
         return result
 
@@ -439,7 +451,7 @@ class InterFromHgBranch(GenericInterBranch):
         result.old_revid = self.target.last_revision()
         if stop_revision is not None:
             stop_revision = self.source.last_revision()
-        self.fetch(stop_revision)
+        self.fetch(stop_revision, fetch_tags=True)
         if overwrite:
             req_base = None
         else:
@@ -447,7 +459,7 @@ class InterFromHgBranch(GenericInterBranch):
         self.target.generate_revision_history(stop_revision, req_base,
             self.source)
         result.new_revid = self.target.last_revision()
-        tags = FileHgTags(self.source, result.new_revid, self.target)
+        tags = self._get_tags(result.new_revid)
         result.tag_conflicts = tags.merge_to(self.target.tags, overwrite)
         return result
 
@@ -459,8 +471,11 @@ class InterFromHgBranch(GenericInterBranch):
                      be truncated to end with revision_id.
         """
         self.source._synchronize_history(self.target, revision_id)
-        tags = FileHgTags(self.source, revision_id, self.target)
+        tags = self._get_tags(revision_id)
         tags.merge_to(self.target.tags, overwrite=True)
+
+    def _get_tags(self, revision_id):
+        return FileHgTags(self.source, revision_id, self.target)
 
 
 class HgBranchPushResult(BranchPushResult):

@@ -593,12 +593,18 @@ class FromHgRepository(InterRepository):
     def heads(self, fetch_spec, revision_id):
         """Determine the Mercurial heads to fetch. """
         if fetch_spec is not None:
+            recipe = fetch_spec.get_recipe()
+            if recipe[0] in ("search", "proxy-search"):
+                heads = recipe[1]
+            else:
+                raise AssertionError("Unsupported search result type %s" % recipe[0])
             mapping = self.source.get_mapping()
-            return [mapping.revision_id_bzr_to_foreign(head)[0] for head in fetch_spec.heads]
-        if revision_id is not None:
+            return [mapping.revision_id_bzr_to_foreign(head)[0] for head in heads]
+        elif revision_id is not None:
             mapping = self.source.get_mapping()
             return [mapping.revision_id_bzr_to_foreign(revision_id)[0]]
-        return self.source._hgrepo.heads()
+        else:
+            return self.source._hgrepo.heads()
 
     def findmissing(self, heads):
         """Find the set of ancestors of heads missing from target.

@@ -270,7 +270,7 @@ class HgMappingv1(foreign.VcsMapping):
         elif len(revision_id) == 40:
             hexhgrevid = revision_id
         else:
-            raise AssertionError
+            raise AssertionError("Invalid hg id %r" % revision_id)
         return "%s:%s" % (cls.revid_prefix, hexhgrevid)
 
     @classmethod

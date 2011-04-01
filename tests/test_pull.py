@@ -15,7 +15,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 from bzrlib.inventory import Inventory
-from bzrlib.plugins.hg import HgControlDirFormat
+from bzrlib.plugins.hg.dir import HgControlDirFormat
 from bzrlib.tests import TestCaseWithTransport
 
 import base64

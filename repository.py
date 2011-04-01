@@ -62,13 +62,23 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     support the repository format.
     """
     rich_root_data = True
+    fast_deltas = True
+    supports_leaving_lock = False
+    supports_funky_characters = True
+    supports_external_lookups = False
+    supports_full_versioned_files = False
 
     @property
     def _matchingbzrdir(self):
-        from bzrlib.plugins.hg import HgControlDirFormat
+        from bzrlib.plugins.hg.dir import HgControlDirFormat
         return HgControlDirFormat()
 
-    def initialize(self, url, shared=False, _internal=False):
+    def initialize(self, controldir, shared=False, _internal=False):
+        from bzrlib.plugins.hg.dir import HgDir
+        if shared:
+            raise errors.IncompatibleFormat(self, controldir._format)
+        if isinstance(controldir, HgDir):
+            return controldir.open_repository()
         raise errors.UninitializableFormat(self)
 
     def is_supported(self):
@@ -293,6 +303,8 @@ class HgRepository(ForeignRepository):
 
     _serializer = None
 
+    chk_bytes = None
+
     def __init__(self, hgrepo, hgdir, lockfiles):
         ForeignRepository.__init__(self, HgRepositoryFormat(), hgdir, lockfiles)
         self._hgrepo = hgrepo
@@ -308,6 +320,9 @@ class HgRepository(ForeignRepository):
             self.revisions = None
             self.inventories = None
             self.texts = None
+
+    def revision_graph_can_have_wrong_parents(self):
+        return False
 
     def _warn_if_deprecated(self):
         # This class isn't deprecated
@@ -347,7 +362,7 @@ class HgLocalRepository(HgRepository):
 
     def lookup_bzr_revision_id(self, revision_id):
         """See ForeignRepository.lookup_bzr_revision_id()."""
-        assert type(revision_id) is str
+        assert type(revision_id) is str, "invalid revid: %r" % revision_id
         # TODO: Handle round-tripped revisions
         try:
             return mapping_registry.revision_id_bzr_to_foreign(revision_id)
@@ -364,7 +379,8 @@ class HgLocalRepository(HgRepository):
         return ret
 
     def get_revision(self, revision_id):
-        assert type(revision_id) is str, "revid is %r" % revision_id
+        if not type(revision_id) is str:
+            raise errors.InvalidRevisionId(revision_id, self)
         hgrevid, mapping = self.lookup_bzr_revision_id(revision_id)
         assert mapping is not None
         hgchange = self._hgrepo.changelog.read(hgrevid)
@@ -398,10 +414,17 @@ class HgLocalRepository(HgRepository):
         return foreign_revid in self._hgrepo.changelog.nodemap
 
     def has_revision(self, revision_id):
+        if revision_id == NULL_REVISION:
+            return True
         try:
             return self.has_foreign_revision(self.lookup_bzr_revision_id(revision_id)[0])
         except errors.NoSuchRevision:
             return False
+
+    def get_commit_builder(self, branch, parents, config, timestamp=None,
+                           timezone=None, committer=None, revprops=None,
+                           revision_id=None):
+        raise NotImplementedError(self.get_commit_builder)
 
 
 class HgRemoteRepository(HgRepository):

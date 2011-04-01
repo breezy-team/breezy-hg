@@ -29,9 +29,11 @@ from bzrlib.branch import (
     GenericInterBranch,
     InterBranch,
     PullResult,
+    format_registry as branch_format_registry,
     )
 from bzrlib.decorators import (
     needs_read_lock,
+    needs_write_lock,
     )
 from bzrlib.foreign import (
     ForeignBranch,
@@ -41,6 +43,7 @@ from bzrlib.repository import (
     )
 from bzrlib.tag import (
     BasicTags,
+    DisabledTags,
     )
 
 from bzrlib.plugins.hg.changegroup import (
@@ -53,8 +56,9 @@ class NoPushSupport(errors.BzrError):
 
 class HgTags(BasicTags):
 
-    def __init__(self, branch):
+    def __init__(self, branch, lookup_foreign_revision_id):
         self.branch = branch
+        self.lookup_foreign_revision_id = lookup_foreign_revision_id
 
     def _get_hg_tags(self):
         raise NotImplementedError(self._get_hg_tags)
@@ -63,7 +67,7 @@ class HgTags(BasicTags):
         ret = {}
         hgtags = self._get_hg_tags()
         for name, value in hgtags.iteritems():
-            ret[name] = self.branch.repository.lookup_foreign_revision_id(value)
+            ret[name] = self.lookup_foreign_revision_id(value)
         return ret
 
     def set_tag(self, name, value):
@@ -76,22 +80,38 @@ class HgTags(BasicTags):
 
 class LocalHgTags(HgTags):
 
+    def __init__(self, branch):
+        super(LocalHgTags, self).__init__(branch,
+            branch.repository.lookup_foreign_revision_id)
+
     def _get_hg_tags(self):
         return self.branch.repository._hgrepo.tags()
 
 
 class FileHgTags(HgTags):
+    """File hg tags."""
 
-    def __init__(self, branch, revid):
-        self.branch = branch
+    def __init__(self, branch, revid, source_branch):
+        super(FileHgTags, self).__init__(branch,
+            getattr(branch.repository, "lookup_foreign_revision_id",
+                branch.mapping.revision_id_foreign_to_bzr))
+        self.source_branch = source_branch
         self.revid = revid
 
+    def __repr__(self):
+        return "<%s(%r, %r)>" % (self.__class__.__name__, self.branch, self.revid)
+
     def _get_hg_tags(self):
-        revtree = self.branch.repository.revision_tree(self.revid)
-        f = revtree.get_file_text(revtree.path2id(".hgtags"), ".hgtags")
+        revtree = self.source_branch.repository.revision_tree(self.revid)
+        file_id = revtree.path2id(".hgtags")
+        if file_id is None:
+            return {}
+        f = revtree.get_file(file_id, ".hgtags")
+        ret = {}
         for l in f.readlines():
-            (name, hgtag) = l.strip().split(" ")
-            yield name, hgtag
+            (hgtag, name) = l.strip().split(" ")
+            ret[name] = hgtag
+        return ret
 
 
 class HgBranchFormat(BranchFormat):
@@ -101,6 +121,11 @@ class HgBranchFormat(BranchFormat):
     but simply relies on the installed copy of mercurial to
     support the branch format.
     """
+
+    @property
+    def _matchingbzrdir(self):
+        from bzrlib.plugins.hg.dir import HgControlDirFormat
+        return HgControlDirFormat()
 
     def get_format_description(self):
         """See BranchFormat.get_format_description()."""
@@ -113,23 +138,24 @@ class HgBranchFormat(BranchFormat):
         from bzrlib.plugins.hg.tests.test_branch import ForeignTestsBranchFactory
         return ForeignTestsBranchFactory()
 
-
-class LocalHgBranchFormat(HgBranchFormat):
-
-    def supports_tags(self):
-        """True if this format supports tags stored in the branch"""
-        return True
+    def initialize(self, a_bzrdir, name=None, repository=None):
+        from bzrlib.plugins.hg.dir import HgDir
+        if name is None:
+            name = 'default'
+        if not isinstance(a_bzrdir, HgDir):
+            raise errors.IncompatibleFormat(self, a_bzrdir._format)
+        bm = a_bzrdir._hgrepo.branchmap()
+        if name in bm:
+            raise errors.AlreadyBranchError(a_bzrdir.user_url)
+        return a_bzrdir.open_branch(name=name)
 
     def make_tags(self, branch):
         """See bzrlib.branch.BranchFormat.make_tags()."""
-        return LocalHgTags(branch)
+        if getattr(branch.repository._hgrepo, "tags", None) is not None:
+            return LocalHgTags(branch)
+        else:
+            return DisabledTags(branch)
 
-
-class RemoteHgBranchFormat(HgBranchFormat):
-
-    def supports_tags(self):
-        """True if this format supports tags stored in the branch"""
-        return False
 
 
 class HgBranchConfig(object):
@@ -159,13 +185,13 @@ class HgBranchConfig(object):
         return False
 
     def get_user_option(self, name):
-        return None
+        return self._ui.config(name, "bazaar")
 
     def get_user_option_as_bool(self, name):
         return False
 
     def set_user_option(self, name, value, warn_masked=False):
-        pass # FIXME: Uhm?
+        self._ui.setconfig(name, "bazaar", value)
 
     def log_format(self):
         """What log format should be used"""
@@ -187,13 +213,22 @@ class HgWriteLock(object):
 class HgBranch(ForeignBranch):
     """An adapter to mercurial repositories for bzr Branch objects."""
 
-    def __init__(self, hgrepo, hgdir, lockfiles):
+    @property
+    def control_url(self):
+        return self.bzrdir.control_url
+
+    @property
+    def control_transport(self):
+        return self.bzrdir.control_transport
+
+    def __init__(self, hgrepo, name, hgdir, lockfiles):
         self.repository = hgdir.open_repository()
         ForeignBranch.__init__(self, self.repository.get_mapping())
         self._hgrepo = hgrepo
         self.bzrdir = hgdir
         self.control_files = lockfiles
         self.base = hgdir.root_transport.base
+        self.name = name
 
     def _check(self):
         # TODO: Call out to mercurial for consistency checking?
@@ -261,32 +296,41 @@ class HgBranch(ForeignBranch):
             revision_id = source_revision_id
         destination.generate_revision_history(revision_id)
 
+    def _tip(self):
+        try:
+            return self._hgrepo.branchmap()[self.name][0]
+        except KeyError:
+            import mercurial.node
+            return mercurial.node.nullid
+
 
 class HgLocalBranch(HgBranch):
 
-    def __init__(self, hgrepo, hgdir, lockfiles):
-        self._format = LocalHgBranchFormat()
-        super(HgLocalBranch, self).__init__(hgrepo, hgdir, lockfiles)
+    def __init__(self, hgrepo, name, hgdir, lockfiles):
+        self._format = HgBranchFormat()
+        super(HgLocalBranch, self).__init__(hgrepo, name, hgdir, lockfiles)
 
-    @needs_read_lock
+    def supports_tags(self):
+        return True
+
     def last_revision(self):
-        tip = self._hgrepo.lookup("tip")
+        tip = self._tip()
         return self.repository.lookup_foreign_revision_id(tip,
             mapping=self.mapping)
 
 
 class HgRemoteBranch(HgBranch):
 
-    def __init__(self, hgrepo, hgdir, lockfiles):
-        self._format = RemoteHgBranchFormat()
-        super(HgRemoteBranch, self).__init__(hgrepo, hgdir, lockfiles)
+    def __init__(self, hgrepo, name, hgdir, lockfiles):
+        self._format = HgBranchFormat()
+        super(HgRemoteBranch, self).__init__(hgrepo, name, hgdir, lockfiles)
 
     def supports_tags(self):
-        return getattr(self.repository._hgrepo, "tags", None) is not None
+        return True
 
     @needs_read_lock
     def last_revision(self):
-        tip = self._hgrepo.lookup("tip")
+        tip = self._tip()
         return self.mapping.revision_id_foreign_to_bzr(tip)
 
 
@@ -295,12 +339,21 @@ class InterHgBranch(GenericInterBranch):
 
     @staticmethod
     def _get_branch_formats_to_test():
-        return []
+        return [(HgBranchFormat(), HgBranchFormat())]
 
     @staticmethod
     def is_compatible(source, target):
         """See InterBranch.is_compatible()."""
         return (isinstance(source, HgBranch) and isinstance(target, HgBranch))
+
+    def fetch(self, stop_revision=None, fetch_tags=False):
+        """See InterBranch.fetch."""
+        if stop_revision is None:
+            stop_revision = self.source.last_revision()
+        inter = InterRepository.get(self.source.repository,
+                                    self.target.repository)
+        # FIXME: handle fetch_tags ?
+        inter.fetch(revision_id=stop_revision)
 
     def pull(self, overwrite=False, stop_revision=None,
              possible_transports=None, local=False):
@@ -309,11 +362,11 @@ class InterHgBranch(GenericInterBranch):
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revno, result.old_revid = self.target.last_revision_info()
-        inter = InterRepository.get(self.source.repository,
-                                    self.target.repository)
         if stop_revision is None:
             stop_revision = self.source.last_revision()
-        inter.fetch(revision_id=stop_revision)
+        if type(stop_revision) != str:
+            raise TypeError(stop_revision)
+        self.fetch(stop_revision=stop_revision, fetch_tags=True)
         if overwrite:
             req_base = None
         else:
@@ -328,10 +381,16 @@ class InterHgBranch(GenericInterBranch):
         result = BranchPushResult()
         result.source_branch = self.source
         result.target_branch = self.target
+        if stop_revision is None:
+            stop_revision = self.source.last_revision()
         result.old_revno, result.old_revid = self.target.last_revision_info()
-        inter = InterRepository.get(self.source.repository,
-                                    self.target.repository)
-        inter.fetch(revision_id=stop_revision)
+        self.fetch(stop_revision=stop_revision, fetch_tags=True)
+        if overwrite:
+            req_base = None
+        else:
+            req_base = self.target.last_revision()
+        self.target.generate_revision_history(stop_revision,
+            req_base, self.source)
         result.new_revno, result.new_revid = self.target.last_revision_info()
         return result
 
@@ -339,18 +398,27 @@ class InterHgBranch(GenericInterBranch):
 InterBranch.register_optimiser(InterHgBranch)
 
 
-class FromHgBranch(GenericInterBranch):
+class InterFromHgBranch(GenericInterBranch):
     """InterBranch pulling from a Mercurial branch."""
 
     @staticmethod
     def _get_branch_formats_to_test():
-        return []
+        return [(HgBranchFormat(), branch_format_registry.get_default())]
 
     @staticmethod
     def is_compatible(source, target):
         """See InterBranch.is_compatible()."""
         return (isinstance(source, HgBranch) and
                 not isinstance(target, HgBranch))
+
+    def fetch(self, stop_revision=None, fetch_tags=True):
+        """See InterBranch.fetch."""
+        if stop_revision is not None:
+            stop_revision = self.source.last_revision()
+        inter = InterRepository.get(self.source.repository,
+                                    self.target.repository)
+        inter.fetch(revision_id=stop_revision)
+        # FIXME: Fetch tags (lp:309682) if fetch_tags is True
 
     def pull(self, overwrite=False, stop_revision=None,
              possible_transports=None, local=False):
@@ -359,17 +427,19 @@ class FromHgBranch(GenericInterBranch):
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revno, result.old_revid = self.target.last_revision_info()
-        inter = InterRepository.get(self.source.repository,
-                                    self.target.repository)
-        inter.fetch(revision_id=stop_revision)
+        if stop_revision is None:
+            stop_revision = self.source.last_revision()
+        if type(stop_revision) != str:
+            raise TypeError(stop_revision)
+        self.fetch(stop_revision=stop_revision, fetch_tags=True)
         if overwrite:
             req_base = None
         else:
             req_base = self.target.last_revision()
-        self.target.generate_revision_history(self.source.last_revision(),
+        self.target.generate_revision_history(stop_revision,
             req_base, self.source)
         result.new_revno, result.new_revid = self.target.last_revision_info()
-        tags = FileHgTags(self.target, result.new_revid)
+        tags = self._get_tags(result.new_revid)
         result.tag_conflicts = tags.merge_to(self.target.tags, overwrite)
         return result
 
@@ -379,11 +449,9 @@ class FromHgBranch(GenericInterBranch):
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revid = self.target.last_revision()
-        inter = InterRepository.get(self.source.repository,
-                                    self.target.repository)
         if stop_revision is not None:
             stop_revision = self.source.last_revision()
-        inter.fetch(revision_id=stop_revision)
+        self.fetch(stop_revision, fetch_tags=True)
         if overwrite:
             req_base = None
         else:
@@ -391,9 +459,23 @@ class FromHgBranch(GenericInterBranch):
         self.target.generate_revision_history(stop_revision, req_base,
             self.source)
         result.new_revid = self.target.last_revision()
-        tags = FileHgTags(self.target, result.new_revid)
+        tags = self._get_tags(result.new_revid)
         result.tag_conflicts = tags.merge_to(self.target.tags, overwrite)
         return result
+
+    @needs_write_lock
+    def copy_content_into(self, revision_id=None):
+        """Copy the content of source into target
+
+        revision_id: if not None, the revision history in the new branch will
+                     be truncated to end with revision_id.
+        """
+        self.source._synchronize_history(self.target, revision_id)
+        tags = self._get_tags(revision_id)
+        tags.merge_to(self.target.tags, overwrite=True)
+
+    def _get_tags(self, revision_id):
+        return FileHgTags(self.source, revision_id, self.target)
 
 
 class HgBranchPushResult(BranchPushResult):
@@ -416,12 +498,12 @@ class HgBranchPushResult(BranchPushResult):
         return self._lookup_revno(self.new_revid)
 
 
-class ToHgBranch(InterBranch):
+class InterToHgBranch(InterBranch):
     """InterBranch implementation that pushes into Hg."""
 
     @staticmethod
     def _get_branch_formats_to_test():
-        return []
+        return [(branch_format_registry.get_default(), HgBranchFormat())]
 
     @classmethod
     def is_compatible(self, source, target):
@@ -481,5 +563,5 @@ class ToHgBranch(InterBranch):
         return result
 
 
-InterBranch.register_optimiser(FromHgBranch)
-InterBranch.register_optimiser(ToHgBranch)
+InterBranch.register_optimiser(InterFromHgBranch)
+InterBranch.register_optimiser(InterToHgBranch)

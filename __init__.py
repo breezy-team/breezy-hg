@@ -73,16 +73,17 @@ def lazy_load_mercurial():
 foreign_vcs_registry.register_lazy("hg",
     "bzrlib.plugins.hg.mapping", "foreign_hg", "Mercurial")
 
-def has_hg_smart_server(transport):
+def has_hg_http_smart_server(transport, external_url):
+    if not external_url.startswith("http:") and not external_url.startswith("https:"):
+        return False
+    url = external_url + "?pairs=%s-%s&cmd=between" % ("0" * 40, "0" * 40)
     from bzrlib.transport.http._urllib import HttpTransport_urllib, Request
-    url = transport.external_url() + "?pairs=%s-%s&cmd=between" % (
-        "0" * 40, "0" * 40)
     if isinstance(transport, HttpTransport_urllib):
         req = Request('GET', url, accepted_errors=[200, 403, 404, 405])
         req.follow_redirections = True
         resp = transport._perform(req)
         if resp.code == 404:
-            raise errors.NoSuchFile(transport._path)
+            return False
         headers = resp.headers
     else:
         try:
@@ -122,18 +123,26 @@ def has_hg_dumb_repository(transport):
 
 class HgProber(Prober):
 
-    def probe_transport(self, transport):
-        # little ugly, but works
-        from bzrlib.transport.local import LocalTransport
-        lazy_load_mercurial()
-        from mercurial import error as hg_errors
-        # Over http, look for the hg smart server
+    # Perhaps retrieve list from mercurial.hg.schemes ?
+    _supported_schemes = ["http", "https", "file", "ssh"]
 
+    def probe_transport(self, transport):
+        try:
+            external_url = transport.external_url()
+        except errors.InProcessTransport:
+            raise errors.NotBranchError(path=transport.base)
+        scheme = external_url.split(":")[0]
+        if scheme not in self._supported_schemes:
+            raise errors.NotBranchError(path=transport.base)
         if (not has_hg_dumb_repository(transport) and
-            not has_hg_smart_server(transport)):
+            not has_hg_http_smart_server(transport, external_url)):
             # Explicitly check for .hg directories here, so we avoid
             # loading foreign branches through Mercurial.
             raise errors.NotBranchError(path=transport.base)
+
+        lazy_load_mercurial()
+        from mercurial import error as hg_errors
+
         import urllib2
         from bzrlib.plugins.hg.dir import HgControlDirFormat
         format = HgControlDirFormat()
@@ -149,11 +158,17 @@ class HgProber(Prober):
             raise errors.NotBranchError(path=transport.base)
         return format
 
+    @classmethod
+    def known_formats(cls):
+        from bzrlib.plugins.hg.dir import HgControlDirFormat
+        return set([HgControlDirFormat()])
+
 
 ControlDirFormat.register_prober(HgProber)
 ControlDirFormat._server_probers.insert(0, HgProber)
-from bzrlib.plugins.hg.dir import HgControlDirFormat
-ControlDirFormat.register_format(HgControlDirFormat())
+if not getattr(Prober, "known_formats", False): # bzr < 2.4
+    from bzrlib.plugins.hg.dir import HgControlDirFormat
+    ControlDirFormat.register_format(HgControlDirFormat())
 
 controldir_network_format_registry.register_lazy("hg",
     "bzrlib.plugins.hg.dir", "HgControlDirFormat")
@@ -169,10 +184,38 @@ from bzrlib.repository import (
 repository_network_format_registry.register_lazy('hg',
     'bzrlib.plugins.hg.repository', 'HgRepositoryFormat')
 
+
+from bzrlib.branch import (
+    network_format_registry as branch_network_format_registry,
+    )
+branch_network_format_registry.register_lazy(
+    "hg", "bzrlib.plugins.hg.branch", "HgBranchFormat")
+
+try:
+    from bzrlib.branch import (
+        format_registry as branch_format_registry,
+        )
+except ImportError: # bzr < 2.4
+    pass
+else:
+    branch_format_registry.register_extra_lazy(
+        "bzrlib.plugins.hg.branch", "HgBranchFormat")
+
+try:
+    from bzrlib.workingtree import (
+        format_registry as workingtree_format_registry,
+        )
+except ImportError: # bzr < 2.4
+    pass
+else:
+    workingtree_format_registry.register_extra_lazy(
+        "bzrlib.plugins.hg.workingtree", "HgWorkingTreeFormat")
+
+
 try:
     register_extra_lazy_repository_format = getattr(repository_format_registry,
         "register_extra_lazy")
-except AttributeError:
+except AttributeError: # bzr < 2.4
     pass
 else:
     register_extra_lazy_repository_format('bzrlib.plugins.hg.repository',
@@ -190,10 +233,13 @@ from bzrlib.commands import (
     )
 plugin_cmds.register_lazy('cmd_hg_import', [], 'bzrlib.plugins.hg.commands')
 
-from bzrlib.revisionspec import dwim_revspecs
-from bzrlib.plugins.hg.revspec import RevisionSpec_hg
-dwim_revspecs.append(RevisionSpec_hg)
-
+from bzrlib.revisionspec import dwim_revspecs, RevisionSpec_dwim
+if getattr(RevisionSpec_dwim, "append_possible_lazy_revspec", None):
+    RevisionSpec_dwim.append_possible_lazy_revspec(
+        "bzrlib.plugins.hg.revspec", "RevisionSpec_hg")
+else: # bzr < 2.4
+    from bzrlib.plugins.hg.revspec import RevisionSpec_hg
+    dwim_revspecs.append(RevisionSpec_hg)
 
 def test_suite():
     from unittest import TestSuite, TestLoader

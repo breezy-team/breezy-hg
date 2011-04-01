@@ -16,6 +16,11 @@
 
 """Mercurial working tree support."""
 
+from bzrlib import osutils
+
+from bzrlib.errors import (
+    IncompatibleFormat,
+    )
 from bzrlib.inventory import (
     Inventory,
     )
@@ -38,9 +43,20 @@ class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
     support the working tree format.
     """
 
+    @property
+    def _matchingbzrdir(self):
+        from bzrlib.plugins.hg.dir import HgControlDirFormat
+        return HgControlDirFormat()
+
     def get_format_description(self):
         """See WorkingTreeFormat.get_format_description()."""
         return "Mercurial Working Tree"
+
+    def initialize(self, to_bzrdir):
+        from bzrlib.plugins.hg.dir import HgDir
+        if not isinstance(to_bzrdir, HgDir):
+            raise IncompatibleFormat(self, to_bzrdir._format)
+        return to_bzrdir.create_workingtree()
 
 
 class HgWorkingTree(bzrlib.workingtree.WorkingTree):
@@ -50,21 +66,34 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self._inventory = Inventory()
         self._hgrepo = hgrepo
         self.bzrdir = hgdir
+        self.repository = hgdir.open_repository()
         self._control_files = lockfiles
         self._branch = hgbranch
         self._format = HgWorkingTreeFormat()
         self._transport = hgdir.get_workingtree_transport(None)
         self.basedir = hgdir.root_transport.local_abspath(".")
+        self._detect_case_handling()
+        self._rules_searcher = None
         self.views = self._make_views()
 
+    def flush(self):
+        pass
+
     @needs_write_lock
-    def add(self, files, ids=None):
+    def add(self, files, ids=None, kinds=None):
         # hg does not use ids, toss them out
         if isinstance(files, basestring):
             files = [files]
+        if kinds is None:
+            kinds = [osutils.file_kind(self.abspath(f)) for f in files]
+        hg_files = []
+        for file, kind in zip(files, kinds):
+            if kind == "directory":
+                continue
+            hg_files.append(file.encode('utf-8'))
+
         # hg does not canonicalise paths : make them absolute
-        paths = [(file).encode('utf8') for file in files]
-        self._hgrepo[None].add(paths)
+        self._hgrepo[None].add(hg_files)
 
     @needs_write_lock
     def commit(self, message=None, revprops=None, *args, **kwargs):
@@ -73,7 +102,8 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             extra = {}
         else:
             extra = revprops
-        self._hgrepo.commit(message, extra=extra)
+        hgid = self._hgrepo.commit(message.encode("utf-8"), extra=extra, force=True)
+        return self.bzrdir.open_repository().lookup_foreign_revision_id(hgid)
 
     def _reset_data(self):
         """Reset all cached data."""

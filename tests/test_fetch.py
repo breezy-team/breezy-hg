@@ -16,13 +16,12 @@
 
 """Tests for fetching from Mercurial into Bazaar."""
 
-from bzrlib.branch import (
-    Branch,
-    )
-from bzrlib.tests import TestCaseWithTransport
+from bzrlib.branch import Branch
 
-from bzrlib.plugins.hg import HgControlDirFormat
+from bzrlib.plugins.hg.dir import HgControlDirFormat
 from bzrlib.plugins.hg.ui import ui as hgui
+
+from bzrlib.tests import TestCaseWithTransport
 
 from mercurial import hg
 import mercurial.localrepo

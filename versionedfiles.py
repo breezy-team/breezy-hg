@@ -75,6 +75,8 @@ class RevlogVersionedFile(VersionedFile):
                     ret[(revid, )] = tuple((x,) for x in as_bzr_parents(self._revlog.parents(hg_ref), self._reverse_lookup_id))
                 except LookupError:
                     ret[(revid, )] = None
+                if ret[(revid,)] == ():
+                    ret[(revid,)] = (NULL_REVISION,)
         return ret
 
     def keys(self):

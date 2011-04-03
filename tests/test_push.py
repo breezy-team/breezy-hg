@@ -16,3 +16,16 @@
 
 """Tests for pushing revisions into Mercurial repositories."""
 
+
+from bzrlib.tests import TestCase
+
+from bzrlib.plugins.hg.changegroup import chunkify
+
+
+class ChunkifyTests(TestCase):
+
+    def test_empty(self):
+        self.assertEquals("\0\0\0\x04", chunkify(""))
+
+    def test_somebytes(self):
+        self.assertEquals("\0\0\0\x08abcd", chunkify("abcd"))

@@ -175,7 +175,8 @@ def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
             if maybe_empty_dirs[dirname] is not None:
                 maybe_empty_dirs[dirname].add(basis_inv[file_id].name)
         else:
-            assert type(utf8_path) is str
+            if type(utf8_path) != str:
+                raise AssertionError
             fileid = lookup_file_id(utf8_path)
             parent_path, basename = os.path.split(path)
             maybe_empty_dirs[parent_path] = None
@@ -541,12 +542,9 @@ class FromHgRepository(InterRepository):
         """
         self._target_overlay.remember_manifest(revid,
             self._revisions[revid].parent_ids, (manifest, flags))
-        if not self._files[revid]:
-            # Avoid fetching inventories and parent manifests
-            # unnecessarily
-            return
-        for path in self._files[revid]:
-            assert type(path) is str
+        for path in manifest:
+            if type(path) != str:
+                raise AssertionError
             fileid = mapping.generate_file_id(path)
             if not path in manifest:
                 # Path no longer exists

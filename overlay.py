@@ -152,13 +152,15 @@ class MercurialRepositoryOverlay(object):
         raise KeyError(revid)
 
     def _update_texts(self, revid):
+        inv = self.repo.get_inventory(revid)
         delta = self.repo.get_revision_delta(revid)
         def update_text(path, fileid, kind):
             if not kind in ("file", "symlink"):
                 return
-            for (record, parents, node) in text_contents(self.repo, path, [(fileid, revid)], self):
-                if parents is not None:
-                    self.idmap.insert_text(path.encode("utf-8"), node, fileid, revid)
+            text_chunks = text_contents(self.repo, path, [(fileid, inv[fileid].revision)], self)
+            text_chunks.next() # base text
+            for (record, parents, node) in text_chunks:
+                self.idmap.insert_text(path.encode("utf-8"), node, fileid, revid)
         for (path, fileid, kind) in delta.added:
             update_text(path, fileid, kind)
         for (oldpath, newpath, fileid, kind, text_modified, meta_modified) in delta.renamed:

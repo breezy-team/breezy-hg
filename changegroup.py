@@ -28,13 +28,11 @@ import mercurial.node
 from mercurial.revlog import (
     hash as hghash,
     )
+import struct
 
 from bzrlib import (
     debug,
     revision as _mod_revision,
-    )
-from bzrlib.versionedfile import (
-    FulltextContentFactory,
     )
 
 from bzrlib.plugins.hg.mapping import (
@@ -166,16 +164,8 @@ def text_contents(repo, path, keys, overlay):
         yield (record, parents, node)
 
 
-def write_chunk(f, buffer):
-    f.write(chunkheader(len(buffer)))
-    f.write(buffer)
-
-
-def write_delta_chunks(f, entries, textbase):
-    assert isinstance(textbase, str)
-    for blob in pack_chunk_iter(entries, textbase):
-        write_chunk(f, blob)
-    write_chunk(f, "")
+def chunkify(buffer):
+    return chunkheader(len(buffer)) + buffer
 
 
 def extract_base(entries):
@@ -185,48 +175,100 @@ def extract_base(entries):
         return (entries, "")
 
 
-def dchangegroup(repo, mapping, revids, lossy=True):
+def bzr_changegroup(repo, overlay, changelog_ids, mapping, revids, lossy=True):
     """Create a changegroup based on (a derivation) of a set of revisions.
 
     :param repo: Bazaar repository to retrieve the revisions from
     :param revids: Iterable over the revision ids of the revisions to group
     :return: changegroup string
     """
-    from bzrlib.plugins.hg.overlay import get_overlay
     ret = StringIO()
-    overlay = get_overlay(repo, mapping)
     files = {}
     manifest_ids = lazydict(overlay.lookup_manifest_id_by_revid)
     texts = defaultdict(set)
-    changelog_ids = lazydict(lambda x: overlay.lookup_changeset_id_by_revid(x)[0])
-    changelog_ids[_mod_revision.NULL_REVISION] = mercurial.node.nullid
     graph = repo.get_graph()
     revids = list(graph.iter_topo_order(revids))
     assert revids[0] != _mod_revision.NULL_REVISION
     base_revid = repo.get_parent_map([revids[0]])[revids[0]][0]
     todo = [base_revid] + revids # add base text revid
+
     fileids = {}
     manifests = list(dinventories(repo, mapping, todo, manifest_ids, files, overlay, texts, fileids, lossy=lossy))
     # 00changelog.i
     revs = drevisions(repo, mapping, todo, files, changelog_ids, manifest_ids,
         overlay, fileids=fileids, lossy=lossy)
     (revs, textbase) = extract_base(revs)
-    write_delta_chunks(ret, revs, textbase)
+    for blob in pack_chunk_iter(revs, textbase):
+        yield blob
+    yield ""
     del files
     del manifest_ids
+
     # 00manifest.i
     manifests = ((text, ps, changelog_ids[revid]) for (text, ps, revid) in manifests)
     (manifests, textbase) = extract_base(manifests)
-    write_delta_chunks(ret, manifests, textbase)
+    for blob in pack_chunk_iter(manifests, textbase):
+        yield blob
+    yield ""
+
     del manifests
     # texts
     for path, keys in texts.iteritems():
         # FIXME: Mangle path in the same way that mercurial does
-        write_chunk(ret, path)
+        yield path
         dtexts = text_contents(repo, path, keys, overlay)
         textbase = dtexts.next()
         content_chunks = ((record.get_bytes_as('fulltext'), parents, changelog_ids[record.key[1]]) for (record, parents, node) in dtexts)
-        write_delta_chunks(ret, content_chunks, textbase)
-    write_chunk(ret, "")
-    ret.seek(0)
-    return ret, changelog_ids
+        for blob in pack_chunk_iter(content_chunks, textbase):
+            yield blob
+        yield ""
+    yield ""
+
+
+class ChunkStringIO(object):
+
+    def __init__(self, chunkiter):
+        self.chunkiter = chunkiter
+        self._stream = StringIO()
+
+    def chunk(self):
+        return self.chunkiter.next()
+
+    def parsechunk(self):
+        chunk = self.chunk()
+        if not chunk:
+            return {}
+        h = chunk[:80]
+        node, p1, p2, cs = struct.unpack("20s20s20s20s", h)
+        data = chunk[80:]
+        return dict(node=node, p1=p1, p2=p2, cs=cs, data=data)
+
+    def read(self, l):
+        while len(self._stream.getvalue()) < l:
+            try:
+                self._stream.write(chunkify(self.chunk()))
+            except StopIteration:
+                break
+        return self._stream.read(l)
+
+    def seek(self, pos):
+        raise NotImplementedError(self.see)
+
+    def tell(self):
+        raise NotImplementedError(self.tell)
+
+    def close(self):
+        return self._stream.close()
+
+
+def dchangegroup(repo, mapping, revids, lossy=True):
+    from bzrlib.plugins.hg.overlay import get_overlay
+    repo.lock_read()
+    try:
+        overlay = get_overlay(repo, mapping)
+        changelog_ids = lazydict(lambda x: overlay.lookup_changeset_id_by_revid(x)[0])
+        changelog_ids[_mod_revision.NULL_REVISION] = mercurial.node.nullid
+        chunks = bzr_changegroup(repo, overlay, changelog_ids, mapping, revids, lossy)
+    finally:
+        repo.unlock()
+    return ChunkStringIO(chunks), changelog_ids

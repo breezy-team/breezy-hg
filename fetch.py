@@ -77,6 +77,8 @@ from bzrlib.plugins.hg.parsers import (
     unpack_chunk_iter,
     )
 
+INVENTORY_CACHE_SIZE = 25
+
 
 def inventory_create_directory(directories, basis_inv, other_inv, path,
                                lookup_file_id, revid):
@@ -173,7 +175,8 @@ def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
             if maybe_empty_dirs[dirname] is not None:
                 maybe_empty_dirs[dirname].add(basis_inv[file_id].name)
         else:
-            assert type(utf8_path) is str
+            if type(utf8_path) != str:
+                raise AssertionError
             fileid = lookup_file_id(utf8_path)
             parent_path, basename = os.path.split(path)
             maybe_empty_dirs[parent_path] = None
@@ -208,13 +211,17 @@ def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
                 elif ie.kind == "file":
                     ie.text_sha1 = orig_inv[fileid].text_sha1
                     ie.text_size = orig_inv[fileid].text_size
+                else:
+                    raise AssertionError
             else:
                 ie.revision = revid
                 if ie.kind == "file":
                     ie.text_sha1, ie.text_size = lookup_metadata(
-                        (fileid, ie.revision))
+                        (ie.file_id, ie.revision))
                 elif ie.kind == "symlink":
-                    ie.symlink_target = lookup_symlink((fileid, ie.revision))
+                    ie.symlink_target = lookup_symlink((ie.file_id, ie.revision))
+                else:
+                    raise AssertionError
             yield (old_path, path, fileid, ie)
     # Remove empty directories
     while maybe_empty_dirs:
@@ -242,7 +249,7 @@ def create_directory_texts(texts, invdelta):
     def generate_stream():
         for (old_path, new_path, fileid, ie) in invdelta:
             if old_path is None and ie.kind == "directory":
-                record = FulltextContentFactory((fileid, ie.revision), (),
+                record = FulltextContentFactory((ie.file_id, ie.revision), (),
                                                 None, "")
                 record.parents = ()
                 yield record
@@ -260,7 +267,8 @@ def check_roundtrips(repository, mapping, revid, expected_files,
     :param expected_files: Expected Mercurial-style files list
     :param (expected_manifest, expected_flags): Expected manifest and flags
     :param manifest_parents: Manifests of the parents of revision
-    :param inventory: Optional inventory for revid, if the caller already had it
+    :param inventory: Optional inventory for revid, if the caller already had
+        it
     """
     if inventory is None:
         inventory = repository.get_inventory(revid)
@@ -279,8 +287,8 @@ def check_roundtrips(repository, mapping, revid, expected_files,
     for i in range(2):
         if len(lookup) <= i:
             lookup.append({}.__getitem__)
-    (manifest, flags, unusual_fileids) = manifest_and_flags_from_tree(parent_trees, tree,
-        mapping, lookup)
+    (manifest, flags, unusual_fileids) = manifest_and_flags_from_tree(
+        parent_trees, tree, mapping, lookup)
     if set(manifest.keys()) != set(expected_manifest.keys()):
         raise AssertionError("Different contents in manifests: %r, %r" %
                 (manifest.keys(), expected_manifest.keys()))
@@ -304,7 +312,7 @@ class FromHgRepository(InterRepository):
     def __init__(self, source, target):
         InterRepository.__init__(self, source, target)
         self._target_overlay = get_overlay(self.target, self.source.get_mapping())
-        self._inventories = lru_cache.LRUCache(25)
+        self._inventories = lru_cache.LRUCache(INVENTORY_CACHE_SIZE)
         self._revisions = {}
         self._files = {}
         self._text_metadata = {}
@@ -332,42 +340,41 @@ class FromHgRepository(InterRepository):
         return str(self._symlink_targets[key]).decode("utf-8")
 
     def _lookup_file_metadata(self, key):
-        try:
-            return self._text_metadata[key]
-        except KeyError:
-            (fileid, revision) = key
-            stream = self.target.texts.get_record_stream([key], 'unordered', True)
-            record = stream.next()
-            return (record.sha1, len(record.get_bytes_as("fulltext")))
+        return self._text_metadata[key]
 
-    def _import_manifest_delta(self, manifest, flags, files, rev,
-                               mapping):
+    def _import_manifest_delta(self, manifest, flags, files, rev, mapping):
         parent_invs = self._get_inventories(rev.parent_ids)
         if not len(rev.parent_ids) in (0, 1, 2):
             raise AssertionError
         if len(rev.parent_ids) == 0:
             basis_inv = None
             other_inv = None
-            basis_manifest = {}
-            basis_flags = {}
+            hg_basis = ({}, {})
         else:
             basis_inv = parent_invs[0]
-            basis_manifest, basis_flags = self._target_overlay.get_manifest_and_flags_by_revid(rev.parent_ids[0])
+            hg_basis = self._target_overlay.get_manifest_and_flags_by_revid(
+                rev.parent_ids[0])
             if len(rev.parent_ids) == 2:
                 other_inv = parent_invs[1]
             else:
                 other_inv = None
         invdelta = list(manifest_to_inventory_delta(mapping.generate_file_id,
-                basis_inv, other_inv, (basis_manifest, basis_flags),
+                basis_inv, other_inv, hg_basis,
                 (manifest, flags), rev.revision_id, files,
-                self._lookup_file_metadata,
-                self._lookup_file_target))
+                self._lookup_file_metadata, self._lookup_file_target))
         return basis_inv, invdelta
 
     def _get_target_fulltext(self, key):
         if key in self._symlink_targets:
             return self._symlink_targets[key]
         return self._target_overlay.get_file_fulltext(key)
+
+    def _get_inventories_or_manifests(self, revids):
+        for revid in revids:
+            try:
+                yield self.target.get_inventory(revid)
+            except errors.NoSuchRevision:
+                yield self._target_overlay.get_manifest_and_flags_by_revid(revid)[0]
 
     def _create_text_record(self, fileid, revision, parents, kind, fulltext):
         key = (fileid, revision)
@@ -376,30 +383,36 @@ class FromHgRepository(InterRepository):
             bzr_fulltext = ""
         else:
             (meta, bzr_fulltext) = deserialize_file_text(str(fulltext))
-        record = FulltextContentFactory(key, [(fileid, p) for p in parents],
-                osutils.sha_string(bzr_fulltext), bzr_fulltext)
-        self._text_metadata[key] = (record.sha1, len(bzr_fulltext))
-        return record
+        return FulltextContentFactory(key,
+            [(fileid, p) for p in parents],
+            osutils.sha_string(bzr_fulltext), bzr_fulltext)
 
     def _unpack_texts(self, cg, mapping, kind_map, pb):
         i = 0
         # Texts
         while True:
-            f = mercurial.changegroup.getchunk(cg)
-            if not f:
+            path = mercurial.changegroup.getchunk(cg)
+            if not path:
                 break
             i += 1
             pb.update("fetching texts", i, len(kind_map))
-            fileid = mapping.generate_file_id(f)
             itertextchunks = chunkiter(cg)
             def get_text(node):
-                key = iter(kind_map[fileid][node]).next()
-                return self._get_target_fulltext(key)
-            for fulltext, hgkey, hgparents, csid in unpack_chunk_iter(itertextchunks, get_text):
-                for revision, kind in kind_map[fileid][hgkey].iteritems():
-                    text_parents = ()
-                    yield self._create_text_record(fileid, revision,
+                try:
+                    key, kind = kind_map[(path, node)][0]
+                except KeyError:
+                    return self._target_overlay.get_text_by_path_and_node(path, node)
+                else:
+                    return self._get_target_fulltext(key)
+            for fulltext, hgkey, hgparents, csid in unpack_chunk_iter(
+                itertextchunks, get_text):
+                for (fileid, revision), kind, text_parents in kind_map[(path, hgkey)]:
+                    record = self._create_text_record(fileid, revision,
                             text_parents, kind, fulltext)
+                    self._target_overlay.idmap.insert_text(path, hgkey, fileid, revision)
+                    self._text_metadata[record.key] = (record.sha1,
+                        len(record.get_bytes_as("fulltext")))
+                    yield record
 
     def _add_inventories(self, todo, mapping, pb):
         assert isinstance(todo, list)
@@ -416,7 +429,7 @@ class FromHgRepository(InterRepository):
                 basis_revid = rev.parent_ids[0]
             basis_inv, invdelta = self._import_manifest_delta(
                 manifest, flags, files, rev, mapping)
-            # FIXME: Add empty directories
+            # FIXME: Add empty directories if this revision was roundtripped.
             create_directory_texts(self.target.texts, invdelta)
             (validator, new_inv) = self.target.add_inventory_by_delta(
                 basis_revid, invdelta, rev.revision_id, rev.parent_ids,
@@ -478,29 +491,41 @@ class FromHgRepository(InterRepository):
         raise AssertionError
 
     def _determine_text_parents(self, parents, path, fileid, revid, kind_map):
+        """Find the text parents for a file.
+
+        :param parents: Parent inventories or manifests
+        :param path: Path of the file
+        :param fileid: Fileid of the file
+        :param revid: Revision id
+        """
         ret = []
         for parent in parents:
             tp = self._determine_text_parent(parent, path, fileid, revid, kind_map)
-            if tp is not None:
+            if tp is not None and tp not in ret:
                 ret.append(tp)
         return ret
 
     def _determine_text_parent(self, parent, path, fileid, revid, kind_map):
+        """Find the parent revision for a text in a specific parent.
+
+        :param parent: Inventory or manifest to look in
+        :param path: Path of the file
+        :param fileid: Fileid of the file
+        :param revid: Revision id
+        """
         path2id = getattr(parent, "path2id", None)
         if path2id is None: # manifest
             parent_node = parent.get(path)
             if parent_node is None:
                 # Didn't exist in parent
                 return None
-            revisions = kind_map[fileid][parent_node].keys()
-            tp = self._find_most_recent_ancestor(revisions, revid)
-            return tp
-        elif path2id(path) == fileid:
-            # FIXME: Handle situation where path is not actually in
-            # parent
-            return parent[fileid].revision
-        else:
-            return None
+            revisions = [r[1] for r, k, p in kind_map[(path, parent_node)]]
+            return self._find_most_recent_ancestor(revisions, revid)
+        else: # inventory
+            try:
+                return parent[fileid].revision
+            except errors.NoSuchId:
+                return None
 
     def _process_manifest(self, manifest, flags, revid, mapping, kind_map):
         """Process a manifest.
@@ -513,28 +538,21 @@ class FromHgRepository(InterRepository):
         """
         self._target_overlay.remember_manifest(revid,
             self._revisions[revid].parent_ids, (manifest, flags))
-        if not self._files[revid]:
-            # Avoid fetching inventories and parent manifests
-            # unnecessarily
-            return
-        rev = self._revisions[revid]
-        parents = []
-        for previd in rev.parent_ids:
-            try:
-                inv = self.target.get_inventory(previd)
-            except errors.NoSuchRevision:
-                parents.append(self._target_overlay.get_manifest_and_flags_by_revid(previd)[0])
-            else:
-                parents.append(inv)
-        for path in self._files[revid]:
-            assert type(path) is str
+        parent_invs = list(self._get_inventories_or_manifests(
+            self.get_parent_map([revid])[revid]))
+        for path in manifest:
+            if type(path) != str:
+                raise AssertionError
             fileid = mapping.generate_file_id(path)
             if not path in manifest:
                 # Path no longer exists
                 continue
             kind = flags_kind(flags, path)
             node = manifest[path]
-            kind_map[fileid][node][revid] = kind
+            key = (fileid, revid)
+            text_parents = self._determine_text_parents(
+                parent_invs, path, fileid, revid, kind_map)
+            kind_map.setdefault((path, node), []).append((key, kind, text_parents))
 
     def _unpack_manifests(self, chunkiter, mapping, kind_map, todo, pb):
         """Unpack the manifest deltas.
@@ -568,19 +586,20 @@ class FromHgRepository(InterRepository):
             pb.finished()
         # Manifests
         manifestchunks = chunkiter(cg)
-        kind_map = defaultdict(lambda: defaultdict(dict))
+        kind_map = {}
         todo = []
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            self._target_overlay.remember_manifest_texts(
-                self._unpack_manifests(manifestchunks, mapping, kind_map, todo, pb))
+            manifests = self._unpack_manifests(manifestchunks, mapping,
+                kind_map, todo, pb)
+            self._target_overlay.remember_manifest_texts(manifests)
         finally:
             pb.finished()
         # Texts
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            self.target.texts.insert_record_stream(
-                self._unpack_texts(cg, mapping, kind_map, pb))
+            texts = self._unpack_texts(cg, mapping, kind_map, pb)
+            self.target.texts.insert_record_stream(texts)
         finally:
             pb.finished()
         # Adding actual data

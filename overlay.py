@@ -39,6 +39,9 @@ from bzrlib.versionedfile import (
     FulltextContentFactory,
     )
 
+from bzrlib.plugins.hg.changegroup import (
+    text_contents,
+    )
 from bzrlib.plugins.hg.idmap import (
     MemoryIdmap,
     from_repository as idmap_from_repository,
@@ -105,6 +108,10 @@ class MercurialRepositoryOverlay(object):
     def url(self):
         return self.repo.base
 
+    def get_text_by_path_and_node(self, path, node):
+        (fileid, revid) = self.idmap.lookup_text_by_path_and_node(path, node).next()
+        return "".join(self.repo.iter_files_bytes([(fileid, revid, None)]).next()[1])
+
     def remember_manifest_text(self, revid, parent_revids, text):
         """Convenience function for remembering the text of a single manifest.
 
@@ -144,6 +151,23 @@ class MercurialRepositoryOverlay(object):
                 return record.get_bytes_as('fulltext')
         raise KeyError(revid)
 
+    def _update_texts(self, revid):
+        delta = self.repo.get_revision_delta(revid)
+        def update_text(path, fileid, kind):
+            if not kind in ("file", "symlink"):
+                return
+            for (record, parents, node) in text_contents(self.repo, path, [(fileid, revid)], self):
+                if parents is not None:
+                    self.idmap.insert_text(path.encode("utf-8"), node, fileid, revid)
+        for (path, fileid, kind) in delta.added:
+            update_text(path, fileid, kind)
+        for (oldpath, newpath, fileid, kind, text_modified, meta_modified) in delta.renamed:
+            if text_modified:
+                update_text(newpath, fileid, kind)
+        for (path, fileid, kind, text_modified, meta_modified) in delta.modified:
+            if text_modified:
+                update_text(path, fileid, kind)
+
     def _update_idmap(self, stop_revision=None):
         present_revids = self.idmap.revids()
         if stop_revision is None:
@@ -168,8 +192,8 @@ class MercurialRepositoryOverlay(object):
                 changeset_text = self.get_changeset_text_by_revid(revid, rev,
                     manifest_id=manifest_id)
                 changeset_id = hghash(changeset_text, *as_hg_parents(rev.parent_ids[:2], lambda x: self.lookup_changeset_id_by_revid(x)[0]))
-                self.idmap.insert_revision(revid, manifest_id, changeset_id,
-                                           self.mapping)
+                self.idmap.insert_revision(revid, manifest_id, changeset_id, self.mapping)
+                self._update_texts(revid)
         finally:
             pb.finished()
 
@@ -199,7 +223,7 @@ class MercurialRepositoryOverlay(object):
         revid = self._lookup_revision_by_manifest_id(manifest_id)
         return self.get_manifest_text_by_revid(revid)
 
-    def _get_file_fulltext(self, key):
+    def get_file_fulltext(self, key):
         ret = "".join(self.repo.iter_files_bytes([key + (None,)]).next()[1])
         if ret == "": # could be a symlink
             ie = self.repo.get_inventory(key[1])[key[0]]

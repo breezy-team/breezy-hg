@@ -1,4 +1,4 @@
-# Copyright (C) 2006-2011 Canonical Ltd
+# Copyright (C) 2011 Canonical Ltd
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,25 +14,5 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-def test_suite():
-    from unittest import TestSuite
-    from bzrlib.tests import TestUtil
+"""Tests for pushing revisions into Mercurial repositories."""
 
-    loader = TestUtil.TestLoader()
-
-    suite = TestSuite()
-
-    testmod_names = [
-        'test_branch',
-        'test_dir',
-        'test_idmap',
-        'test_mapping',
-        'test_parsers',
-        'test_pull',
-        'test_push',
-        'test_fetch',
-        ]
-
-    suite.addTest(loader.loadTestsFromModuleNames(["%s.%s" % (__name__, i) for i in testmod_names]))
-
-    return suite

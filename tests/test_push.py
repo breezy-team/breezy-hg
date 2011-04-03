@@ -19,7 +19,10 @@
 
 from bzrlib.tests import TestCase
 
-from bzrlib.plugins.hg.changegroup import chunkify
+from bzrlib.plugins.hg.changegroup import (
+    chunkify,
+    extract_base,
+    )
 
 
 class ChunkifyTests(TestCase):
@@ -29,3 +32,16 @@ class ChunkifyTests(TestCase):
 
     def test_somebytes(self):
         self.assertEquals("\0\0\0\x08abcd", chunkify("abcd"))
+
+
+class ExtractBaseTests(TestCase):
+
+    def test_empty(self):
+        (entries, base) = extract_base(iter([]))
+        self.assertEquals("", base)
+        self.assertEquals([], list(entries))
+
+    def test_foo(self):
+        (entries, base) = extract_base(iter(["c", "a", "b"]))
+        self.assertEquals("c", base)
+        self.assertEquals(["a", "b"], list(entries))

@@ -483,14 +483,28 @@ class FromHgRepository(InterRepository):
         raise AssertionError
 
     def _determine_text_parents(self, parents, path, fileid, revid, kind_map):
+        """Find the text parents for a file.
+
+        :param parents: Parent inventories or manifests
+        :param path: Path of the file
+        :param fileid: Fileid of the file
+        :param revid: Revision id
+        """
         ret = []
         for parent in parents:
             tp = self._determine_text_parent(parent, path, fileid, revid, kind_map)
-            if tp is not None:
+            if tp is not None and tp not in ret:
                 ret.append(tp)
         return ret
 
     def _determine_text_parent(self, parent, path, fileid, revid, kind_map):
+        """Find the parent revision for a text in a specific parent.
+
+        :param parent: Inventory or manifest to look in
+        :param path: Path of the file
+        :param fileid: Fileid of the file
+        :param revid: Revision id
+        """
         path2id = getattr(parent, "path2id", None)
         if path2id is None: # manifest
             parent_node = parent.get(path)
@@ -498,8 +512,7 @@ class FromHgRepository(InterRepository):
                 # Didn't exist in parent
                 return None
             revisions = [r[1] for r, k in kind_map[(path, parent_node)]]
-            tp = self._find_most_recent_ancestor(revisions, revid)
-            return tp
+            return self._find_most_recent_ancestor(revisions, revid)
         else: # inventory
             if path2id(path) == fileid:
                 # FIXME: Handle situation where path is not actually in
@@ -541,8 +554,8 @@ class FromHgRepository(InterRepository):
             kind = flags_kind(flags, path)
             node = manifest[path]
             key = (fileid, revid)
-            text_parents = self._determine_text_parents(parents, path, fileid, revid,
-                kind_map)
+            text_parents = self._determine_text_parents(parents, path, fileid,
+                revid, kind_map)
             kind_map[(path, node)].add((key, kind))
 
     def _unpack_manifests(self, chunkiter, mapping, kind_map, todo, pb):
@@ -581,15 +594,16 @@ class FromHgRepository(InterRepository):
         todo = []
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            self._target_overlay.remember_manifest_texts(
-                self._unpack_manifests(manifestchunks, mapping, kind_map, todo, pb))
+            manifests = self._unpack_manifests(manifestchunks, mapping,
+                kind_map, todo, pb)
+            self._target_overlay.remember_manifest_texts(manifests)
         finally:
             pb.finished()
         # Texts
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            self.target.texts.insert_record_stream(
-                self._unpack_texts(cg, mapping, kind_map, pb))
+            texts = self._unpack_texts(cg, mapping, kind_map, pb)
+            self.target.texts.insert_record_stream(texts)
         finally:
             pb.finished()
         # Adding actual data

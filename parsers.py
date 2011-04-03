@@ -106,7 +106,7 @@ def parse_changeset(text):
     return (manifest, user, (time, timezone), files, desc, extra)
 
 
-def pack_chunk_iter(entries):
+def pack_chunk_iter(entries, textbase):
     """Create a chained series of Mercurial deltas.
 
     The first entry is not packed but rather used as a base for the delta
@@ -115,10 +115,6 @@ def pack_chunk_iter(entries):
     :param entries: Iterator over (fulltext, (p1, p2), link) tuples.
     :return: iterator over delta chunks
     """
-    try:
-        textbase = entries.next()[0]
-    except StopIteration:
-        textbase = ""
     for (fulltext, (p1, p2), link) in entries:
         assert len(p1) == 20
         assert len(p2) == 20

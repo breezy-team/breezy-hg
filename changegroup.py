@@ -33,6 +33,9 @@ from bzrlib import (
     debug,
     revision as _mod_revision,
     )
+from bzrlib.versionedfile import (
+    FulltextContentFactory,
+    )
 
 from bzrlib.plugins.hg.mapping import (
     as_hg_parents,
@@ -47,6 +50,7 @@ from bzrlib.plugins.hg.parsers import (
 from bzrlib.plugins.hg.util import (
     lazydict,
     )
+
 
 def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
                overlay, fileids={}, lossy=True):
@@ -150,16 +154,10 @@ def text_contents(repo, path, keys, overlay):
         if not base_reported:
             if record.parents:
                 inv = repo.get_inventory(record.parents[0][1])
-                fileid = inv.path2id(path)
-                if fileid is None:
-                    base_text = ""
-                else:
-                    base_key = (fileid, record.parents[0][1])
-                    base_record = repo.texts.get_record_stream([base_key], 'unordered', True).next()
-                    base_text = base_record.get_bytes_as('fulltext')
+                base_record = repo.texts.get_record_stream([record.parents[0]], 'unordered', True).next()
+                yield base_record.get_bytes_as("fulltext")
             else:
-                base_text = ""
-            yield base_text, None, None
+                yield ""
             base_reported = True
         fulltext = record.get_bytes_as('fulltext')
         parents = as_hg_parents(record.parents, text_as_node)
@@ -173,10 +171,18 @@ def write_chunk(f, buffer):
     f.write(buffer)
 
 
-def write_delta_chunks(f, entries):
-    for blob in pack_chunk_iter(entries):
+def write_delta_chunks(f, entries, textbase):
+    assert isinstance(textbase, str)
+    for blob in pack_chunk_iter(entries, textbase):
         write_chunk(f, blob)
     write_chunk(f, "")
+
+
+def extract_base(entries):
+    try:
+        return (entries, entries.next()[0])
+    except StopIteration:
+        return (entries, "")
 
 
 def dchangegroup(repo, mapping, revids, lossy=True):
@@ -202,18 +208,25 @@ def dchangegroup(repo, mapping, revids, lossy=True):
     fileids = {}
     manifests = list(dinventories(repo, mapping, todo, manifest_ids, files, overlay, texts, fileids, lossy=lossy))
     # 00changelog.i
-    write_delta_chunks(ret, drevisions(repo, mapping, todo, files, changelog_ids, manifest_ids, overlay, fileids=fileids, lossy=lossy))
+    revs = drevisions(repo, mapping, todo, files, changelog_ids, manifest_ids,
+        overlay, fileids=fileids, lossy=lossy)
+    (revs, textbase) = extract_base(revs)
+    write_delta_chunks(ret, revs, textbase)
     del files
     del manifest_ids
     # 00manifest.i
-    write_delta_chunks(ret, ((text, ps, changelog_ids[revid]) for (text, ps, revid) in manifests))
+    manifests = ((text, ps, changelog_ids[revid]) for (text, ps, revid) in manifests)
+    (manifests, textbase) = extract_base(manifests)
+    write_delta_chunks(ret, manifests, textbase)
     del manifests
     # texts
     for path, keys in texts.iteritems():
         # FIXME: Mangle path in the same way that mercurial does
         write_chunk(ret, path)
-        write_delta_chunks(ret,
-            ((record.get_bytes_as('fulltext'), parents, changelog_ids[record.key[1]]) for (record, parents, node) in text_contents(repo, path, keys, overlay)))
+        dtexts = text_contents(repo, path, keys, overlay)
+        textbase = dtexts.next()
+        content_chunks = ((record.get_bytes_as('fulltext'), parents, changelog_ids[record.key[1]]) for (record, parents, node) in dtexts)
+        write_delta_chunks(ret, content_chunks, textbase)
     write_chunk(ret, "")
     ret.seek(0)
     return ret, changelog_ids

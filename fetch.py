@@ -368,6 +368,13 @@ class FromHgRepository(InterRepository):
             return self._symlink_targets[key]
         return self._target_overlay.get_file_fulltext(key)
 
+    def _get_inventories_or_manifests(self, revids):
+        for revid in revids:
+            try:
+                yield self.target.get_inventory(revid)
+            except errors.NoSuchRevision:
+                yield self._target_overlay.get_manifest_and_flags_by_revid(revid)[0]
+
     def _create_text_record(self, fileid, revision, parents, kind, fulltext):
         key = (fileid, revision)
         if kind == "symlink":
@@ -390,15 +397,19 @@ class FromHgRepository(InterRepository):
             pb.update("fetching texts", i, len(kind_map))
             itertextchunks = chunkiter(cg)
             def get_text(node):
-                if kind_map[(path, node)]:
-                    key, kind = iter(kind_map[(path, node)]).next()
-                    return self._get_target_fulltext(key)
-                else:
+                try:
+                    key, kind = kind_map[(path, node)][0]
+                except KeyError:
                     return self._target_overlay.get_text_by_path_and_node(path, node)
+                else:
+                    return self._get_target_fulltext(key)
             for fulltext, hgkey, hgparents, csid in unpack_chunk_iter(
                 itertextchunks, get_text):
                 for (fileid, revision), kind in kind_map[(path, hgkey)]:
-                    text_parents = () # FIXME
+                    parent_invs = list(self._get_inventories_or_manifests(
+                        self.get_parent_map([revision])[revision]))
+                    text_parents = self._determine_text_parents(
+                        parent_invs, path, fileid, revision, kind_map)
                     record = self._create_text_record(fileid, revision,
                             text_parents, kind, fulltext)
                     self._target_overlay.idmap.insert_text(path, hgkey, fileid, revision)
@@ -514,11 +525,9 @@ class FromHgRepository(InterRepository):
             revisions = [r[1] for r, k in kind_map[(path, parent_node)]]
             return self._find_most_recent_ancestor(revisions, revid)
         else: # inventory
-            if path2id(path) == fileid:
-                # FIXME: Handle situation where path is not actually in
-                # parent
+            try:
                 return parent[fileid].revision
-            else:
+            except errors.NoSuchId:
                 return None
 
     def _process_manifest(self, manifest, flags, revid, mapping, kind_map):
@@ -536,15 +545,6 @@ class FromHgRepository(InterRepository):
             # Avoid fetching inventories and parent manifests
             # unnecessarily
             return
-        rev = self._revisions[revid]
-        parents = []
-        for previd in rev.parent_ids:
-            try:
-                inv = self.target.get_inventory(previd)
-            except errors.NoSuchRevision:
-                parents.append(self._target_overlay.get_manifest_and_flags_by_revid(previd)[0])
-            else:
-                parents.append(inv)
         for path in self._files[revid]:
             assert type(path) is str
             fileid = mapping.generate_file_id(path)
@@ -554,9 +554,7 @@ class FromHgRepository(InterRepository):
             kind = flags_kind(flags, path)
             node = manifest[path]
             key = (fileid, revid)
-            text_parents = self._determine_text_parents(parents, path, fileid,
-                revid, kind_map)
-            kind_map[(path, node)].add((key, kind))
+            kind_map.setdefault((path, node), []).append((key, kind))
 
     def _unpack_manifests(self, chunkiter, mapping, kind_map, todo, pb):
         """Unpack the manifest deltas.
@@ -590,7 +588,7 @@ class FromHgRepository(InterRepository):
             pb.finished()
         # Manifests
         manifestchunks = chunkiter(cg)
-        kind_map = defaultdict(set)
+        kind_map = {}
         todo = []
         pb = ui.ui_factory.nested_progress_bar()
         try:

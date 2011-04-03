@@ -77,6 +77,8 @@ from bzrlib.plugins.hg.parsers import (
     unpack_chunk_iter,
     )
 
+INVENTORY_CACHE_SIZE = 25
+
 
 def inventory_create_directory(directories, basis_inv, other_inv, path,
                                lookup_file_id, revid):
@@ -264,7 +266,8 @@ def check_roundtrips(repository, mapping, revid, expected_files,
     :param expected_files: Expected Mercurial-style files list
     :param (expected_manifest, expected_flags): Expected manifest and flags
     :param manifest_parents: Manifests of the parents of revision
-    :param inventory: Optional inventory for revid, if the caller already had it
+    :param inventory: Optional inventory for revid, if the caller already had
+        it
     """
     if inventory is None:
         inventory = repository.get_inventory(revid)
@@ -283,8 +286,8 @@ def check_roundtrips(repository, mapping, revid, expected_files,
     for i in range(2):
         if len(lookup) <= i:
             lookup.append({}.__getitem__)
-    (manifest, flags, unusual_fileids) = manifest_and_flags_from_tree(parent_trees, tree,
-        mapping, lookup)
+    (manifest, flags, unusual_fileids) = manifest_and_flags_from_tree(
+        parent_trees, tree, mapping, lookup)
     if set(manifest.keys()) != set(expected_manifest.keys()):
         raise AssertionError("Different contents in manifests: %r, %r" %
                 (manifest.keys(), expected_manifest.keys()))
@@ -308,7 +311,7 @@ class FromHgRepository(InterRepository):
     def __init__(self, source, target):
         InterRepository.__init__(self, source, target)
         self._target_overlay = get_overlay(self.target, self.source.get_mapping())
-        self._inventories = lru_cache.LRUCache(25)
+        self._inventories = lru_cache.LRUCache(INVENTORY_CACHE_SIZE)
         self._revisions = {}
         self._files = {}
         self._text_metadata = {}
@@ -345,17 +348,17 @@ class FromHgRepository(InterRepository):
         if len(rev.parent_ids) == 0:
             basis_inv = None
             other_inv = None
-            basis_manifest = {}
-            basis_flags = {}
+            hg_basis = ({}, {})
         else:
             basis_inv = parent_invs[0]
-            basis_manifest, basis_flags = self._target_overlay.get_manifest_and_flags_by_revid(rev.parent_ids[0])
+            hg_basis = self._target_overlay.get_manifest_and_flags_by_revid(
+                rev.parent_ids[0])
             if len(rev.parent_ids) == 2:
                 other_inv = parent_invs[1]
             else:
                 other_inv = None
         invdelta = list(manifest_to_inventory_delta(mapping.generate_file_id,
-                basis_inv, other_inv, (basis_manifest, basis_flags),
+                basis_inv, other_inv, hg_basis,
                 (manifest, flags), rev.revision_id, files,
                 self._lookup_file_metadata, self._lookup_file_target))
         return basis_inv, invdelta

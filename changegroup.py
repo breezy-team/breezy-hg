@@ -182,7 +182,6 @@ def bzr_changegroup(repo, overlay, changelog_ids, mapping, revids, lossy=True):
     :param revids: Iterable over the revision ids of the revisions to group
     :return: changegroup string
     """
-    ret = StringIO()
     files = {}
     manifest_ids = lazydict(overlay.lookup_manifest_id_by_revid)
     texts = defaultdict(set)

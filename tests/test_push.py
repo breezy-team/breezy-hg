@@ -75,3 +75,13 @@ class DrevisionsTests(TestCaseWithTransport):
         self.assertEquals([
             ("", (nullid, nullid), nullid),
             ], list(self.drevs(["null:"], {}, {}, {})))
+
+    def test_simple(self):
+        revid = self.tree.commit("foo", timestamp=3434343434, timezone=3600)
+        self.assertEquals([
+            ("", (nullid, nullid), nullid),
+             ('6d616e69666573746964\njrandom@example.com\n3434343434 -3600 bzr-revprop-branch-nick:work\n\nfoo',
+               ('\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
+                '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+             '\xa7yH\x95\xc1\xbf\xa8$\xe9N\x08b\x1c\x82\xe5\x10\xd8\rj\xc6'),
+            ], list(self.drevs(["null:", revid], {revid:{}}, {}, {revid:"manifestid"})))

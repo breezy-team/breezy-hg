@@ -406,11 +406,7 @@ class FromHgRepository(InterRepository):
                     return self._get_target_fulltext(key)
             for fulltext, hgkey, hgparents, csid in unpack_chunk_iter(
                 itertextchunks, get_text):
-                for (fileid, revision), kind in kind_map[(path, hgkey)]:
-                    parent_invs = list(self._get_inventories_or_manifests(
-                        self.get_parent_map([revision])[revision]))
-                    text_parents = self._determine_text_parents(
-                        parent_invs, path, fileid, revision, kind_map)
+                for (fileid, revision), kind, text_parents in kind_map[(path, hgkey)]:
                     record = self._create_text_record(fileid, revision,
                             text_parents, kind, fulltext)
                     self._target_overlay.idmap.insert_text(path, hgkey, fileid, revision)
@@ -523,7 +519,7 @@ class FromHgRepository(InterRepository):
             if parent_node is None:
                 # Didn't exist in parent
                 return None
-            revisions = [r[1] for r, k in kind_map[(path, parent_node)]]
+            revisions = [r[1] for r, k, p in kind_map[(path, parent_node)]]
             return self._find_most_recent_ancestor(revisions, revid)
         else: # inventory
             try:
@@ -542,6 +538,8 @@ class FromHgRepository(InterRepository):
         """
         self._target_overlay.remember_manifest(revid,
             self._revisions[revid].parent_ids, (manifest, flags))
+        parent_invs = list(self._get_inventories_or_manifests(
+            self.get_parent_map([revid])[revid]))
         for path in manifest:
             if type(path) != str:
                 raise AssertionError
@@ -552,7 +550,9 @@ class FromHgRepository(InterRepository):
             kind = flags_kind(flags, path)
             node = manifest[path]
             key = (fileid, revid)
-            kind_map.setdefault((path, node), []).append((key, kind))
+            text_parents = self._determine_text_parents(
+                parent_invs, path, fileid, revid, kind_map)
+            kind_map.setdefault((path, node), []).append((key, kind, text_parents))
 
     def _unpack_manifests(self, chunkiter, mapping, kind_map, todo, pb):
         """Unpack the manifest deltas.

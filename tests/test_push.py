@@ -22,6 +22,8 @@ from bzrlib.tests import (
     TestCaseWithTransport,
     )
 
+from mercurial.node import nullid
+
 from bzrlib.plugins.hg.changegroup import (
     chunkify,
     drevisions,
@@ -68,3 +70,8 @@ class DrevisionsTests(TestCaseWithTransport):
 
     def test_empty(self):
         self.assertEquals([], list(self.drevs([], {}, {}, {})))
+
+    def test_null(self):
+        self.assertEquals([
+            ("", (nullid, nullid), nullid),
+            ], list(self.drevs(["null:"], {}, {}, {})))

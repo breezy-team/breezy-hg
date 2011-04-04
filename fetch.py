@@ -169,7 +169,8 @@ def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
             # File removed
             file_id = basis_inv.path2id(path)
             if file_id is None:
-                raise AssertionError("Removed file %r didn't exist in basis" % path)
+                raise AssertionError("Removed file %r didn't exist in basis" %
+                        path)
             yield (path, None, file_id, None)
             dirname = os.path.dirname(path)
             if maybe_empty_dirs[dirname] is not None:
@@ -311,7 +312,8 @@ class FromHgRepository(InterRepository):
 
     def __init__(self, source, target):
         InterRepository.__init__(self, source, target)
-        self._target_overlay = get_overlay(self.target, self.source.get_mapping())
+        mapping = self.source.get_mapping()
+        self._target_overlay = get_overlay(self.target, mapping)
         self._inventories = lru_cache.LRUCache(INVENTORY_CACHE_SIZE)
         self._revisions = {}
         self._files = {}
@@ -500,7 +502,8 @@ class FromHgRepository(InterRepository):
         """
         ret = []
         for parent in parents:
-            tp = self._determine_text_parent(parent, path, fileid, revid, kind_map)
+            tp = self._determine_text_parent(parent, path, fileid, revid,
+                kind_map)
             if tp is not None and tp not in ret:
                 ret.append(tp)
         return ret
@@ -561,8 +564,9 @@ class FromHgRepository(InterRepository):
         :param mapping: Bzr<->Hg mapping
         :param pb: Progress bar
         """
-        for i, (fulltext, hgkey, hgparents, csid) in enumerate(
-                unpack_chunk_iter(chunkiter, self._target_overlay.get_manifest_text)):
+        chunks = unpack_chunk_iter(chunkiter,
+            self._target_overlay.get_manifest_text)
+        for i, (fulltext, hgkey, hgparents, csid) in enumerate(chunks):
             pb.update("fetching manifests", i, len(self._revisions))
             (manifest, flags) = parse_manifest(fulltext)
             for revid in self._manifest2rev_map[hgkey]:

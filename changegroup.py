@@ -89,6 +89,8 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts,
             except KeyError:
                 pass
         return overlay.get_manifest_and_flags_by_revid(revid)
+    if revids == []:
+        return
     skip_revid = revids[0]
     if revids[0] == _mod_revision.NULL_REVISION:
         yield "", (mercurial.node.nullid, mercurial.node.nullid), revids[0]

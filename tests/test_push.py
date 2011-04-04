@@ -26,6 +26,7 @@ from mercurial.node import nullid
 
 from bzrlib.plugins.hg.changegroup import (
     chunkify,
+    dinventories,
     drevisions,
     extract_base,
     )
@@ -76,7 +77,7 @@ class DrevisionsTests(TestCaseWithTransport):
             ("", (nullid, nullid), nullid),
             ], list(self.drevs(["null:"], {}, {}, {})))
 
-    def test_simple(self):
+    def test_first(self):
         revid = self.tree.commit("foo", timestamp=3434343434, timezone=3600)
         self.assertEquals([
             ("", (nullid, nullid), nullid),
@@ -85,3 +86,39 @@ class DrevisionsTests(TestCaseWithTransport):
                 '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
              '\xa7yH\x95\xc1\xbf\xa8$\xe9N\x08b\x1c\x82\xe5\x10\xd8\rj\xc6'),
             ], list(self.drevs(["null:", revid], {revid:{}}, {}, {revid:"manifestid"})))
+
+
+class DinventoriesTests(TestCaseWithTransport):
+
+    def setUp(self):
+        super(DinventoriesTests, self).setUp()
+        self.tree = self.make_branch_and_tree('.')
+        self.mapping = default_mapping
+        self.overlay = get_overlay(self.tree.branch.repository, self.mapping)
+
+    def dinvs(self, revids, manifest_ids, files, fileids={}, lossy=True):
+        self.tree.lock_read()
+        try:
+            return list(dinventories(self.tree.branch.repository, self.mapping,
+                revids, manifest_ids, files, self.overlay,
+                self.tree.branch.repository.texts, fileids, lossy))
+        finally:
+            self.tree.unlock()
+
+    def test_none(self):
+        self.assertEquals([], self.dinvs([], {}, {}, {}))
+
+    def test_null(self):
+        self.assertEquals([
+            ("", (nullid, nullid), "null:"),
+            ], self.dinvs(["null:"], {}, {}, {}))
+
+    def test_empty(self):
+        revid = self.tree.commit("foo", timestamp=3434343434, timezone=3600)
+        self.assertEquals([
+            ("", (nullid, nullid), "null:"),
+             ('',
+               ('\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
+                '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+             revid),
+             ], self.dinvs(["null:", revid], {revid:"manifestid"}, {revid:{}}))

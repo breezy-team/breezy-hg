@@ -82,6 +82,20 @@ def drevisions(repo, mapping, revids, files, changelog_ids, manifest_ids,
 
 def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts,
                  fileids, lossy=True):
+    """Generate manifests from a series of revision trees.
+
+    :param repo: Bazaar repository to fetch revisions from
+    :param revids: Revision ids to yield manifests for (returned in same order)
+    :param manifest_ids: Dictionary with revid -> file id mappings for known
+        manifests. Used to look up parent manifests not processed
+    :param files: Dictionary to store mercurial file dictionaries in, by revid
+    :param overlay: Mercurial overlay object for the Bazaar repository
+    :param texts: Dictionary with node -> (fileid, revision) tuples
+    :param fileids: Dictionary mapping revision ids to file id lookup dictionaries,
+        for any "unusual" file ids (not matching that predicted by the mapping).
+        (only relevant for non-lossy conversions)
+    :param lossy: Whether or not to do a lossy conversion.
+    """
     def get_manifest(revid):
         if revid in manifest_ids:
             try:
@@ -124,6 +138,9 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts,
             for p in files[revid]:
                 fileid = tree.inventory.path2id(p)
                 if fileid is not None:
+                    # FIXME: This is probably not correct, as 'files'
+                    # don't include new revisions that don't include changes
+                    # (but are e.g. relevant for parents)
                     texts[p].add((fileid, tree.inventory[fileid].revision))
         text = format_manifest(manifest, flags)
         node_parents = as_hg_parents(rev.parent_ids, manifest_ids.__getitem__)

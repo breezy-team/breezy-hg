@@ -155,11 +155,15 @@ def text_contents(repo, path, keys, overlay):
     """Generate revlog text tuples.
 
     :param repo: Bazaar repository
-    :param lookup_changeset_id: lookup function of hg csid by bzr revid
     :param path: UTF8 path
     :param keys: (fileid, revision) tuples of texts to convert
     :param overlay: Overlay
+    :return: Always yields a base text first, then yields tuples with
+        VersionedFileContentFactory, parent nodes, node id for each key
     """
+    if not keys:
+        yield ""
+        return
     def text_as_node((fileid, revision)):
         try:
             return text_nodes[revision]
@@ -171,8 +175,8 @@ def text_contents(repo, path, keys, overlay):
         if not base_reported:
             if record.parents:
                 inv = repo.get_inventory(record.parents[0][1])
-                base_record = repo.texts.get_record_stream([record.parents[0]], 'unordered', True).next()
-                yield base_record.get_bytes_as("fulltext")
+                base_stream = repo.texts.get_record_stream([record.parents[0]], 'unordered', True)
+                yield base_stream.next().get_bytes_as("fulltext")
             else:
                 yield ""
             base_reported = True
@@ -211,7 +215,8 @@ def bzr_changegroup(repo, overlay, changelog_ids, mapping, revids, lossy=True):
     todo = [base_revid] + revids # add base text revid
 
     fileids = {}
-    manifests = list(dinventories(repo, mapping, todo, manifest_ids, files, overlay, texts, fileids, lossy=lossy))
+    manifests = list(dinventories(repo, mapping, todo, manifest_ids, files,
+        overlay, texts, fileids, lossy=lossy))
     # 00changelog.i
     revs = drevisions(repo, mapping, todo, files, changelog_ids, manifest_ids,
         overlay, fileids=fileids, lossy=lossy)
@@ -236,7 +241,9 @@ def bzr_changegroup(repo, overlay, changelog_ids, mapping, revids, lossy=True):
         yield path
         dtexts = text_contents(repo, path, keys, overlay)
         textbase = dtexts.next()
-        content_chunks = ((record.get_bytes_as('fulltext'), parents, changelog_ids[record.key[1]]) for (record, parents, node) in dtexts)
+        content_chunks = ((record.get_bytes_as('fulltext'), parents,
+            changelog_ids[record.key[1]]) for (record, parents, node) in
+            dtexts)
         for blob in pack_chunk_iter(content_chunks, textbase):
             yield blob
         yield ""

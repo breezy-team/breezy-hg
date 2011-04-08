@@ -29,6 +29,7 @@ from bzrlib.plugins.hg.changegroup import (
     dinventories,
     drevisions,
     extract_base,
+    text_contents,
     )
 from bzrlib.plugins.hg.mapping import default_mapping
 from bzrlib.plugins.hg.overlay import get_overlay
@@ -81,9 +82,13 @@ class DrevisionsTests(TestCaseWithTransport):
         revid = self.tree.commit("foo", timestamp=3434343434, timezone=3600)
         self.assertEquals([
             ("", (nullid, nullid), nullid),
-             ('6d616e69666573746964\njrandom@example.com\n3434343434 -3600 bzr-revprop-branch-nick:work\n\nfoo',
-               ('\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
-                '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
+             ('6d616e69666573746964\n'
+              'jrandom@example.com\n'
+              '3434343434 -3600 bzr-revprop-branch-nick:work\n'
+              '\n'
+              'foo',
+               ('\x00' * 20,
+                '\x00' * 20),
              '\xa7yH\x95\xc1\xbf\xa8$\xe9N\x08b\x1c\x82\xe5\x10\xd8\rj\xc6'),
             ], list(self.drevs(["null:", revid], {revid:{}}, {}, {revid:"manifestid"})))
 
@@ -117,8 +122,37 @@ class DinventoriesTests(TestCaseWithTransport):
         revid = self.tree.commit("foo", timestamp=3434343434, timezone=3600)
         self.assertEquals([
             ("", (nullid, nullid), "null:"),
-             ('',
-               ('\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
-                '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
-             revid),
+             ('', ('\x00' * 20, '\x00' * 20), revid),
              ], self.dinvs(["null:", revid], {revid:"manifestid"}, {revid:{}}))
+
+
+class TextContentsTests(TestCaseWithTransport):
+
+    def setUp(self):
+        super(TextContentsTests, self).setUp()
+        self.tree = self.make_branch_and_tree('.')
+        self.mapping = default_mapping
+        self.overlay = get_overlay(self.tree.branch.repository, self.mapping)
+
+    def _text_contents(self, path, keys):
+        entries = text_contents(self.tree.branch.repository, path, keys, self.overlay)
+        base = entries.next()
+        return base, list(entries)
+
+    def test_empty(self):
+        self.assertEquals(("", []), self._text_contents("path", []))
+
+    def test_first_rev(self):
+        self.build_tree_contents([('path', 'contents')])
+        self.tree.add(['path'], ['fileid-a'])
+        rev = self.tree.commit('msg')
+        self.tree.lock_read()
+        self.addCleanup(self.tree.unlock)
+        (base, entries) = self._text_contents("path", [('fileid-a', rev)])
+        self.assertEquals("", base)
+        self.assertEquals(1, len(entries))
+        (record, parents, node) = entries[0]
+        self.assertEquals("contents", record.get_bytes_as("fulltext"))
+        self.assertEquals((nullid, nullid), parents)
+        self.assertEquals(
+            'uVY\xc9\x0e\xee\xc9]\xba\x97\x8c\xb0v\xb6\xaa\xb1\xa0/\xb3\x13', node)

@@ -169,6 +169,13 @@ ControlDirFormat._server_probers.insert(0, HgProber)
 if not getattr(Prober, "known_formats", False): # bzr < 2.4
     from bzrlib.plugins.hg.dir import HgControlDirFormat
     ControlDirFormat.register_format(HgControlDirFormat())
+    # Provide RevisionTree.get_file_revision, so various parts of bzr-svn
+    # can avoid inventories.
+    from bzrlib.revisiontree import RevisionTree
+    def get_file_revision(tree, file_id, path=None):
+        return tree.inventory[file_id].revision
+    RevisionTree.get_file_revision = get_file_revision
+
 
 controldir_network_format_registry.register_lazy("hg",
     "bzrlib.plugins.hg.dir", "HgControlDirFormat")

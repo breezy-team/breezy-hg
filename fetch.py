@@ -56,6 +56,10 @@ from bzrlib.repository import (
 from bzrlib.revision import (
     NULL_REVISION,
     )
+try:
+    from bzrlib.revisiontree import InventoryRevisionTree
+except ImportError: # bzr < 2.4
+    from bzrlib.revisiontree import RevisionTree as InventoryRevisionTree
 from bzrlib.versionedfile import (
     FulltextContentFactory,
     )
@@ -259,7 +263,7 @@ def create_directory_texts(texts, invdelta):
 
 def check_roundtrips(repository, mapping, revid, expected_files,
                      (expected_manifest, expected_flags),
-                     manifest_parents, inventory=None):
+                     manifest_parents, tree=None):
     """Make sure that a revision imported to Bazaar can be re-exported to hg.
 
     :param repository: Bazaar repository to retrieve revision from
@@ -268,11 +272,11 @@ def check_roundtrips(repository, mapping, revid, expected_files,
     :param expected_files: Expected Mercurial-style files list
     :param (expected_manifest, expected_flags): Expected manifest and flags
     :param manifest_parents: Manifests of the parents of revision
-    :param inventory: Optional inventory for revid, if the caller already had
+    :param tree: Optional tree for revid, if the caller already had
         it
     """
-    if inventory is None:
-        inventory = repository.get_inventory(revid)
+    if tree is None:
+        tree = repository.revision_tree(revid)
     tree = repository.revision_tree(revid)
     rev = repository.get_revision(revid)
     parent_trees = list(repository.revision_trees(rev.parent_ids[:2]))
@@ -281,7 +285,7 @@ def check_roundtrips(repository, mapping, revid, expected_files,
     except IndexError:
         base_tree = repository.revision_tree(NULL_REVISION)
     delta = tree.changes_from(base_tree)
-    files = files_from_delta(delta, inventory, revid)
+    files = files_from_delta(delta, tree, revid)
     if expected_files != files:
         raise AssertionError
     lookup = [m.__getitem__ for m, f in manifest_parents[:2]]
@@ -442,10 +446,12 @@ class FromHgRepository(InterRepository):
                 rev.properties['manifest'], rev.foreign_revid, mapping)
             del self._revisions[rev.revision_id]
             if 'check' in debug.debug_flags:
+                new_tree = InventoryRevisionTree(self.target, new_inv,
+                    rev.revision_iD)
                 check_roundtrips(self.target, mapping, rev.revision_id,
                     files, (manifest, flags),
                     [x[1] for x in self._target_overlay.get_manifest_and_flags_by_revids(rev.parent_ids[:2])],
-                    inventory=new_inv,
+                    tree=new_tree,
                     )
 
     def _unpack_changesets(self, chunkiter, mapping, pb):

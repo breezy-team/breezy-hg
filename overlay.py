@@ -218,8 +218,8 @@ class MercurialRepositoryOverlay(object):
             return self.idmap.get_files_by_revid(revid)
         except KeyError:
             delta = self.repo.get_revision_delta(revid)
-            inv = self.repo.get_inventory(revid)
-            return files_from_delta(delta, inv, revid)
+            tree = self.repo.revision_tree(revid)
+            return files_from_delta(delta, tree, revid)
 
     def get_manifest_text(self, manifest_id):
         revid = self._lookup_revision_by_manifest_id(manifest_id)

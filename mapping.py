@@ -125,11 +125,11 @@ def as_bzr_parents(parents, lookup_id):
         return tuple(ret)
 
 
-def files_from_delta(delta, inv, revid):
+def files_from_delta(delta, tree, revid):
     """Create a Mercurial-style 'files' set from a Bazaar tree delta.
 
     :param delta: bzrlib.delta.TreeDelta instance
-    :param inv: Inventory
+    :param tree: Tree
     :param revid: Revision id
     :return: Set with changed files
     """
@@ -138,7 +138,7 @@ def files_from_delta(delta, inv, revid):
         (path, id, kind) = change[:3]
         if kind not in ('file', 'symlink'):
             continue
-        if not id in inv or inv[id].revision == revid:
+        if not tree.has_id(id) or tree.get_file_revision(id) == revid:
             ret.add(path)
     for (path, id, old_kind, new_kind) in delta.kind_changed:
         if old_kind in ('file', 'symlink') or new_kind in ('file', 'symlink'):

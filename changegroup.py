@@ -131,7 +131,7 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts,
         except IndexError:
             base_tree = repo.revision_tree(_mod_revision.NULL_REVISION)
         files[revid] = files_from_delta(tree.changes_from(base_tree),
-            tree.inventory, revid)
+            tree, revid)
         # Avoid sending texts for first revision, it's listed so we get the
         # base text for the manifest delta's.
         if revid != skip_revid:

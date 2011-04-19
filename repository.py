@@ -424,7 +424,7 @@ class HgLocalRepository(HgRepository):
 
     def get_commit_builder(self, branch, parents, config, timestamp=None,
                            timezone=None, committer=None, revprops=None,
-                           revision_id=None):
+                           revision_id=None, lossy=False):
         raise NotImplementedError(self.get_commit_builder)
 
 

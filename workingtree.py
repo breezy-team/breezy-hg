@@ -20,6 +20,7 @@ from bzrlib import osutils
 
 from bzrlib.errors import (
     IncompatibleFormat,
+    PointlessCommit,
     )
 from bzrlib.inventory import (
     Inventory,
@@ -96,13 +97,15 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self._hgrepo[None].add(hg_files)
 
     @needs_write_lock
-    def commit(self, message=None, revprops=None, *args, **kwargs):
+    def commit(self, message=None, revprops=None, allow_pointless=True, *args, **kwargs):
         # TODO: selected file lists -> match function
         if revprops is None:
             extra = {}
         else:
             extra = revprops
-        hgid = self._hgrepo.commit(message.encode("utf-8"), extra=extra, force=True)
+        hgid = self._hgrepo.commit(message.encode("utf-8"), extra=extra, force=allow_pointless)
+        if hgid is None:
+            raise PointlessCommit()
         return self.bzrdir.open_repository().lookup_foreign_revision_id(hgid)
 
     def _reset_data(self):

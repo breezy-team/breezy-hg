@@ -276,7 +276,7 @@ class SqliteIdmap(BzrHgIdmap):
         self.db.execute("insert into revision (revid, csid, manifest_id, mapping) values (?, ?, ?, ?)", (revid, changeset_id, manifest_id, str(mapping)))
 
     def lookup_text_by_path_and_node(self, path, node):
-        cursor = self.db.execute("select (fileid, revid) from text_map where path = ? and node = ?", (path, node))
+        cursor = self.db.execute("select fileid, revid from text_map where path = ? and node = ?", (path, node))
         return cursor.fetchall()
 
     def insert_text(self, path, node, fileid, revid):

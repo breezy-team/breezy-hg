@@ -120,3 +120,13 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             return self._control_files.unlock()
         finally:
             self.branch.unlock()
+
+    def get_root_id(self):
+        return self.path2id("")
+
+    def path2id(self, path):
+        # FIXME: For the time being; should use file id map eventually
+        return self._branch.mapping.generate_file_id(path)
+
+    def id2path(self, file_id):
+        return self._branch.mapping.parse_file_id(file_id)

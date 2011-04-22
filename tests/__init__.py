@@ -25,12 +25,13 @@ def test_suite():
     testmod_names = [
         'test_branch',
         'test_dir',
+        'test_fetch',
         'test_idmap',
         'test_mapping',
         'test_parsers',
         'test_pull',
         'test_push',
-        'test_fetch',
+        'test_repository',
         ]
 
     suite.addTest(loader.loadTestsFromModuleNames(["%s.%s" % (__name__, i) for i in testmod_names]))

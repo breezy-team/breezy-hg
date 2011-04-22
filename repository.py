@@ -427,6 +427,11 @@ class HgLocalRepository(HgRepository):
                            revision_id=None, lossy=False):
         raise NotImplementedError(self.get_commit_builder)
 
+    def all_revision_ids(self):
+        return set([self.lookup_foreign_revision_id(
+            self._hgrepo.changelog.node(hgid))
+            for hgid in self._hgrepo.changelog])
+
 
 class HgRemoteRepository(HgRepository):
 

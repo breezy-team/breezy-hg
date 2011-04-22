@@ -76,9 +76,10 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self._detect_case_handling()
         self._rules_searcher = None
         self.views = self._make_views()
+        self._dirstate = self._hgrepo[None]
 
     def flush(self):
-        pass
+        self._dirstate.write()
 
     @needs_write_lock
     def add(self, files, ids=None, kinds=None):
@@ -94,7 +95,12 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             hg_files.append(file.encode('utf-8'))
 
         # hg does not canonicalise paths : make them absolute
-        self._hgrepo[None].add(hg_files)
+        self._dirstate.add(hg_files)
+
+    def unversion(self, file_ids):
+        for file_id in file_ids:
+            path = self.id2path(file_id)
+            self._dirstate.remove(path.encode("utf-8"))
 
     @needs_write_lock
     def commit(self, message=None, revprops=None, allow_pointless=True, *args, **kwargs):

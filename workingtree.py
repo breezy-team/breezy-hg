@@ -16,6 +16,9 @@
 
 """Mercurial working tree support."""
 
+import errno
+import os
+
 from bzrlib import osutils
 
 from bzrlib.errors import (
@@ -103,16 +106,18 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             self._dirstate.remove(path.encode("utf-8"))
 
     @needs_write_lock
-    def commit(self, message=None, revprops=None, allow_pointless=True, *args, **kwargs):
+    def commit(self, message=None, revprops=None, allow_pointless=True, *args,
+            **kwargs):
         # TODO: selected file lists -> match function
         if revprops is None:
             extra = {}
         else:
             extra = revprops
-        hgid = self._hgrepo.commit(message.encode("utf-8"), extra=extra, force=allow_pointless)
+        hgid = self._hgrepo.commit(message.encode("utf-8"), extra=extra,
+                force=allow_pointless)
         if hgid is None:
             raise PointlessCommit()
-        return self.bzrdir.open_repository().lookup_foreign_revision_id(hgid)
+        return self.repository.lookup_foreign_revision_id(hgid)
 
     def _reset_data(self):
         """Reset all cached data."""
@@ -136,3 +141,22 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
 
     def id2path(self, file_id):
         return self._branch.mapping.parse_file_id(file_id)
+
+    def revision_tree(self, revid):
+        return self.repository.revision_tree(revid)
+
+    def get_file_mtime(self, file_id, path=None):
+        """See Tree.get_file_mtime."""
+        if not path:
+            path = self.id2path(file_id)
+        return os.lstat(self.abspath(path)).st_mtime
+
+    def get_file_sha1(self, file_id, path=None, stat_value=None):
+        if not path:
+            path = self.id2path(file_id)
+        try:
+            return osutils.sha_file_by_name(self.abspath(path).encode(osutils._fs_enc))
+        except OSError, (num, msg):
+            if num in (errno.EISDIR, errno.ENOENT):
+                return None
+            raise

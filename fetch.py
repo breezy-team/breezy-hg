@@ -405,7 +405,7 @@ class FromHgRepository(InterRepository):
             itertextchunks = chunkiter(cg)
             def get_text(node):
                 try:
-                    key, kind = kind_map[(path, node)][0]
+                    key, kind, text_parents = kind_map[(path, node)][0]
                 except KeyError:
                     return self._target_overlay.get_text_by_path_and_node(path, node)
                 else:

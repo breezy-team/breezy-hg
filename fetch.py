@@ -424,7 +424,8 @@ class FromHgRepository(InterRepository):
         assert isinstance(todo, list)
         total = len(self._revisions)
         # add the actual revisions
-        for i, (revid, (manifest, flags)) in enumerate(self._target_overlay.get_manifest_and_flags_by_revids(todo)):
+        for i, (revid, (manifest, flags)) in enumerate(
+                self._target_overlay.get_manifest_and_flags_by_revids(todo)):
             pb.update("adding inventories", i, len(todo))
             rev = self._revisions[revid]
             files = self._files[rev.revision_id]
@@ -561,7 +562,8 @@ class FromHgRepository(InterRepository):
             key = (fileid, revid)
             text_parents = self._determine_text_parents(
                 parent_invs, path, fileid, revid, kind_map)
-            kind_map.setdefault((path, node), []).append((key, kind, text_parents))
+            kind_map.setdefault((path, node), []).append((key, kind,
+                text_parents))
 
     def _unpack_manifests(self, chunkiter, mapping, kind_map, todo, pb):
         """Unpack the manifest deltas.

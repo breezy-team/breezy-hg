@@ -415,7 +415,8 @@ class FromHgRepository(InterRepository):
                 for (fileid, revision), kind, text_parents in kind_map[(path, hgkey)]:
                     record = self._create_text_record(fileid, revision,
                             text_parents, kind, fulltext)
-                    self._target_overlay.idmap.insert_text(path, hgkey, fileid, revision)
+                    self._target_overlay.idmap.insert_text(path, hgkey,
+                        fileid, revision)
                     self._text_metadata[record.key] = (record.sha1,
                         len(record.get_bytes_as("fulltext")))
                     yield record
@@ -628,9 +629,11 @@ class FromHgRepository(InterRepository):
             if recipe[0] in ("search", "proxy-search"):
                 heads = recipe[1]
             else:
-                raise AssertionError("Unsupported search result type %s" % recipe[0])
+                raise AssertionError("Unsupported search result type %s" %
+                    recipe[0])
             mapping = self.source.get_mapping()
-            return [mapping.revision_id_bzr_to_foreign(head)[0] for head in heads]
+            return [mapping.revision_id_bzr_to_foreign(head)[0] for head in
+                    heads]
         elif revision_id is not None:
             mapping = self.source.get_mapping()
             return [mapping.revision_id_bzr_to_foreign(revision_id)[0]]

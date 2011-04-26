@@ -140,6 +140,7 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         return self._branch.mapping.generate_file_id(path)
 
     def id2path(self, file_id):
+        assert type(file_id) == str
         return self._branch.mapping.parse_file_id(file_id)
 
     def revision_tree(self, revid):

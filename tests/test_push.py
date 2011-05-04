@@ -137,10 +137,12 @@ class TextContentsTests(TestCaseWithTransport):
     def _text_contents(self, path, keys):
         entries = text_contents(self.tree.branch.repository, path, keys, self.overlay)
         base = entries.next()
-        return base, list(entries)
+        return base, entries
 
     def test_empty(self):
-        self.assertEquals(("", []), self._text_contents("path", []))
+        base, entries = self._text_contents("path", [])
+        self.assertEquals("", base)
+        self.assertEquals([], list(entries))
 
     def test_first_rev(self):
         self.build_tree_contents([('path', 'contents')])
@@ -150,9 +152,9 @@ class TextContentsTests(TestCaseWithTransport):
         self.addCleanup(self.tree.unlock)
         (base, entries) = self._text_contents("path", [('fileid-a', rev)])
         self.assertEquals("", base)
-        self.assertEquals(1, len(entries))
-        (record, parents, node) = entries[0]
+        (record, parents, node) = entries.next()
         self.assertEquals("contents", record.get_bytes_as("fulltext"))
+        self.assertRaises(StopIteration, entries.next)
         self.assertEquals((nullid, nullid), parents)
         self.assertEquals(
             'uVY\xc9\x0e\xee\xc9]\xba\x97\x8c\xb0v\xb6\xaa\xb1\xa0/\xb3\x13', node)

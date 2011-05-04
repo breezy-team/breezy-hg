@@ -171,15 +171,14 @@ def text_contents(repo, path, keys, overlay):
             return overlay.lookup_text_node_by_revid_and_path(revision, path)
     text_nodes = {}
     base_reported = False
+    first_parents = repo.texts.get_parent_map([keys[0]])[keys[0]]
+    if len(first_parents) == 0:
+        yield ""
+    else:
+        base_stream = repo.texts.get_record_stream([first_parents[0]], 'unordered', True)
+        yield base_stream.next().get_bytes_as("fulltext")
+
     for record in repo.texts.get_record_stream(keys, 'topological', True):
-        if not base_reported:
-            if record.parents:
-                inv = repo.get_inventory(record.parents[0][1])
-                base_stream = repo.texts.get_record_stream([record.parents[0]], 'unordered', True)
-                yield base_stream.next().get_bytes_as("fulltext")
-            else:
-                yield ""
-            base_reported = True
         fulltext = record.get_bytes_as('fulltext')
         parents = as_hg_parents(record.parents, text_as_node)
         node = hghash(fulltext, parents[0], parents[1])

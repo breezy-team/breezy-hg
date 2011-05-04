@@ -207,6 +207,7 @@ class HgReadLock(object):
 class HgWriteLock(object):
 
     def __init__(self, unlock):
+        self.branch_token = None
         self.unlock = unlock
 
 
@@ -264,7 +265,9 @@ class HgBranch(ForeignBranch):
         """
         return HgBranchConfig(self)
 
-    def lock_write(self):
+    def lock_write(self, token=None):
+        if token is not None:
+            raise errors.TokenLockingNotSupported(self)
         self.control_files.lock_write()
         return HgWriteLock(self.unlock)
 

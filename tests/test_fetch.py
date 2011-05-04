@@ -51,10 +51,10 @@ class TestFetching(TestCaseWithTransport):
         bzrtree.pull(hgdir.open_branch())
 
         # As file f2 was deleted, directories d1 and d2 should not exists.
-        self.failIfExists("bzr/d1")
+        self.assertPathDoesNotExist("bzr/d1")
 
         # Self-assurance check that history was really imported.
-        self.failUnlessExists("bzr/f1")
+        self.assertPathExists("bzr/f1")
 
     def test_getting_existing_text_metadata(self):
         # Create Mercurial repository and Bazaar branch to import into.

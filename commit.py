@@ -49,7 +49,7 @@ class HgCommitBuilder(CommitBuilder):
         self._parent_manifest_ids = []
         self._extra = {}
         for i in range(2):
-            if len(self.parents) >= i:
+            if len(self.parents) > i:
                 manifest_id = self._overlay.lookup_manifest_id_by_revid(self.parents[i])
                 self._parent_manifest_ids.append(manifest_id)
                 self._parent_manifests.append(self._overlay.get_manifest_and_flags(manifest_id))

@@ -152,12 +152,12 @@ class MercurialRepositoryOverlay(object):
         raise KeyError(revid)
 
     def _update_texts(self, revid):
-        inv = self.repo.get_inventory(revid)
+        tree = self.repo.revision_tree(revid)
         delta = self.repo.get_revision_delta(revid)
         def update_text(path, fileid, kind):
             if not kind in ("file", "symlink"):
                 return
-            text_chunks = text_contents(self.repo, path, [(fileid, inv[fileid].revision)], self)
+            text_chunks = text_contents(self.repo, path, [(fileid, tree.get_file_revision(fileid))], self)
             text_chunks.next() # base text
             for (record, parents, node) in text_chunks:
                 self.idmap.insert_text(path.encode("utf-8"), node, fileid, revid)
@@ -228,9 +228,9 @@ class MercurialRepositoryOverlay(object):
     def get_file_fulltext(self, key):
         ret = "".join(self.repo.iter_files_bytes([key + (None,)]).next()[1])
         if ret == "": # could be a symlink
-            ie = self.repo.get_inventory(key[1])[key[0]]
-            if ie.kind == "symlink":
-                return ie.symlink_target
+            tree = self.repo.revision_tree(key[1])
+            if tree.kind(key[0]) == "symlink":
+                return tree.get_symlink_target(key[0])
         return ret
 
     def get_manifest_text_by_revid(self, revid):

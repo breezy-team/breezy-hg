@@ -32,6 +32,7 @@ from bzrlib.branch import (
     PullResult,
     format_registry as branch_format_registry,
     )
+from bzrlib.config import GlobalConfig
 from bzrlib.decorators import (
     needs_read_lock,
     needs_write_lock,
@@ -174,7 +175,10 @@ class HgBranchConfig(object):
         self._ui = branch.repository._hgrepo.ui
 
     def username(self):
-        return self._ui.config("username", "default")
+        username = self._ui.config("username", "default")
+        if username is not None:
+            return username
+        return GlobalConfig().username()
 
     def get_nickname(self):
         # remove the trailing / and take the basename.

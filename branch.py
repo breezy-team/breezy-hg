@@ -109,7 +109,7 @@ class FileHgTags(HgTags):
         f = revtree.get_file(file_id, ".hgtags")
         ret = {}
         for l in f.readlines():
-            (hgtag, name) = l.strip().split(" ")
+            (hgtag, name) = l.strip().split(" ", 1)
             ret[name] = hgtag
         return ret
 

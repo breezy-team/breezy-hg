@@ -101,17 +101,17 @@ class TestPulling(TestCaseWithTransport):
     def test_inventory_from_manifest(self):
         repo = self.tree.branch.repository
         left = self.revone_inventory
-        right = repo.get_inventory(self.revidone)
-        self.assertEqual(left._byid, right._byid)
+        right = repo.revision_tree(self.revidone)
+        self.assertEqual(left._byid, right.inventory._byid)
         left = self.revtwo_inventory
-        right = repo.get_inventory(self.revidtwo)
-        self.assertEqual(left._byid, right._byid)
+        right = repo.revision_tree(self.revidtwo)
+        self.assertEqual(left._byid, right.inventory._byid)
         left = self.revthree_inventory
-        right = repo.get_inventory(self.revidthree)
-        self.assertEqual(left._byid, right._byid)
+        right = repo.revision_tree(self.revidthree)
+        self.assertEqual(left._byid, right.inventory._byid)
         left = self.revfour_inventory
-        right = repo.get_inventory(self.revidfour)
-        self.assertEqual(left._byid, right._byid)
+        right = repo.revision_tree(self.revidfour)
+        self.assertEqual(left._byid, right.inventory._byid)
 
     def test_initial_revision_from_changelog(self):
         converted_rev = self.tree.branch.repository.get_revision(self.revidone)

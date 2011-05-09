@@ -36,6 +36,9 @@ import bzrlib.repository
 from bzrlib.revision import (
     NULL_REVISION,
     )
+from bzrlib.revisiontree import (
+    InventoryRevisionTree,
+    )
 
 from bzrlib.plugins.hg.mapping import (
     as_bzr_parents,
@@ -391,11 +394,7 @@ class HgLocalRepository(HgRepository):
             hgchange[0], hgchange[1].decode("utf-8"), hgchange[2],
             hgchange[4].decode("utf-8"), hgchange[5])[0]
 
-    def iter_inventories(self, revision_ids, ordering=None):
-        for revid in revision_ids:
-            yield self.get_inventory(revid)
-
-    def get_inventory(self, revision_id):
+    def revision_tree(self, revision_id):
         hgid, mapping = self.lookup_bzr_revision_id(revision_id)
         log = self._hgrepo.changelog.read(hgid)
         manifest = self._hgrepo.manifest.read(log[0])
@@ -407,7 +406,7 @@ class HgLocalRepository(HgRepository):
                 self.get_parent_map(all_relevant_revisions), mapping,
                 self.lookup_foreign_revision_id, pb)
             inv.revision_id = revision_id
-            return inv
+            return InventoryRevisionTree(self, inv, revision_id)
         finally:
             pb.finished()
 

@@ -303,6 +303,9 @@ class HgLock(object):
     def break_lock(self):
         pass
 
+    def dont_leave_lock_in_place(self):
+        raise NotImplementedError(self.dont_leave_lock_in_place)
+
 
 class HgControlDirFormat(ControlDirFormat):
     """The .hg directory control format."""

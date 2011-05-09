@@ -286,6 +286,9 @@ class HgBranch(ForeignBranch):
         self.control_files.lock_read()
         return HgReadLock(self.unlock)
 
+    def peek_lock_mode(self):
+        return self.control_files.peek_lock_mode()
+
     def is_locked(self):
         return self.control_files.is_locked()
 

@@ -40,6 +40,9 @@ from bzrlib.revisiontree import (
     InventoryRevisionTree,
     )
 
+from bzrlib.plugins.hg.commit import (
+    HgCommitBuilder,
+    )
 from bzrlib.plugins.hg.mapping import (
     as_bzr_parents,
     default_mapping,
@@ -305,6 +308,8 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
 class HgRepository(ForeignRepository):
     """An adapter to mercurial repositories for bzr."""
 
+    chk_bytes = None
+
     def __init__(self, hgrepo, hgdir, lockfiles):
         ForeignRepository.__init__(self, HgRepositoryFormat(), hgdir, lockfiles)
         self._hgrepo = hgrepo
@@ -322,7 +327,7 @@ class HgRepository(ForeignRepository):
             self.texts = None
 
     def add_fallback_repository(self, basis_url):
-        raise errors.UnstackableRepositoryFormat(self._format)
+        raise errors.UnstackableRepositoryFormat(self._format, self.base)
 
     def revision_graph_can_have_wrong_parents(self):
         return False
@@ -416,6 +421,13 @@ class HgLocalRepository(HgRepository):
     def has_foreign_revision(self, foreign_revid):
         return foreign_revid in self._hgrepo.changelog.nodemap
 
+    def has_revisions(self, revids):
+        ret = set()
+        for revid in revids:
+            if self.has_revision(revid):
+                ret.add(revid)
+        return ret
+
     def has_revision(self, revision_id):
         if revision_id == NULL_REVISION:
             return True
@@ -427,7 +439,10 @@ class HgLocalRepository(HgRepository):
     def get_commit_builder(self, branch, parents, config, timestamp=None,
                            timezone=None, committer=None, revprops=None,
                            revision_id=None, lossy=False):
-        raise NotImplementedError(self.get_commit_builder)
+        self.start_write_group()
+        return HgCommitBuilder(self, parents, config,
+            timestamp, timezone, committer, revprops, revision_id,
+            lossy)
 
     def all_revision_ids(self):
         return set([self.lookup_foreign_revision_id(

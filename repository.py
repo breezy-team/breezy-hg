@@ -394,6 +394,10 @@ class HgLocalRepository(HgRepository):
             hgchange[0], hgchange[1].decode("utf-8"), hgchange[2],
             hgchange[4].decode("utf-8"), hgchange[5])[0]
 
+    def revision_trees(self, revids):
+        for revid in revids:
+            yield self.revision_tree(revid)
+
     def revision_tree(self, revision_id):
         hgid, mapping = self.lookup_bzr_revision_id(revision_id)
         log = self._hgrepo.changelog.read(hgid)

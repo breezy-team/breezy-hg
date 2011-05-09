@@ -21,6 +21,7 @@ import os
 
 from bzrlib import (
     errors,
+    revision as _mod_revision,
     )
 from bzrlib.branch import (
     BranchCheckResult,
@@ -324,6 +325,12 @@ class HgLocalBranch(HgBranch):
         tip = self._tip()
         return self.repository.lookup_foreign_revision_id(tip,
             mapping=self.mapping)
+
+    def _read_last_revision_info(self):
+        last_revid = self.last_revision()
+        graph = self.repository.get_graph()
+        revno = graph.find_distance_to_null(last_revid, [(_mod_revision.NULL_REVISION, 0)])
+        return revno, last_revid
 
 
 class HgRemoteBranch(HgBranch):

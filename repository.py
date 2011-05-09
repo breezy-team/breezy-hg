@@ -305,10 +305,6 @@ def manifest_to_inventory(hgrepo, hgid, log, manifest, all_relevant_revisions,
 class HgRepository(ForeignRepository):
     """An adapter to mercurial repositories for bzr."""
 
-    _serializer = None
-
-    chk_bytes = None
-
     def __init__(self, hgrepo, hgdir, lockfiles):
         ForeignRepository.__init__(self, HgRepositoryFormat(), hgdir, lockfiles)
         self._hgrepo = hgrepo
@@ -324,6 +320,9 @@ class HgRepository(ForeignRepository):
             self.revisions = None
             self.inventories = None
             self.texts = None
+
+    def add_fallback_repository(self, basis_url):
+        raise errors.UnstackableRepositoryFormat(self._format)
 
     def revision_graph_can_have_wrong_parents(self):
         return False

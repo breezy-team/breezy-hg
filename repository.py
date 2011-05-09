@@ -315,16 +315,6 @@ class HgRepository(ForeignRepository):
         self._hgrepo = hgrepo
         self.base = hgdir.root_transport.base
         self._fallback_repositories = []
-        self.signatures = None
-        if self._hgrepo.local():
-            self.revisions = ChangelogVersionedFile(self._hgrepo.changelog, self)
-            self.inventories = ManifestVersionedFile(self, self._hgrepo.manifest)
-            self.texts = RevlogVersionedFiles(self, self._hgrepo.file,
-                                              self.get_mapping())
-        else:
-            self.revisions = None
-            self.inventories = None
-            self.texts = None
 
     def add_fallback_repository(self, basis_url):
         raise errors.UnstackableRepositoryFormat(self._format, self.base)

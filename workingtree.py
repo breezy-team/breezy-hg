@@ -122,8 +122,12 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
     def _reset_data(self):
         """Reset all cached data."""
 
-    def update(self, change_reporter=None, possible_transports=None):
-        hg_update(self._hgrepo, None)
+    def update(self, revision=None, change_reporter=None, possible_transports=None):
+        if revision is not None:
+            node, mapping = self.repository.lookup_bzr_revision_id(revision)
+        else:
+            node = None
+        hg_update(self._hgrepo, node)
 
     def unlock(self):
         """Overridden to avoid hashcache usage - hg manages that."""

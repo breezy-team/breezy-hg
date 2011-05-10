@@ -40,19 +40,20 @@ class TestPulling(TestCaseWithTransport):
         self.tree.commit('foo')
         revone_inventory = Inventory()
         tip = self.tree.last_revision()
-        entry = revone_inventory.add_path('a', kind='file', file_id='hg:a')
+        revone_inventory.root.revision = tip
+        entry = revone_inventory.add_path(u'a', kind='file', file_id='hg:a')
         entry.revision = tip
         entry.text_size = len('contents of hg/a\n')
         entry.text_sha1 = "72bcea9d6cba6ee7d3241bfa0c5e54506ad81a94"
-        entry = revone_inventory.add_path('b', kind='file', file_id='hg:b')
+        entry = revone_inventory.add_path(u'b', kind='file', file_id='hg:b')
         entry.executable = True
         entry.revision = tip
         entry.text_size = len('contents of hg/b\n')
         entry.text_sha1 = "b4d0c22d126cd0afeeeffa62961fb47c0932835a"
-        entry = revone_inventory.add_path('dir', kind='directory',
+        entry = revone_inventory.add_path(u'dir', kind='directory',
             file_id='hg:dir')
         entry.revision = tip
-        entry = revone_inventory.add_path('dir/c', kind='file',
+        entry = revone_inventory.add_path(u'dir/c', kind='file',
             file_id='hg:dir_sc')
         entry.revision = tip
         entry.text_size = len('contents of hg/dir/c\n')
@@ -67,7 +68,7 @@ class TestPulling(TestCaseWithTransport):
         self.tree.commit('bar')
         self.revtwo_inventory = copy.deepcopy(revone_inventory)
         tip = self.tree.last_revision()
-        entry = self.revtwo_inventory.add_path('dir/d', kind='file',
+        entry = self.revtwo_inventory.add_path(u'dir/d', kind='file',
             file_id='hg:dir_sd')
         entry.revision = tip
         entry.text_size = len('contents of hg/dir/d\n')
@@ -102,16 +103,20 @@ class TestPulling(TestCaseWithTransport):
         repo = self.tree.branch.repository
         left = self.revone_inventory
         right = repo.revision_tree(self.revidone)
-        self.assertEqual(left._byid, right.inventory._byid)
+        left_byid = list(left.iter_entries_by_dir())
+        right_byid = list(right.iter_entries_by_dir())
+        for i in range(len(left_byid)):
+            self.assertEqual(left_byid[i], right_byid[i])
+        self.assertEqual(left_byid, right_byid)
         left = self.revtwo_inventory
         right = repo.revision_tree(self.revidtwo)
-        self.assertEqual(left._byid, right.inventory._byid)
+        self.assertEqual(left_byid, right_byid)
         left = self.revthree_inventory
         right = repo.revision_tree(self.revidthree)
-        self.assertEqual(left._byid, right.inventory._byid)
+        self.assertEqual(left_byid, right_byid)
         left = self.revfour_inventory
         right = repo.revision_tree(self.revidfour)
-        self.assertEqual(left._byid, right.inventory._byid)
+        self.assertEqual(left_byid, right_byid)
 
     def test_initial_revision_from_changelog(self):
         converted_rev = self.tree.branch.repository.get_revision(self.revidone)

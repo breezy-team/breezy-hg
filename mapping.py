@@ -31,6 +31,7 @@ from bzrlib import (
     bencode,
     errors,
     foreign,
+    inventory,
     osutils,
     revision as _mod_revision,
     trace,
@@ -285,11 +286,15 @@ class HgMappingv1(foreign.VcsMapping):
     @classmethod
     def generate_file_id(self, path):
         """Create a synthetic file_id for an hg file."""
+        assert isinstance(path, str)
+        if path == "":
+            return inventory.ROOT_ID
         return "hg:" + escape_path(path)
 
     @classmethod
     def parse_file_id(self, fileid):
         """Parse a file id."""
+        assert isinstance(fileid, str)
         if not fileid.startswith("hg:"):
             raise ValueError
         return unescape_path(fileid[len("hg:"):])

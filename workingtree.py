@@ -20,11 +20,13 @@ import errno
 import os
 import stat
 
-from bzrlib import osutils
+from bzrlib import (
+    conflicts as _mod_conflicts,
+    osutils,
+    )
 
 from bzrlib.errors import (
     IncompatibleFormat,
-    PointlessCommit,
     )
 from bzrlib.inventory import (
     Inventory,
@@ -121,23 +123,6 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             self._validate_unicode_text(value,
                                         'revision property (%s)' % (key,))
 
-    @needs_write_lock
-    def commit(self, message=None, revprops=None, allow_pointless=True, *args,
-            **kwargs):
-        # TODO: selected file lists -> match function
-        if revprops is None:
-            extra = {}
-        else:
-            self._validate_revprops(revprops)
-            extra = revprops
-        if message is not None:
-            self._validate_unicode_text(message, 'commit message')
-        hgid = self._hgrepo.commit(message.encode("utf-8"), extra=extra,
-                force=allow_pointless)
-        if hgid is None:
-            raise PointlessCommit()
-        return self.repository.lookup_foreign_revision_id(hgid)
-
     def _reset_data(self):
         """Reset all cached data."""
 
@@ -154,6 +139,9 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             return self._control_files.unlock()
         finally:
             self.branch.unlock()
+
+    def conflicts(self):
+        return _mod_conflicts.ConflictList()
 
     def get_root_id(self):
         return self.path2id("")
@@ -197,7 +185,7 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         return os.lstat(self.abspath(path)).st_mtime
 
     def get_file_sha1(self, file_id, path=None, stat_value=None):
-        if not path:
+        if path is None:
             path = self.id2path(file_id)
         try:
             return osutils.sha_file_by_name(self.abspath(path).encode(osutils._fs_enc))

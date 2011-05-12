@@ -25,6 +25,7 @@ from bzrlib.repository import (
 
 from bzrlib.plugins.hg.overlay import get_overlay
 
+from mercurial.manifest import manifestdict
 import mercurial.node
 
 
@@ -121,7 +122,8 @@ class HgCommitBuilder(CommitBuilder):
         return []
 
     def finish_inventory(self):
-        self._manifest_id = self._hgrepo.manifest.add(self._manifest, self._transaction,
+        manifest = manifestdict(self._manifest, self._flags)
+        self._manifest_id = self._hgrepo.manifest.add(manifest, self._transaction,
             self._linkrev, self._parent_manifest_ids[0], self._parent_manifest_ids[1],
             (self._changed, self._removed))
         self._hgrepo.changelog.delayupdate()
@@ -130,7 +132,7 @@ class HgCommitBuilder(CommitBuilder):
         self._validate_unicode_text(message, 'commit message')
         # FIXME: set self._extra from self._revprops
         n = self._hgrepo.changelog.add(self._manifest_id, self._changelist + self._removed,
-            self._message,
+            message.encode("utf-8"),
             self._parent_changeset_ids[0], self._parent_changeset_ids[1],
             self._committer, self._timestamp, self._extra)
         self._new_revision_id = self.repository.get_mapping().revision_id_foreign_to_bzr(hex(n))

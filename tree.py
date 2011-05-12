@@ -71,8 +71,9 @@ class HgRevisionTree(RevisionTree):
     def get_symlink_target(self, file_id, path=None):
         if path is None:
             path = self.id2path(file_id)
-        revlog = self._repository._hgrepo.file(file)
-        return revlog.read(self._manifest[path.encode("utf-8")])
+        encoded_path = path.encode("utf-8")
+        revlog = self._repository._hgrepo.file(encoded_path)
+        return revlog.read(self._manifest[encoded_path])
 
     def get_file_text(self, file_id, path=None):
         if path is None:

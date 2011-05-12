@@ -131,11 +131,14 @@ class HgCommitBuilder(CommitBuilder):
     def commit(self, message):
         self._validate_unicode_text(message, 'commit message')
         # FIXME: set self._extra from self._revprops
-        n = self._hgrepo.changelog.add(self._manifest_id, self._changelist + self._removed,
+        n = self._hgrepo.changelog.add(self._manifest_id,
+            self._changelist + self._removed,
             message.encode("utf-8"),
+            self._transaction,
             self._parent_changeset_ids[0], self._parent_changeset_ids[1],
-            self._committer, self._timestamp, self._extra)
-        self._new_revision_id = self.repository.get_mapping().revision_id_foreign_to_bzr(hex(n))
+            self._committer, (self._timestamp, self._timezone), self._extra)
+        mapping = self.repository.get_mapping()
+        self._new_revision_id = mapping.revision_id_foreign_to_bzr(mercurial.node.hex(n))
         self.repository.commit_write_group()
         self._hgrepo.changelog.finalize(self._transaction)
         self._transaction.close()

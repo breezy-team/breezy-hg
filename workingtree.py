@@ -105,6 +105,21 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             path = self.id2path(file_id)
             self._dirstate.remove(path.encode("utf-8"))
 
+    def _validate_unicode_text(self, text, context):
+        """Verify things like commit messages don't have bogus characters."""
+        if '\r' in text:
+            raise ValueError('Invalid value for %s: %r' % (context, text))
+
+    def _validate_revprops(self, revprops):
+        for key, value in revprops.iteritems():
+            # We know that the XML serializers do not round trip '\r'
+            # correctly, so refuse to accept them
+            if not isinstance(value, basestring):
+                raise ValueError('revision property (%s) is not a valid'
+                                 ' (unicode) string: %r' % (key, value))
+            self._validate_unicode_text(value,
+                                        'revision property (%s)' % (key,))
+
     @needs_write_lock
     def commit(self, message=None, revprops=None, allow_pointless=True, *args,
             **kwargs):
@@ -112,7 +127,10 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         if revprops is None:
             extra = {}
         else:
+            self._validate_revprops(revprops)
             extra = revprops
+        if message is not None:
+            self._validate_unicode_text(message, 'commit message')
         hgid = self._hgrepo.commit(message.encode("utf-8"), extra=extra,
                 force=allow_pointless)
         if hgid is None:

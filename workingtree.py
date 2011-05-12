@@ -18,6 +18,7 @@
 
 import errno
 import os
+import stat
 
 from bzrlib import osutils
 
@@ -167,6 +168,27 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
 
     def revision_tree(self, revid):
         return self.repository.revision_tree(revid)
+
+    def _is_executable_from_path_and_stat_from_stat(self, path, stat_result):
+        mode = stat_result.st_mode
+        return bool(stat.S_ISREG(mode) and stat.S_IEXEC & mode)
+
+    if not osutils.supports_executable():
+        def is_executable(self, file_id, path=None):
+            basis_tree = self.basis_tree()
+            if file_id in basis_tree:
+                return basis_tree.is_executable(file_id)
+            # Default to not executable
+            return False
+    else:
+        def is_executable(self, file_id, path=None):
+            if not path:
+                path = self.id2path(file_id)
+            mode = os.lstat(self.abspath(path)).st_mode
+            return bool(stat.S_ISREG(mode) and stat.S_IEXEC & mode)
+
+        _is_executable_from_path_and_stat = \
+            _is_executable_from_path_and_stat_from_stat
 
     def get_file_mtime(self, file_id, path=None):
         """See Tree.get_file_mtime."""

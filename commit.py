@@ -48,6 +48,8 @@ class HgCommitBuilder(CommitBuilder):
         self._parent_manifests = []
         self._parent_manifest_ids = []
         self._extra = {}
+        self._linkrev = len(self.repository._hgrepo)
+        self._validate_revprops(self._revprops)
         for i in range(2):
             if len(self.parents) > i:
                 manifest_id = self._overlay.lookup_manifest_id_by_revid(self.parents[i])
@@ -109,6 +111,7 @@ class HgCommitBuilder(CommitBuilder):
                 self._flags[utf8_path] = 'x'
             if kind[1] == "symlink":
                 self._flags[utf8_path] = 'l'
+            yield file_id, path[1], None
         if not seen_root and len(self.parents) == 0:
             raise RootMissing()
         self.new_inventory = None

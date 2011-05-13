@@ -16,6 +16,8 @@
 
 """Commit creation support for Mercurial."""
 
+from bzrlib import osutils
+
 from bzrlib.errors import (
     RootMissing,
     )
@@ -88,8 +90,8 @@ class HgCommitBuilder(CommitBuilder):
                 self.record_delete(path[0], file_id)
                 continue
             utf8_path = path[1].encode("utf-8")
-            fparents = tuple([m.get(utf8_path, mercurial.node.nullid) for m in self._manifests])
-            flog = self._hgrepo.flog(utf8_path)
+            fparents = tuple([m.get(utf8_path, mercurial.node.nullid) for m in self._parent_manifests])
+            flog = self._hgrepo.file(utf8_path)
             # FIXME: Support copies
             if (changed_content or
                 executable[0] != executable[1] or
@@ -107,12 +109,13 @@ class HgCommitBuilder(CommitBuilder):
                 self._manifest[utf8_path] = node
             else:
                 self._manifest[utf8_path] = fparents[0]
-            self._changed[utf8_path] = self._manifest[utf8_path]
+            self._changed.append(self._manifest[utf8_path])
             if executable[1]:
                 self._flags[utf8_path] = 'x'
             if kind[1] == "symlink":
                 self._flags[utf8_path] = 'l'
-            yield file_id, path[1], None
+            f, st = workingtree.get_file_with_stat(file_id, path[1])
+            yield file_id, path[1], (osutils.sha_file(f), st)
         if not seen_root and len(self.parents) == 0:
             raise RootMissing()
         self.new_inventory = None

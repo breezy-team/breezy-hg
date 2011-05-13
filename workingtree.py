@@ -18,6 +18,7 @@
 
 import errno
 import os
+import posixpath
 import stat
 
 from bzrlib import (
@@ -30,6 +31,9 @@ from bzrlib.errors import (
     )
 from bzrlib.inventory import (
     Inventory,
+    InventoryDirectory,
+    InventoryFile,
+    InventoryLink,
     )
 import bzrlib.workingtree
 from bzrlib.decorators import (
@@ -193,3 +197,42 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             if num in (errno.EISDIR, errno.ENOENT):
                 return None
             raise
+
+    def _get_dir_ie(self, path):
+        if path == "":
+            parent_id = None
+        else:
+            parent_id = self.path2id(posixpath.dirname(path))
+        return InventoryDirectory(self.path2id(path), posixpath.basename(path),
+            parent_id)
+
+    def _get_file_ie(self, path, parent_id, flags):
+        file_id = self.path2id(path)
+        name = osutils.basename(path)
+        if 'l' in flags:
+            ie = InventoryLink(file_id, name, parent_id)
+            ie.symlink_target = self.get_symlink_target(file_id, path)
+        else:
+            ie = InventoryFile(file_id, name, parent_id)
+            ie.text_sha1 = self.get_file_sha1(file_id, path)
+            ie.executable = ('x' in flags)
+        return ie
+
+    def iter_entries_by_dir(self, specific_file_ids=None, yield_parents=False):
+        # FIXME: Support specific_file_ids
+        # FIXME: yield actual inventory entries
+        if specific_file_ids is not None:
+            raise NotImplementedError(self.iter_entries_by_dir)
+        directories = set()
+        for p in self._dirstate:
+            parent = posixpath.dirname(p)
+            while not parent in directories:
+                decoded_parent = parent.decode("utf-8")
+                yield decoded_parent, self._get_dir_ie(decoded_parent)
+                directories.add(parent)
+                if parent == "":
+                    break
+                parent = posixpath.dirname(parent)
+            fflags = self._dirstate.flags(p)
+            decoded_path = p.decode("utf-8")
+            yield decoded_path, self._get_file_ie(decoded_path, self.path2id(parent), fflags)

@@ -286,7 +286,8 @@ class HgMappingv1(foreign.VcsMapping):
     @classmethod
     def generate_file_id(self, path):
         """Create a synthetic file_id for an hg file."""
-        assert isinstance(path, str)
+        if isinstance(path, unicode):
+            path = path.encode("utf-8")
         if path == "":
             return inventory.ROOT_ID
         return "hg:" + escape_path(path)

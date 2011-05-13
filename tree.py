@@ -124,8 +124,7 @@ class HgRevisionTree(RevisionTree):
         return ie
 
     def iter_entries_by_dir(self, specific_file_ids=None, yield_parents=False):
-        # FIXME: Support specific_file_ids
-        #FIXME: yield actual inventory entries
+        # FIXME: Support specific_file_ids and yield_parents
         if specific_file_ids is not None:
             raise NotImplementedError(self.iter_entries_by_dir)
         directories = set()

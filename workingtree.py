@@ -165,6 +165,9 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         mode = stat_result.st_mode
         return bool(stat.S_ISREG(mode) and stat.S_IEXEC & mode)
 
+    def extras(self):
+        return self._dirstate.extra()
+
     if not osutils.supports_executable():
         def is_executable(self, file_id, path=None):
             basis_tree = self.basis_tree()

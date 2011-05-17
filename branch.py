@@ -233,7 +233,7 @@ class HgBranch(ForeignBranch):
 
     def __init__(self, hgrepo, name, hgdir, lockfiles):
         self.repository = hgdir.open_repository()
-        ForeignBranch.__init__(self, self.repository.get_mapping())
+        super(HgBranch, self).__init__(self.repository.get_mapping())
         self._hgrepo = hgrepo
         self.bzrdir = hgdir
         self.control_files = lockfiles
@@ -552,7 +552,7 @@ class InterToHgBranch(InterBranch):
 
     @needs_read_lock
     def push(self, overwrite=True, stop_revision=None,
-             _override_hook_source_branch=None):
+             lossy=False, _override_hook_source_branch=None):
         result = HgBranchPushResult()
         result.source_branch = self.source
         result.target_branch = self.target
@@ -562,26 +562,23 @@ class InterToHgBranch(InterBranch):
         self._push_helper(stop_revision=stop_revision, overwrite=overwrite,
             lossy=False)
         # FIXME: Check for diverged branches
-        result.new_revid = stop_revision
+        if not lossy:
+            result.new_revid = stop_revision
+        else:
+            if stop_revision != result.old_revid:
+                revidmap = self._push_helper(stop_revision=stop_revision,
+                    lossy=True)
+                result.new_revid = revidmap.get(stop_revision, result.old_revid)
+            else:
+                result.new_revid = result.old_revid
+            # FIXME: Check for diverged branches
+            result.revidmap = revidmap
         return result
 
     @needs_read_lock
     def lossy_push(self, stop_revision=None):
-        result = HgBranchPushResult()
-        result.source_branch = self.source
-        result.target_branch = self.target
-        result.old_revid = self.target.last_revision()
-        if stop_revision is None:
-            stop_revision = self.source.last_revision()
-        if stop_revision != result.old_revid:
-            revidmap = self._push_helper(stop_revision=stop_revision,
-                lossy=True)
-            result.new_revid = revidmap.get(stop_revision, result.old_revid)
-        else:
-            result.new_revid = result.old_revid
-        # FIXME: Check for diverged branches
-        result.revidmap = revidmap
-        return result
+        # For compatibility with bzr < 2.4
+        return self.push(lossy=True, stop_revision=stop_revision)
 
 
 InterBranch.register_optimiser(InterFromHgBranch)

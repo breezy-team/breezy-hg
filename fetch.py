@@ -1,4 +1,4 @@
-# Copyright (C) 2005, 2006 Canonical Ltd
+# Copyright (C) 2005, 2006, 2011 Canonical Ltd
 # Copyright (C) 2008-2009 Jelmer Vernooij <jelmer@samba.org>
 #
 # This program is free software; you can redistribute it and/or modify
@@ -456,7 +456,7 @@ class FromHgRepository(InterRepository):
                     tree=new_tree,
                     )
 
-    def _unpack_changesets(self, chunkiter, mapping, pb):
+    def _unpack_changesets(self, chunkiter, mapping, pb, limit=None):
         def lookup_foreign_revid(foreign_revid):
             lookup_foreign_revid = getattr(self.source,
                 "lookup_foreign_revision_id", None)
@@ -469,6 +469,8 @@ class FromHgRepository(InterRepository):
         for i, (fulltext, hgkey, hgparents, csid) in enumerate(
                 unpack_chunk_iter(chunkiter, get_hg_revision)):
             pb.update("fetching changesets", i)
+            if limit is not None and i > limit:
+                continue
             (manifest, user, (time, timezone), files, desc, extra) = \
                 parse_changeset(fulltext)
             key = mapping.revision_id_foreign_to_bzr(hgkey)
@@ -584,7 +586,7 @@ class FromHgRepository(InterRepository):
                 self._process_manifest(manifest, flags, revid, mapping,
                                        kind_map)
 
-    def addchangegroup(self, cg, mapping):
+    def addchangegroup(self, cg, mapping, limit=None):
         """Import a Mercurial changegroup into the target repository.
 
         :param cg: Changegroup to add
@@ -594,7 +596,7 @@ class FromHgRepository(InterRepository):
         changesetchunks = chunkiter(cg)
         pb = ui.ui_factory.nested_progress_bar()
         try:
-            self._unpack_changesets(changesetchunks, mapping, pb)
+            self._unpack_changesets(changesetchunks, mapping, pb, limit=limit)
         finally:
             pb.finished()
         # Manifests
@@ -737,7 +739,7 @@ class FromHgRepository(InterRepository):
 
     @needs_write_lock
     def fetch(self, revision_id=None, pb=None, find_ghosts=False,
-              fetch_spec=None):
+              fetch_spec=None, limit=None):
         """Fetch revisions. """
         heads = self.heads(fetch_spec, revision_id)
         missing = self.findmissing(heads)
@@ -747,7 +749,7 @@ class FromHgRepository(InterRepository):
         mapping = self.source.get_mapping()
         self.target.start_write_group()
         try:
-            self.addchangegroup(cg, mapping)
+            self.addchangegroup(cg, mapping, limit=limit)
         except:
             self.target.abort_write_group()
             raise
@@ -767,12 +769,14 @@ class InterHgRepository(FromHgRepository):
 
     @needs_write_lock
     def fetch(self, revision_id=None, pb=None, find_ghosts=False,
-              fetch_spec=None):
+              fetch_spec=None, limit=None):
         """Fetch revisions. This is a partial implementation."""
         if revision_id is not None:
             raise NotImplementedError("revision_id argument not yet supported")
         if fetch_spec is not None:
             raise NotImplementedError("fetch_spec argument not yet supported")
+        if limit is not None:
+            raise NotImplementedError("limit argument not yet supported")
         if self.target._hgrepo.local():
             self.target._hgrepo.pull(self.source._hgrepo)
         else:

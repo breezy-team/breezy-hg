@@ -367,14 +367,14 @@ class InterHgBranch(GenericInterBranch):
         """See InterBranch.is_compatible()."""
         return (isinstance(source, HgBranch) and isinstance(target, HgBranch))
 
-    def fetch(self, stop_revision=None, fetch_tags=False):
+    def fetch(self, stop_revision=None, fetch_tags=False, limit=None):
         """See InterBranch.fetch."""
         if stop_revision is None:
             stop_revision = self.source.last_revision()
         inter = InterRepository.get(self.source.repository,
                                     self.target.repository)
         # FIXME: handle fetch_tags ?
-        inter.fetch(revision_id=stop_revision)
+        inter.fetch(revision_id=stop_revision, limit=limit)
 
     def pull(self, overwrite=False, stop_revision=None,
              possible_transports=None, local=False):
@@ -432,13 +432,13 @@ class InterFromHgBranch(GenericInterBranch):
         return (isinstance(source, HgBranch) and
                 not isinstance(target, HgBranch))
 
-    def fetch(self, stop_revision=None, fetch_tags=True):
+    def fetch(self, stop_revision=None, fetch_tags=True, limit=None):
         """See InterBranch.fetch."""
-        if stop_revision is not None:
+        if stop_revision is None:
             stop_revision = self.source.last_revision()
         inter = InterRepository.get(self.source.repository,
                                     self.target.repository)
-        inter.fetch(revision_id=stop_revision)
+        inter.fetch(revision_id=stop_revision, limit=limit)
         # FIXME: Fetch tags (lp:309682) if fetch_tags is True
 
     def pull(self, overwrite=False, stop_revision=None,

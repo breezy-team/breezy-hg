@@ -91,6 +91,10 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
     def flush(self):
         self._dirstate.write()
 
+    def update_basis_by_delta(self, revid, delta):
+        # FIXME
+        pass
+
     @needs_write_lock
     def add(self, files, ids=None, kinds=None):
         # hg does not use ids, toss them out

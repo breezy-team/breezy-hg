@@ -86,6 +86,9 @@ class HgRevisionTree(RevisionTree):
         revlog = self._repository._hgrepo.file(path)
         return revlog.read(self._manifest[path.encode("utf-8")])
 
+    def get_file_sha1(self, file_id, path=None, stat_value=None):
+        return osutils.sha_string(self.get_file_text(file_id, path))
+
     def kind(self, file_id, path=None):
         if path is None:
             path = self.id2path(file_id)

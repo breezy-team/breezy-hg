@@ -171,7 +171,8 @@ def text_contents(repo, path, keys, overlay):
             return overlay.lookup_text_node_by_revid_and_path(revision, path)
     text_nodes = {}
     base_reported = False
-    first_parents = repo.texts.get_parent_map([keys[0]])[keys[0]]
+    file_graph = repo.get_file_graph()
+    first_parents = file_graph.get_parent_map([keys[0]])[keys[0]]
     if len(first_parents) == 0:
         yield ""
     else:

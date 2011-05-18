@@ -762,7 +762,7 @@ class FromHgRepository(InterRepository):
         from bzrlib.plugins.hg.repository import (
             HgRepository, )
         return (isinstance(source, HgRepository) and
-                not isinstance(target, HgRepository))
+                target._format.supports_full_versioned_files)
 
 
 class InterHgRepository(FromHgRepository):

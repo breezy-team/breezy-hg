@@ -63,6 +63,11 @@ class HgRevisionTree(RevisionTree):
     def get_revision_id(self):
         return self._revision_id
 
+    def _comparison_data(self, entry, path):
+        if entry is None:
+            return None, False, None
+        return entry.kind, entry.executable, None
+
     def is_executable(self, file_id, path=None):
         if path is None:
             path = self.id2path(file_id)
@@ -260,3 +265,13 @@ class HgRevisionTree(RevisionTree):
                 if parent_cl not in done_cls:
                     parent_cl_ids.add((current_cl_id, parent_cl))
         return self._repository.lookup_foreign_revision_id(good_id, self._mapping)
+
+    def has_id(self, file_id):
+        path = self.id2path(file_id)
+        return self.has_filename(path)
+
+    def has_filename(self, path):
+        if path.encode("utf-8") in self._manifest:
+            return True
+        # FIXME: What about directories?
+        return False

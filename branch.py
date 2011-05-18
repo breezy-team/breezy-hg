@@ -52,6 +52,8 @@ from bzrlib.plugins.hg.changegroup import (
     dchangegroup,
     )
 
+import mercurial.node
+
 class NoPushSupport(errors.BzrError):
     _fmt = "Push is not yet supported for bzr-hg. Try dpush instead."
 
@@ -179,6 +181,9 @@ class HgBranchConfig(object):
         if username is not None:
             return username
         return GlobalConfig().username()
+
+    def post_commit(self):
+        return None
 
     def get_nickname(self):
         # remove the trailing / and take the basename.
@@ -339,6 +344,21 @@ class HgLocalBranch(HgBranch):
         revno = graph.find_distance_to_null(last_revid, [(_mod_revision.NULL_REVISION, 0)])
         return revno, last_revid
 
+    def _write_last_revision_info(self, revno, revid):
+        (hgid, mapping) = self.repository.lookup_bzr_revision_id(revid)
+        self.repository._hgrepo.dirstate.setparents(hgid, mercurial.node.nullid)
+
+    def set_last_revision_info(self, revno, revision_id):
+        if not revision_id or not isinstance(revision_id, basestring):
+            raise errors.InvalidRevisionId(revision_id=revision_id, branch=self)
+        revision_id = _mod_revision.ensure_null(revision_id)
+        old_revno, old_revid = self.last_revision_info()
+        # TODO: Check append_revisions_only ?
+        self._run_pre_change_branch_tip_hooks(revno, revision_id)
+        self._write_last_revision_info(revno, revision_id)
+        self._clear_cached_state()
+        self._last_revision_info_cache = revno, revision_id
+        self._run_post_change_branch_tip_hooks(old_revno, old_revid)
 
 class HgRemoteBranch(HgBranch):
 

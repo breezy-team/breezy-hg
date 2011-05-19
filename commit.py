@@ -25,8 +25,6 @@ from bzrlib.repository import (
     CommitBuilder,
     )
 
-from bzrlib.plugins.hg.overlay import get_overlay
-
 from mercurial.manifest import manifestdict
 import mercurial.node
 
@@ -44,7 +42,6 @@ class HgCommitBuilder(CommitBuilder):
         self._flags = {}
         self._removed = []
         self._changed = []
-        self._overlay = get_overlay(self.repository)
         self._hgrepo = self.repository._hgrepo
         self._transaction = self._hgrepo.transaction("commit")
         self._parent_changeset_ids = []
@@ -55,10 +52,13 @@ class HgCommitBuilder(CommitBuilder):
         self._validate_revprops(self._revprops)
         for i in range(2):
             if len(self.parents) > i:
-                manifest_id = self._overlay.lookup_manifest_id_by_revid(self.parents[i])
+                csid = self.repository.lookup_bzr_revision_id(self.parents[i])[0]
+                hgchange = self._hgrepo.changelog.read(csid)
+                manifest_id = hgchange[0]
+                manifest = self._hgrepo.manifest.read(manifest_id)
                 self._parent_manifest_ids.append(manifest_id)
-                self._parent_manifests.append(self._overlay.get_manifest_and_flags(manifest_id))
-                self._parent_changeset_ids.append(self._overlay.lookup_changeset_id_by_revid(self.parents[i]))
+                self._parent_manifests.append(manifest)
+                self._parent_changeset_ids.append(csid)
             else:
                 self._parent_manifests.append({})
                 self._parent_manifest_ids.append(mercurial.node.nullid)
@@ -83,7 +83,7 @@ class HgCommitBuilder(CommitBuilder):
             if kind[1] in ("directory",):
                 if kind[0] in ("file", "symlink"):
                     self.record_delete(path[0], file_id)
-                if path[1] == "":
+                if path[1] == u"":
                     seen_root = True
                 continue
             if path[1] is None:
@@ -109,7 +109,7 @@ class HgCommitBuilder(CommitBuilder):
                 self._manifest[utf8_path] = node
             else:
                 self._manifest[utf8_path] = fparents[0]
-            self._changed.append(self._manifest[utf8_path])
+            self._changed.append(utf8_path)
             if executable[1]:
                 self._flags[utf8_path] = 'x'
             if kind[1] == "symlink":

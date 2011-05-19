@@ -214,6 +214,9 @@ class HgRevisionTree(RevisionTree):
         return revision
 
     def _get_file_last_modified_cl(self, path):
+        """Find the mercurial changeset in which path was last changed."""
+        hg_file_flags = self._manifest.flags(path)
+        hg_file_revision = self._manifest.get(path)
         current_manifest = self._manifest
         # cls - changelogs
         parent_cls = set(self._repository._hgrepo.changelog.parents(self._hgid))
@@ -231,7 +234,8 @@ class HgRevisionTree(RevisionTree):
                     current_manifest_id)
             current_manifest = self._known_manifests[current_cl]
             done_cls.add(current_cl)
-            if current_manifest.get(file, None) != file_revision or current_manifest.flags(file) != file_flags:
+            if (current_manifest.get(file, None) != hg_file_revision or
+                current_manifest.flags(file) != hg_file_flags):
                 continue
             # unchanged in parent, advance to the parent.
             good_id = current_cl

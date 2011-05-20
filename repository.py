@@ -202,13 +202,9 @@ class HgLocalRepository(HgRepository):
         except errors.NoSuchRevision:
             return False
 
-    def get_commit_builder(self, branch, parents, config, timestamp=None,
-                           timezone=None, committer=None, revprops=None,
-                           revision_id=None, lossy=False):
+    def get_commit_builder(self, branch, parents, config, *args, **kwargs):
         self.start_write_group()
-        return HgCommitBuilder(self, parents, config,
-            timestamp, timezone, committer, revprops, revision_id,
-            lossy)
+        return HgCommitBuilder(self, parents, config, *args, **kwargs)
 
     def all_revision_ids(self):
         return set([self.lookup_foreign_revision_id(

@@ -24,6 +24,7 @@ import mercurial.node
 import os
 import stat
 
+
 class TestPulling(TestCaseWithTransport):
     """Tests for pulling from hg to bzr."""
 
@@ -165,4 +166,3 @@ class TestPulling(TestCaseWithTransport):
         self.assertFileEqual('contents of hg/a\n', 'bzr/a')
         self.assertFileEqual('contents of hg/b\n', 'bzr/b')
         self.assertFileEqual('new contents', 'bzr/dir/c')
-        

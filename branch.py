@@ -30,7 +30,6 @@ from bzrlib.branch import (
     GenericInterBranch,
     InterBranch,
     PullResult,
-    format_registry as branch_format_registry,
     )
 from bzrlib.config import GlobalConfig
 from bzrlib.decorators import (
@@ -444,6 +443,7 @@ class InterFromHgBranch(GenericInterBranch):
 
     @staticmethod
     def _get_branch_formats_to_test():
+        from bzrlib.branch import format_registry as branch_format_registry
         return [(HgBranchFormat(), branch_format_registry.get_default())]
 
     @staticmethod

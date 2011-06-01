@@ -469,7 +469,7 @@ class FromHgRepository(InterRepository):
         for i, (fulltext, hgkey, hgparents, csid) in enumerate(
                 unpack_chunk_iter(chunkiter, get_hg_revision)):
             pb.update("fetching changesets", i)
-            if limit is not None and i > limit:
+            if limit is not None and i >= limit:
                 continue
             (manifest, user, (time, timezone), files, desc, extra) = \
                 parse_changeset(fulltext)

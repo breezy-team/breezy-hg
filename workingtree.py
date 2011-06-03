@@ -164,9 +164,6 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
     def has_id(self, file_id):
         raise NotImplementedError(self.has_id)
 
-    def extras(self):
-        raise NotImplementedError(self.extras)
-
     def id2path(self, file_id):
         assert type(file_id) == str
         return self._branch.mapping.parse_file_id(file_id)

@@ -158,6 +158,15 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         # FIXME: For the time being; should use file id map eventually
         return self._branch.mapping.generate_file_id(path)
 
+    def has_or_had_id(self, file_id):
+        raise NotImplementedError(self.has_or_had_id)
+
+    def has_id(self, file_id):
+        raise NotImplementedError(self.has_id)
+
+    def extras(self):
+        raise NotImplementedError(self.extras)
+
     def id2path(self, file_id):
         assert type(file_id) == str
         return self._branch.mapping.parse_file_id(file_id)

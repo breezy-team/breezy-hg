@@ -109,15 +109,19 @@ class FileHgTags(HgTags):
         file_id = revtree.path2id(".hgtags")
         if file_id is None:
             return {}
-        f = revtree.get_file(file_id, ".hgtags")
-        ret = {}
-        for l in f.readlines():
-            try:
-                (hgtag, name) = l.strip().split(" ", 1)
-            except ValueError:
-                pass # Invalid value, just ignore?
-            else:
-                ret[name] = hgtag
+        revtree.lock_read()
+        try:
+            f = revtree.get_file(file_id, ".hgtags")
+            ret = {}
+            for l in f.readlines():
+                try:
+                    (hgtag, name) = l.strip().split(" ", 1)
+                except ValueError:
+                    pass # Invalid value, just ignore?
+                else:
+                    ret[name] = hgtag
+        finally:
+            revtree.unlock()
         return ret
 
 

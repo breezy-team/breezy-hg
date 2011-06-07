@@ -88,6 +88,9 @@
   * Provide custom InterBranch.fetch() which works for remote hg branches.
     (Jelmer Vernooij, #741760)
 
+  * Properly lock tree when reading tags during fetch.
+    (Jelmer Vernooij, #793812)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

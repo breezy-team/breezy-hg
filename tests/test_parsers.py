@@ -17,6 +17,7 @@
 import mercurial
 
 from bzrlib.plugins.hg.parsers import (
+    decode_str,
     deserialize_file_text,
     format_changeset,
     parse_changeset,
@@ -127,3 +128,16 @@ class TextSerializers(TestCase):
 
     def test_deserialize(self):
         self.assertEquals(({"copy": "bla"}, "foo\n"), deserialize_file_text("\1\ncopy: bla\n\1\nfoo\n"))
+
+
+
+class DecodeStrTests(TestCase):
+
+    def test_decode_ascii(self):
+        self.assertEquals(u"foo", decode_str("foo"))
+
+    def test_decode_utf8(self):
+        self.assertEquals("\xc3\xa4".decode("utf-8"), decode_str('\xc3\xa4'))
+
+    def test_decode_latin1(self):
+        self.assertEquals("\xc3\xa4".decode("utf-8"), decode_str('\xe4'))

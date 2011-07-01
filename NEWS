@@ -33,7 +33,7 @@
     (Jelmer Vernooij, #674581, #688455)
 
   * Support non-smart server access to Mercurial repositories.
-    (Jelmer Vernooij)
+    (Jelmer Vernooij, #804227)
 
  BUG FIXES
 

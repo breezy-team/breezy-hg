@@ -220,12 +220,6 @@ class HgRemoteRepository(HgRepository):
     def get_revisions(self, revision_ids):
         raise MercurialSmartRemoteNotSupported()
 
-    def iter_inventories(self, revision_ids, ordering=None):
-        raise MercurialSmartRemoteNotSupported()
-
-    def get_inventory(self, revision_id):
-        raise MercurialSmartRemoteNotSupported()
-
     def get_revision(self, revision_id):
         raise MercurialSmartRemoteNotSupported()
 

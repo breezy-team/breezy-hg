@@ -116,7 +116,7 @@ def has_hg_http_smart_server(transport, external_url):
 
 def has_hg_dumb_repository(transport):
     try:
-        return transport.has(".hg/requires")
+        return transport.has_any([".hg/requires", ".hg/00changelog.i"])
     except (errors.NoSuchFile, errors.PermissionDenied):
         return False
 

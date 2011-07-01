@@ -32,6 +32,9 @@
   * Check for Mercurial repository before checking for Bazaar repository.
     (Jelmer Vernooij, #674581, #688455)
 
+  * Support non-smart server access to Mercurial repositories.
+    (Jelmer Vernooij)
+
  BUG FIXES
 
   * Mark as compatible with Bazaar 2.1, 2.2, 2.3 and 2.4. (Jelmer Vernooij)

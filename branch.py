@@ -162,7 +162,8 @@ class HgBranchFormat(BranchFormat):
 
     def make_tags(self, branch):
         """See bzrlib.branch.BranchFormat.make_tags()."""
-        if getattr(branch.repository._hgrepo, "tags", None) is not None:
+        if (getattr(branch.repository._hgrepo, "tags", None) is not None and
+            getattr(branch.repository, "lookup_foreign_revision_id", None) is not None):
             return LocalHgTags(branch)
         else:
             return DisabledTags(branch)
@@ -362,6 +363,7 @@ class HgLocalBranch(HgBranch):
         self._clear_cached_state()
         self._last_revision_info_cache = revno, revision_id
         self._run_post_change_branch_tip_hooks(old_revno, old_revid)
+
 
 class HgRemoteBranch(HgBranch):
 

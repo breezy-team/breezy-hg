@@ -94,6 +94,9 @@
   * Properly lock tree when reading tags during fetch.
     (Jelmer Vernooij, #793812)
 
+  * Cope with non-utf8 characters in commit messages.
+    (Jelmer Vernooij, #804322)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

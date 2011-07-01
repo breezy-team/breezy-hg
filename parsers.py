@@ -36,6 +36,21 @@ from mercurial.revlog import (
     hash as hghash,
     )
 
+def decode_str(text):
+    # Decode according to http://mercurial.selenic.com/wiki/ChangelogEncodingPlan:
+    # * attempt to decode with UTF-8, strict
+    # * attempt to decode with Latin-1, strict
+    # * attempt to decode with UTF-8, replacing unknown characters
+    try:
+        return text.decode("utf-8", "strict")
+    except UnicodeDecodeError:
+        pass
+    try:
+        return text.decode("latin-1", "strict")
+    except UnicodeDecodeError:
+        pass
+    return text.decode("utf-8", "replace")
+
 
 def format_changeset(manifest, files, user, date, desc, extra):
     """Serialize a Mercurial changeset.
@@ -84,10 +99,10 @@ def parse_changeset(text):
     """
     text = str(text)
     last = text.index("\n\n")
-    desc = text[last + 2:].decode("utf-8")
+    desc = decode_str(text[last + 2:])
     l = text[:last].split('\n')
     manifest = mercurial.node.bin(l[0])
-    user = l[1].decode("utf-8")
+    user = decode_str(l[1])
 
     extra_data = l[2].split(' ', 2)
     if len(extra_data) != 3:

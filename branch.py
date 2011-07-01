@@ -50,6 +50,9 @@ from bzrlib.tag import (
 from bzrlib.plugins.hg.changegroup import (
     dchangegroup,
     )
+from bzrlib.plugins.hg.repository import (
+    MercurialSmartRemoteNotSupported,
+    )
 
 import mercurial.node
 
@@ -373,6 +376,9 @@ class HgRemoteBranch(HgBranch):
 
     def supports_tags(self):
         return True
+
+    def _read_last_revision_info(self):
+        raise MercurialSmartRemoteNotSupported()
 
     @needs_read_lock
     def last_revision(self):

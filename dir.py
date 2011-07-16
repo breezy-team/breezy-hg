@@ -235,9 +235,6 @@ class HgToSomethingConverter(Converter):
         return target
 
 
-LockWarner = bzrlib.lockable_files._LockWarner
-
-
 class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
     """Hg specific lockable files abstraction."""
 
@@ -247,7 +244,6 @@ class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
         self._transaction = None
         self._lock_mode = None
         self._transport = transport
-        self._lock_warner = LockWarner(repr(self))
 
 
 class HgDummyLock(object):

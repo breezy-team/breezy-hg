@@ -49,7 +49,12 @@ class RevisionSpec_hg(RevisionSpec):
         from bzrlib.plugins.hg.repository import (
             MercurialSmartRemoteNotSupported,
             )
-        bzr_revid = branch.mapping.revision_id_foreign_to_bzr(csid)
+        mapping = getattr(branch, "mapping", None)
+        if mapping is None:
+            raise InvalidRevisionSpec(self.user_spec, branch)
+        if mapping.vcs.abbreviation != "hg":
+            raise InvalidRevisionSpec(self.user_spec, branch)
+        bzr_revid = mapping.revision_id_foreign_to_bzr(csid)
         try:
             if branch.repository.has_revision(bzr_revid):
                 history = self._history(branch, bzr_revid)

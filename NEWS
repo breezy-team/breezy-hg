@@ -97,6 +97,9 @@
   * Cope with non-utf8 characters in commit messages.
     (Jelmer Vernooij, #804322)
 
+  * Prevent problems with revision specs being activated against
+    non-hg branches. (Jelmer Vernooij, #813506)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

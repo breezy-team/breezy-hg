@@ -32,6 +32,7 @@ def test_suite():
         'test_pull',
         'test_push',
         'test_repository',
+        'test_revspec',
         ]
 
     suite.addTest(loader.loadTestsFromModuleNames(["%s.%s" % (__name__, i) for i in testmod_names]))

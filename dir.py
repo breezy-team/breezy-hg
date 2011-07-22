@@ -244,6 +244,7 @@ class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
         self._transaction = None
         self._lock_mode = None
         self._transport = transport
+        self._lock_count = 0
 
 
 class HgDummyLock(object):

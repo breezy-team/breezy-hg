@@ -172,7 +172,8 @@ class HgRevisionTree(RevisionTree):
         except KeyError:
             pass
         if self._all_relevant_revisions is None:
-            ancestry = self._repository.get_ancestry(self._revision_id)[1:] + [NULL_REVISION]
+            graph = self._repository.get_graph()
+            ancestry = graph.find_unique_ancestors(self._revision_id, [])
             self._all_relevant_revisions = self._repository.get_parent_map(ancestry)
         assert some_revision_id in self._all_relevant_revisions
         ancestry = set()

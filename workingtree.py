@@ -54,6 +54,8 @@ class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
     support the working tree format.
     """
 
+    supports_versioned_directories = False
+
     @property
     def _matchingbzrdir(self):
         from bzrlib.plugins.hg.dir import HgControlDirFormat

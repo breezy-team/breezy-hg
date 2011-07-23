@@ -238,6 +238,8 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         # FIXME: yield actual inventory entries
         if specific_file_ids is not None:
             raise NotImplementedError(self.iter_entries_by_dir)
+        # Everything has a root directory
+        yield u"", self._get_dir_ie(u"")
         directories = set()
         for p in self._dirstate:
             parent = posixpath.dirname(p)

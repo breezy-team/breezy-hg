@@ -21,6 +21,9 @@ from bzrlib.errors import (
     InvalidRevisionId,
     InvalidRevisionSpec,
     )
+from bzrlib.revision import (
+    NULL_REVISION,
+    )
 from bzrlib.revisionspec import (
     RevisionInfo,
     RevisionSpec,
@@ -64,14 +67,12 @@ class RevisionSpec_hg(RevisionSpec):
         raise InvalidRevisionSpec(self.user_spec, branch)
 
     def _history(self, branch, revid):
-        history = list(branch.repository.iter_reverse_revision_history(revid))
+        graph = branch.repository.get_graph()
+        history = list(graph.iter_lefthand_ancestry(revid, (NULL_REVISION,)))
         history.reverse()
         return history
 
     def __nonzero__(self):
-        from bzrlib.revision import (
-            NULL_REVISION,
-            )
         # The default implementation uses branch.repository.has_revision()
         if self.rev_id is None:
             return False

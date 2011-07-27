@@ -245,11 +245,11 @@ class HgBranch(ForeignBranch):
 
     def __init__(self, hgrepo, name, hgdir, lockfiles):
         self.repository = hgdir.open_repository()
+        self.base = hgdir.root_transport.base
         super(HgBranch, self).__init__(self.repository.get_mapping())
         self._hgrepo = hgrepo
         self.bzrdir = hgdir
         self.control_files = lockfiles
-        self.base = hgdir.root_transport.base
         self.name = name
 
     def _check(self):

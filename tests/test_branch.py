@@ -58,7 +58,7 @@ class TestFileHgTags(TestCaseWithTransport):
         tree.add([".hgtags"])
         tree.commit("add tags")
         tags = FileHgTags(tree.branch, tree.branch.last_revision(), tree.branch)
-        self.assertEquals({"v0.1": "hg-v1:4ad63131870d4fbf2a88d7403705310b2d0b9b76"},
+        self.assertEquals({u"v0.1": "hg-v1:4ad63131870d4fbf2a88d7403705310b2d0b9b76"},
             tags.get_tag_dict())
 
     def test_space_in_tags(self):

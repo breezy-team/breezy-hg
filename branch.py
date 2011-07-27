@@ -73,7 +73,7 @@ class HgTags(BasicTags):
         ret = {}
         hgtags = self._get_hg_tags()
         for name, value in hgtags.iteritems():
-            ret[name] = self.lookup_foreign_revision_id(value)
+            ret[name.decode("utf-8")] = self.lookup_foreign_revision_id(value)
         return ret
 
     def set_tag(self, name, value):

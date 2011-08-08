@@ -183,6 +183,9 @@ class HgBranchConfig(object):
         self._branch = branch
         self._ui = branch.repository._hgrepo.ui
 
+    def validate_signatures_in_log(self):
+        return False
+
     def username(self):
         username = self._ui.config("username", "default")
         if username is not None:

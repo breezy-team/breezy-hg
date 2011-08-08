@@ -240,11 +240,12 @@ class HgToSomethingConverter(Converter):
 
 class HgLock(object):
 
-    def __init__(self, transport, hgrepo):
+    def __init__(self, transport, hgrepo, supports_read_lock):
         self._transport = transport
         self._hgrepo = hgrepo
         self._lock_mode = None
         self._lock_count = 0
+        self._supports_read_lock = supports_read_lock
 
     def lock_write(self, token=None):
         if token is not None:
@@ -266,7 +267,10 @@ class HgLock(object):
             self._lock_count += 1
         else:
             self._lock_mode = 'r'
-            self._lock = self._hgrepo.lock()
+            if self._supports_read_lock:
+                self._lock = self._hgrepo.lock()
+            else:
+                self._lock = None
             self._transaction = transactions.PassThroughTransaction()
             self._lock_count = 1
 
@@ -384,13 +388,13 @@ class HgControlDirFormat(ControlDirFormat):
             raise errors.NotBranchError(transport.base)
         if url.startswith('file://'):
             path = transport.local_abspath('.').encode('utf-8')
-            lock_class = HgLock
+            supports_read_lock = True
         else:
             path = url
-            lock_class = HgDummyLock
+            supports_read_lock = False
         lazy_load_mercurial()
         import mercurial.hg
         from bzrlib.plugins.hg.ui import ui
         repository = mercurial.hg.repository(ui(), path, create=_create)
-        return HgDir(repository, transport, lock_class(transport, repository),
-            self)
+        lock = HgLock(transport, repository, supports_read_lock)
+        return HgDir(repository, transport, lock, self)

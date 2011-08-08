@@ -20,15 +20,18 @@
 """
 
 import bzrlib.bzrdir
-import bzrlib.lockable_files
 from bzrlib import (
     errors,
-    urlutils,
+    lock,
+    transactions,
     )
 
 from bzrlib.controldir import (
     ControlDir,
     ControlDirFormat,
+    )
+from bzrlib.decorators import (
+    only_raises,
     )
 try:
     from bzrlib.controldir import Converter
@@ -235,73 +238,70 @@ class HgToSomethingConverter(Converter):
         return target
 
 
-class HgLockableFiles(bzrlib.lockable_files.LockableFiles):
-    """Hg specific lockable files abstraction."""
+class HgLock(object):
 
-    def __init__(self, lock, transport):
-        self.lock_name = "hg lock"
-        self._lock = lock
-        self._transaction = None
-        self._lock_mode = None
+    def __init__(self, transport, hgrepo):
         self._transport = transport
+        self._hgrepo = hgrepo
+        self._lock_mode = None
         self._lock_count = 0
 
-
-class HgDummyLock(object):
-    """Lock that doesn't actually lock."""
-
-    def __init__(self, hgrepo):
-        self._hgrepo = hgrepo
-
     def lock_write(self, token=None):
         if token is not None:
             raise errors.TokenLockingNotSupported(self)
-        self._lock = self._hgrepo.wlock()
+        if self._lock_mode:
+            if self._lock_mode != 'w':
+                raise errors.ReadOnlyError(self)
+            self._lock_count += 1
+        else:
+            self._lock_mode = 'w'
+            self._lock = self._hgrepo.wlock()
+            self._transaction = transactions.PassThroughTransaction()
+            self._lock_count = 1
 
     def lock_read(self):
-        self._lock = None
+        if self._lock_mode:
+            if self._lock_mode not in ('r', 'w'):
+                raise ValueError("invalid lock mode %r" % (self._lock_mode,))
+            self._lock_count += 1
+        else:
+            self._lock_mode = 'r'
+            self._lock = self._hgrepo.lock()
+            self._transaction = transactions.PassThroughTransaction()
+            self._lock_count = 1
+
+    def is_locked(self):
+        return (self._lock_count > 0)
 
     def peek(self):
         raise NotImplementedError(self.peek)
 
+    @only_raises(errors.LockNotHeld, errors.LockBroken)
     def unlock(self):
-        if self._lock is not None:
-            self._lock.release()
+        if not self._lock_mode:
+            return lock.cant_unlock_not_held(self)
+        if self._lock_count > 1:
+            self._lock_count -= 1
+        else:
+            if self._lock is not None:
+                self._lock.release()
+            self._lock_mode = self._lock_count = None
+            self._transaction = None
 
     def validate_token(self, token):
         if token is not None:
             raise errors.TokenLockingNotSupported(self)
 
+    def get_transaction(self):
+        """Return the current active transaction.
 
-class HgLock(object):
-    """A lock that thunks through to Hg."""
-
-    def __init__(self, hgrepo):
-        self._hgrepo = hgrepo
-
-    def lock_write(self, token=None):
-        if token is not None:
-            raise errors.TokenLockingNotSupported(self)
-        self._lock = self._hgrepo.wlock()
-
-    def lock_read(self):
-        self._lock = self._hgrepo.lock()
-
-    def peek(self):
-        raise NotImplementedError(self.peek)
-
-    def unlock(self):
-        self._lock.release()
-
-    def validate_token(self, token):
-        if token is not None:
-            raise errors.TokenLockingNotSupported(self)
-
-    def break_lock(self):
-        pass
-
-    def dont_leave_lock_in_place(self):
-        raise NotImplementedError(self.dont_leave_lock_in_place)
+        If no transaction is active, this returns a passthrough object
+        for which all data is immediately flushed and no caching happens.
+        """
+        if self._transaction is not None:
+            return self._transaction
+        else:
+            return transactions.PassThroughTransaction()
 
 
 class HgControlDirFormat(ControlDirFormat):
@@ -392,5 +392,5 @@ class HgControlDirFormat(ControlDirFormat):
         import mercurial.hg
         from bzrlib.plugins.hg.ui import ui
         repository = mercurial.hg.repository(ui(), path, create=_create)
-        lockfiles = HgLockableFiles(lock_class(repository), transport)
-        return HgDir(repository, transport, lockfiles, self)
+        return HgDir(repository, transport, lock_class(transport, repository),
+            self)

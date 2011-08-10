@@ -280,6 +280,9 @@ class HgLock(object):
     def peek(self):
         raise NotImplementedError(self.peek)
 
+    def get_physical_lock_status(self):
+        return None
+
     @only_raises(errors.LockNotHeld, errors.LockBroken)
     def unlock(self):
         if not self._lock_mode:

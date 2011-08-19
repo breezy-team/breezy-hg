@@ -83,7 +83,7 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self._control_files = lockfiles
         self._branch = hgbranch
         self._format = HgWorkingTreeFormat()
-        self._transport = hgdir.get_workingtree_transport(None)
+        self._transport = hgdir.root_transport
         self.basedir = hgdir.root_transport.local_abspath(".")
         self._detect_case_handling()
         self._rules_searcher = None

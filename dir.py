@@ -24,6 +24,7 @@ from bzrlib import (
     errors,
     lock,
     transactions,
+    urlutils,
     )
 
 from bzrlib.controldir import (
@@ -92,6 +93,7 @@ class HgDir(ControlDir):
 
     def create_branch(self, name=None, repository=None):
         """'create' a branch for this dir."""
+        name = self._get_branch_name(name)
         return self.open_branch(name=name)
 
     def create_repository(self, shared=False):
@@ -110,6 +112,7 @@ class HgDir(ControlDir):
         return self.open_workingtree()
 
     def destroy_branch(self, name=None):
+        name = self._get_branch_name(name)
         raise errors.UnsupportedOperation(self.destroy_branch, self)
 
     def destroy_workingtree(self):
@@ -118,27 +121,23 @@ class HgDir(ControlDir):
     def destroy_repository(self):
         raise errors.UnsupportedOperation(self.destroy_repository, self)
 
-    def get_branch_transport(self, branch_format, name=None):
-        if branch_format is None:
-            return self.transport
-        if isinstance(branch_format, HgControlDirFormat):
-            return self.transport
-        raise errors.IncompatibleFormat(branch_format, self._format)
-
-    get_repository_transport = get_branch_transport
-    get_workingtree_transport = get_branch_transport
-
     def is_supported(self):
         return True
 
     def needs_format_conversion(self, format=None):
         return (format is not HgControlDirFormat)
 
+    def _get_branch_name(self, name=None):
+        if name is None and getattr(self, "_get_selected_branch", False):
+            name = self._get_selected_branch()
+        if name is None:
+            name = 'default'
+        return name
+
     def open_branch(self, name=None, unsupported=False,
             ignore_fallbacks=False):
         """'create' a branch for this dir."""
-        if name is None:
-            name = 'default'
+        name = self._get_branch_name(name)
         from bzrlib.plugins.hg.branch import HgLocalBranch, HgRemoteBranch
         if self._hgrepo.local():
             branch_klass = HgLocalBranch
@@ -180,7 +179,6 @@ class HgDir(ControlDir):
         from bzrlib.repository import InterRepository
         from bzrlib.transport.local import LocalTransport
         from bzrlib.transport import get_transport
-        from bzrlib.plugins.hg.branch import FileHgTags
         target_transport = get_transport(url, possible_transports)
         target_transport.ensure_base()
         cloning_format = self.cloning_metadir()
@@ -389,6 +387,7 @@ class HgControlDirFormat(ControlDirFormat):
             url = transport.external_url()
         except errors.InProcessTransport:
             raise errors.NotBranchError(transport.base)
+        url = urlutils.split_segment_parameters(url)[0]
         if url.startswith('file://'):
             path = transport.local_abspath('.').encode('utf-8')
             supports_read_lock = True

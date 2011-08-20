@@ -28,6 +28,7 @@ from bzrlib import (
 
 from bzrlib.errors import (
     IncompatibleFormat,
+    NoSuchFile,
     )
 from bzrlib.inventory import (
     Inventory,
@@ -89,6 +90,14 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self._rules_searcher = None
         self.views = self._make_views()
         self._dirstate = self._hgrepo[None]
+
+    def _detect_case_handling(self):
+        try:
+            self.bzrdir.control_transport.stat("RequiReS")
+        except NoSuchFile:
+            self.case_sensitive = True
+        else:
+            self.case_sensitive = False
 
     def flush(self):
         self._dirstate.write()

@@ -367,7 +367,8 @@ class MercurialRepositoryOverlay(object):
             parent_map = self.repo.get_parent_map(all_revs)
             all_parents = set()
             map(all_parents.update, parent_map.itervalues())
-            return set([self.lookup_changeset_id_by_revid(revid)[0] for revid in set(all_revs) - all_parents])
+            return set([self.lookup_changeset_id_by_revid(revid)[0]
+                        for revid in set(all_revs) - all_parents])
         finally:
             self.repo.unlock()
 

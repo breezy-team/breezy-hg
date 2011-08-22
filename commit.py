@@ -38,8 +38,6 @@ class HgCommitBuilder(CommitBuilder):
         super(HgCommitBuilder, self).__init__(*args, **kwargs)
         self._any_changes = False
         self._changelist = []
-        self._manifest = {}
-        self._flags = {}
         self._removed = []
         self._changed = []
         self._hgrepo = self.repository._hgrepo
@@ -60,9 +58,11 @@ class HgCommitBuilder(CommitBuilder):
                 self._parent_manifests.append(manifest)
                 self._parent_changeset_ids.append(csid)
             else:
-                self._parent_manifests.append({})
+                self._parent_manifests.append(manifestdict())
                 self._parent_manifest_ids.append(mercurial.node.nullid)
                 self._parent_changeset_ids.append(mercurial.node.nullid)
+        self._manifest = dict(self._parent_manifests[0])
+        self._flags = dict(self._parent_manifests[0]._flags)
 
     def any_changes(self):
         return self._any_changes
@@ -90,7 +90,8 @@ class HgCommitBuilder(CommitBuilder):
                 self.record_delete(path[0], file_id)
                 continue
             utf8_path = path[1].encode("utf-8")
-            fparents = tuple([m.get(utf8_path, mercurial.node.nullid) for m in self._parent_manifests])
+            fparents = tuple([m.get(utf8_path, mercurial.node.nullid)
+                              for m in self._parent_manifests])
             flog = self._hgrepo.file(utf8_path)
             # FIXME: Support copies
             if (changed_content or
@@ -105,7 +106,8 @@ class HgCommitBuilder(CommitBuilder):
                 else:
                     raise AssertionError
                 meta = {} # for now
-                node = flog.add(text, meta, self._transaction, self._linkrev, fparents[0], fparents[1])
+                node = flog.add(text, meta, self._transaction, self._linkrev,
+                        fparents[0], fparents[1])
                 self._manifest[utf8_path] = node
             else:
                 self._manifest[utf8_path] = fparents[0]

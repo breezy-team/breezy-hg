@@ -109,7 +109,7 @@ class MercurialRepositoryOverlay(object):
         return self.repo.base
 
     def get_text_by_path_and_node(self, path, node):
-        (fileid, revid) = self.idmap.lookup_text_by_path_and_node(path, node).next()
+        (fileid, revid) = iter(self.idmap.lookup_text_by_path_and_node(path, node)).next()
         return "".join(self.repo.iter_files_bytes([(fileid, revid, None)]).next()[1])
 
     def remember_manifest_text(self, revid, parent_revids, text):

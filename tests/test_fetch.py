@@ -16,6 +16,8 @@
 
 """Tests for fetching from Mercurial into Bazaar."""
 
+import os
+
 from bzrlib.branch import Branch
 
 from bzrlib.plugins.hg.dir import HgControlDirFormat
@@ -42,7 +44,8 @@ class TestFetching(TestCaseWithTransport):
         hgrepo = mercurial.localrepo.localrepository(hgui(), "hg", create=True)
         hgrepo[None].add(["f1", "d1/d2/f2"])
         hgrepo.commit("Initial commit")
-        hgrepo[None].remove(["d1/d2/f2"], unlink=True)
+        hgrepo[None].forget(["d1/d2/f2"])
+        os.unlink("hg/d1/d2/f2")
         hgrepo.commit("Remove file f2, so parent directories d2, d1 are empty")
 
         # Import history from Mercurial repository into Bazaar repository.

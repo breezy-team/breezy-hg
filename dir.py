@@ -111,6 +111,10 @@ class HgDir(ControlDir):
             raise NotImplementedError("from_branch argument not yet supported")
         return self.open_workingtree()
 
+    def _find_or_create_repository(self, force_new_repo):
+        """Create a new repository if needed, returning the repository."""
+        return self.open_repository()
+
     def destroy_branch(self, name=None):
         name = self._get_branch_name(name)
         raise errors.UnsupportedOperation(self.destroy_branch, self)

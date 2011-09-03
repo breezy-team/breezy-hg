@@ -19,6 +19,7 @@
 
 from bzrlib import (
     errors,
+    graph as _mod_graph,
     )
 from bzrlib.foreign import (
     ForeignRepository,
@@ -157,8 +158,11 @@ class HgLocalRepository(HgRepository):
     def get_parent_map(self, revids):
         ret = {}
         for revid in revids:
+            if revid == NULL_REVISION:
+                ret[revid] = ()
+                continue
             hgrevid, mapping = self.lookup_bzr_revision_id(revid)
-            # FIXME: what about extra parents?
+            # FIXME: what about extra (roundtripped) parents?
             hgparents = self._hgrepo.changelog.parents(hgrevid)
             bzrparents = as_bzr_parents(hgparents, self.lookup_foreign_revision_id)
             if bzrparents == ():
@@ -166,6 +170,20 @@ class HgLocalRepository(HgRepository):
             else:
                 ret[revid] = bzrparents
         return ret
+
+    def get_known_graph_ancestry(self, keys):
+        """Get a KnownGraph instance with the ancestry of keys."""
+        # most basic implementation is a loop around get_parent_map
+        pending = set(keys)
+        parent_map = {}
+        while pending:
+            this_parent_map = self.get_parent_map(pending)
+            parent_map.update(this_parent_map)
+            pending = set()
+            map(pending.update, this_parent_map.itervalues())
+            pending = pending.difference(parent_map)
+        kg = _mod_graph.KnownGraph(parent_map)
+        return kg
 
     def get_revision(self, revision_id):
         if not type(revision_id) is str:

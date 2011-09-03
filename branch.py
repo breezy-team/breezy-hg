@@ -431,7 +431,7 @@ class InterHgBranch(GenericInterBranch):
         result.new_revno, result.new_revid = self.target.last_revision_info()
         return result
 
-    def push(self, overwrite=False, stop_revision=None):
+    def push(self, overwrite=False, stop_revision=None, lossy=False):
         """See InterBranch.push()."""
         result = BranchPushResult()
         result.source_branch = self.source
@@ -499,7 +499,7 @@ class InterFromHgBranch(GenericInterBranch):
         result.tag_conflicts = tags.merge_to(self.target.tags, overwrite)
         return result
 
-    def push(self, overwrite=False, stop_revision=None):
+    def push(self, overwrite=False, stop_revision=None, lossy=False):
         """See InterBranch.push()."""
         result = BranchPushResult()
         result.source_branch = self.source

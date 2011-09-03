@@ -160,7 +160,11 @@ class HgLocalRepository(HgRepository):
             hgrevid, mapping = self.lookup_bzr_revision_id(revid)
             # FIXME: what about extra parents?
             hgparents = self._hgrepo.changelog.parents(hgrevid)
-            ret[revid] = as_bzr_parents(hgparents, self.lookup_foreign_revision_id)
+            bzrparents = as_bzr_parents(hgparents, self.lookup_foreign_revision_id)
+            if bzrparents == ():
+                ret[revid] = (NULL_REVISION, )
+            else:
+                ret[revid] = bzrparents
         return ret
 
     def get_revision(self, revision_id):

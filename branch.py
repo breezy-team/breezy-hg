@@ -24,6 +24,7 @@ from bzrlib import (
     revision as _mod_revision,
     )
 from bzrlib.branch import (
+    Branch,
     BranchCheckResult,
     BranchFormat,
     BranchPushResult,
@@ -152,7 +153,8 @@ class HgBranchFormat(BranchFormat):
         from bzrlib.plugins.hg.tests.test_branch import ForeignTestsBranchFactory
         return ForeignTestsBranchFactory()
 
-    def initialize(self, a_bzrdir, name=None, repository=None):
+    def initialize(self, a_bzrdir, name=None, repository=None,
+                   append_revisions_only=None):
         from bzrlib.plugins.hg.dir import HgDir
         if name is None:
             name = 'default'
@@ -161,7 +163,8 @@ class HgBranchFormat(BranchFormat):
         bm = a_bzrdir._hgrepo.branchmap()
         if name in bm:
             raise errors.AlreadyBranchError(a_bzrdir.user_url)
-        return a_bzrdir.open_branch(name=name)
+        return a_bzrdir.create_branch(name=name,
+            append_revisions_only=append_revisions_only)
 
     def make_tags(self, branch):
         """See bzrlib.branch.BranchFormat.make_tags()."""
@@ -429,6 +432,8 @@ class InterHgBranch(GenericInterBranch):
         self.target.generate_revision_history(stop_revision,
             req_base, self.source)
         result.new_revno, result.new_revid = self.target.last_revision_info()
+        for hook in Branch.hooks['post_pull']:
+            hook(result)
         return result
 
     def push(self, overwrite=False, stop_revision=None, lossy=False):
@@ -447,6 +452,8 @@ class InterHgBranch(GenericInterBranch):
         self.target.generate_revision_history(stop_revision,
             req_base, self.source)
         result.new_revno, result.new_revid = self.target.last_revision_info()
+        for hook in Branch.hooks['post_push']:
+            hook(result)
         return result
 
 
@@ -497,6 +504,8 @@ class InterFromHgBranch(GenericInterBranch):
         result.new_revno, result.new_revid = self.target.last_revision_info()
         tags = self._get_tags(result.new_revid)
         result.tag_conflicts = tags.merge_to(self.target.tags, overwrite)
+        for hook in Branch.hooks['post_pull']:
+            hook(result)
         return result
 
     def push(self, overwrite=False, stop_revision=None, lossy=False):
@@ -517,6 +526,8 @@ class InterFromHgBranch(GenericInterBranch):
         result.new_revid = self.target.last_revision()
         tags = self._get_tags(result.new_revid)
         result.tag_conflicts = tags.merge_to(self.target.tags, overwrite)
+        for hook in Branch.hooks['post_push']:
+            hook(result)
         return result
 
     @needs_write_lock

@@ -29,6 +29,7 @@ from bzrlib import (
 from bzrlib.errors import (
     IncompatibleFormat,
     NoSuchFile,
+    NotWriteLocked,
     )
 from bzrlib.inventory import (
     Inventory,
@@ -45,6 +46,9 @@ from bzrlib.decorators import (
 from mercurial.hg import (
     update as hg_update,
     )
+
+
+from bzrlib.plugins.hg.mapping import mode_kind
 
 
 class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
@@ -100,7 +104,19 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             self.case_sensitive = False
 
     def flush(self):
+        if self._control_files._lock_mode != 'w':
+            raise NotWriteLocked(self)
         self._dirstate.write()
+
+    def unlock(self):
+        # non-implementation specific cleanup
+        self._cleanup()
+
+        # reverse order of locking.
+        try:
+            return self._control_files.unlock()
+        finally:
+            self.branch.unlock()
 
     def update_basis_by_delta(self, revid, delta):
         # FIXME
@@ -127,6 +143,11 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             path = self.id2path(file_id)
             self._dirstate.remove(path.encode("utf-8"))
 
+    def stored_kind(self, file_id, path=None):
+        if path is not None:
+            path = self.id2path(file_id)
+        return mode_kind(self._dirstate._map[path.encode("utf-8")][1])
+
     def _validate_unicode_text(self, text, context):
         """Verify things like commit messages don't have bogus characters."""
         if '\r' in text:
@@ -151,13 +172,6 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         else:
             node = None
         hg_update(self._hgrepo, node)
-
-    def unlock(self):
-        """Overridden to avoid hashcache usage - hg manages that."""
-        try:
-            return self._control_files.unlock()
-        finally:
-            self.branch.unlock()
 
     def conflicts(self):
         return _mod_conflicts.ConflictList()

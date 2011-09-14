@@ -74,6 +74,12 @@ foreign_vcs_registry.register_lazy("hg",
     "bzrlib.plugins.hg.mapping", "foreign_hg", "Mercurial")
 
 def has_hg_http_smart_server(transport, external_url):
+    """Check if there is a Mercurial smart server at the remote location.
+
+    :param transport: Transport to check
+    :param externa_url: External URL for transport
+    :return: Boolean indicating whether transport is backed onto hg
+    """
     if (not external_url.startswith("http:") and
         not external_url.startswith("https:")):
         return False
@@ -107,7 +113,7 @@ def has_hg_http_smart_server(transport, external_url):
                 transport._curl_perform(conn, header)
                 code = conn.getinfo(pycurl.HTTP_CODE)
                 if code == 404:
-                    raise errors.NoSuchFile(transport._path)
+                    return False
                 headers = transport._parse_headers(header)
             else:
                 return False

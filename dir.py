@@ -91,8 +91,11 @@ class HgDir(ControlDir):
         result._hgrepo.pull(self._hgrepo)
         return result
 
-    def create_branch(self, name=None, repository=None):
+    def create_branch(self, name=None, repository=None,
+                      append_revisions_only=None):
         """'create' a branch for this dir."""
+        if append_revisions_only:
+            raise errors.UpgradeRequired(self.base)
         name = self._get_branch_name(name)
         return self.open_branch(name=name)
 
@@ -252,7 +255,7 @@ class HgLock(object):
     def lock_write(self, token=None):
         if token is not None:
             raise errors.TokenLockingNotSupported(self)
-        if self._lock_mode:
+        if self._lock_mode is not None:
             if self._lock_mode != 'w':
                 raise errors.ReadOnlyError(self)
             self._lock_count += 1

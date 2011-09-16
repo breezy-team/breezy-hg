@@ -22,6 +22,7 @@
 
 import bzrlib
 import bzrlib.api
+from bzrlib.transport import register_transport_proto
 
 from info import (
     bzr_compatible_versions,
@@ -80,10 +81,7 @@ def has_hg_http_smart_server(transport, external_url):
     :param externa_url: External URL for transport
     :return: Boolean indicating whether transport is backed onto hg
     """
-    if (not external_url.startswith("http:") and
-        not external_url.startswith("https:")):
-        return False
-    url = external_url + "?pairs=%s-%s&cmd=between" % ("0" * 40, "0" * 40)
+    url = external_url.rstrip("/") + "?pairs=%s-%s&cmd=between" % ("0" * 40, "0" * 40)
     from bzrlib.transport.http._urllib import HttpTransport_urllib, Request
     if isinstance(transport, HttpTransport_urllib):
         req = Request('GET', url, accepted_errors=[200, 403, 404, 405])
@@ -143,11 +141,15 @@ class HgProber(Prober):
             raise errors.NotBranchError(path=transport.base)
         from bzrlib import urlutils
         external_url = urlutils.split_segment_parameters(external_url)[0]
-        if (not has_hg_dumb_repository(transport) and
-            not has_hg_http_smart_server(transport, external_url)):
-            # Explicitly check for .hg directories here, so we avoid
-            # loading foreign branches through Mercurial.
-            raise errors.NotBranchError(path=transport.base)
+        # Explicitly check for .hg directories here, so we avoid
+        # loading foreign branches through Mercurial.
+        if (external_url.startswith("http:") or
+            external_url.startswith("https:")):
+            if not has_hg_http_smart_server(transport, external_url):
+                raise errors.NotBranchError(path=transport.base)
+        else:
+            if not has_hg_dumb_repository(transport):
+                raise errors.NotBranchError(path=transport.base)
 
         lazy_load_mercurial()
         from mercurial import error as hg_errors
@@ -248,6 +250,9 @@ from bzrlib.commands import (
     plugin_cmds,
     )
 plugin_cmds.register_lazy('cmd_hg_import', [], 'bzrlib.plugins.hg.commands')
+
+register_transport_proto('hg+ssh://',
+        help="Access using the Mercurial smart server protocol over SSH.")
 
 from bzrlib.revisionspec import dwim_revspecs, RevisionSpec_dwim
 if getattr(RevisionSpec_dwim, "append_possible_lazy_revspec", None):

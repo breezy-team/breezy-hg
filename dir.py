@@ -395,12 +395,13 @@ class HgControlDirFormat(ControlDirFormat):
         except errors.InProcessTransport:
             raise errors.NotBranchError(transport.base)
         url = urlutils.split_segment_parameters(url)[0]
-        if url.startswith('file://'):
+        try:
             path = transport.local_abspath('.').encode('utf-8')
-            supports_read_lock = True
-        else:
-            path = url
+        except errors.NotLocalUrl:
+            path = url.rstrip("/")
             supports_read_lock = False
+        else:
+            supports_read_lock = True
         lazy_load_mercurial()
         import mercurial.hg
         from bzrlib.plugins.hg.ui import ui

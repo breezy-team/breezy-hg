@@ -788,3 +788,37 @@ class InterHgRepository(FromHgRepository):
         from bzrlib.plugins.hg.repository import HgRepository
         return (isinstance(source, HgRepository) and
                 isinstance(target, HgRepository))
+
+
+class ToHgRepository(InterRepository):
+
+    @classmethod
+    def _get_repo_format_to_test(self):
+        """The format to test with - as yet there is no HgRepoFormat."""
+        return None
+
+    def __init__(self, source, target):
+        InterRepository.__init__(self, source, target)
+
+    @needs_write_lock
+    def fetch(self, revision_id=None, pb=None, find_ghosts=False,
+              fetch_spec=None, limit=None, lossy=False):
+        mapping = self.target.get_mapping()
+        cg, revidmap = self._generate_changegroup(revision_id, mapping, lossy=lossy)
+        remote = self.target.repository._hgrepo
+        remote.addchangegroup(cg, 'push', self.source.base)
+
+    def _generate_changegroup(self, revision_id, mapping, lossy=False):
+        assert revision_id is not None
+        graph = self.source.get_graph()
+        revs = graph.find_difference(
+            self.target.last_revision(), revision_id)[1]
+        from bzrlib.plugins.hg.changegroup import dchangegroup
+        return dchangegroup(self.source, mapping, revs, lossy=lossy)
+
+    @staticmethod
+    def is_compatible(source, target):
+        from bzrlib.plugins.hg.repository import HgRepository
+        return (isinstance(target, HgRepository) and
+                getattr(source._format, "supports_full_versioned_files", True))
+

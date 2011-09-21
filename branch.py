@@ -399,8 +399,8 @@ class InterHgBranch(GenericInterBranch):
     def _get_branch_formats_to_test():
         return [(HgBranchFormat(), HgBranchFormat())]
 
-    @staticmethod
-    def is_compatible(source, target):
+    @classmethod
+    def is_compatible(cls, source, target):
         """See InterBranch.is_compatible()."""
         return (isinstance(source, HgBranch) and isinstance(target, HgBranch))
 
@@ -565,6 +565,18 @@ class HgBranchPushResult(BranchPushResult):
         return self._lookup_revno(self.new_revid)
 
 
+class InterHgBranch(InterBranch):
+
+    @staticmethod
+    def _get_branch_formats_to_test():
+        return [(HgBranchFormat(), HgBranchFormat())]
+
+    @classmethod
+    def is_compatible(self, source, target):
+        return (isinstance(source, HgBranch) and
+                isinstance(target, HgBranch))
+
+
 class InterToHgBranch(InterBranch):
     """InterBranch implementation that pushes into Hg."""
 
@@ -580,22 +592,18 @@ class InterToHgBranch(InterBranch):
 
     def _push_helper(self, stop_revision=None, overwrite=False,
             lossy=False):
-        graph = self.source.repository.get_graph()
+        interrepo = InterRepository(self.source.repository, self.target.repository)
         if stop_revision is None:
             stop_revision = self.source.last_revision()
-        revs = graph.find_difference(self.target.last_revision(),
-                                     stop_revision)[1]
-        cg, revidmap = dchangegroup(self.source.repository,
-                                    self.target.mapping, revs, lossy=lossy)
+        cg, revidmap = interrepo._generate_changegroup(stop_revision, self.target.mapping, lossy=lossy)
         heads = [revidmap[stop_revision]]
         remote = self.target.repository._hgrepo
         if remote.capable('unbundle'):
             remote.unbundle(cg, heads, None)
         else:
-            remote.addchangegroup(cg, 'push', self.source.base)
             # TODO: Set heads
-        if lossy:
-            return dict((k, self.target.mapping.revision_id_foreign_to_bzr(v)) for (k, v) in revidmap.iteritems())
+            remote.addchangegroup(cg, 'push', self.source.base)
+        return dict((k, self.target.mapping.revision_id_foreign_to_bzr(v)) for (k, v) in revidmap.iteritems())
 
     @needs_read_lock
     def push(self, overwrite=True, stop_revision=None,
@@ -630,3 +638,4 @@ class InterToHgBranch(InterBranch):
 
 InterBranch.register_optimiser(InterFromHgBranch)
 InterBranch.register_optimiser(InterToHgBranch)
+InterBranch.register_optimiser(InterHgBranch)

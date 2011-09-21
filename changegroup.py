@@ -300,3 +300,4 @@ def dchangegroup(repo, mapping, revids, lossy=True):
     finally:
         repo.unlock()
     return ChunkStringIO(chunks), changelog_ids
+

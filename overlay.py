@@ -173,15 +173,14 @@ class MercurialRepositoryOverlay(object):
     def _update_idmap(self, stop_revision=None):
         present_revids = self.idmap.revids()
         graph = self.repo.get_graph()
+        if stop_revision is None:
+            wanted = self.repo.all_revision_ids()
+        else:
+            wanted = graph.find_unique_ancestors(stop_revision, present_revids)
+        todo = set(wanted) - present_revids - set([_mod_revision.NULL_REVISION])
+        revs = self.repo.get_revisions(todo)
+        pb = ui.ui_factory.nested_progress_bar()
         try:
-            if stop_revision is None:
-                wanted = self.repo.all_revision_ids()
-                todo = set(wanted) - present_revids
-            else:
-                wanted = graph.find_unique_ancestors(stop_revision, present_revids)
-            revs = self.repo.get_revisions(todo)
-            pb = ui.ui_factory.nested_progress_bar()
-
             for i, revid in enumerate(graph.iter_topo_order(todo)):
                 pb.update("updating cache", i, len(todo))
                 rev = self.repo.get_revision(revid)

@@ -59,6 +59,7 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     supports_funky_characters = True
     supports_external_lookups = False
     supports_full_versioned_files = False
+    supports_nesting_repositories = True
     supports_versioned_directories = False
     revision_graph_can_have_wrong_parents = False
 
@@ -253,6 +254,8 @@ class HgRemoteRepository(HgRepository):
 from bzrlib.plugins.hg.fetch import (
     FromHgRepository,
     InterHgRepository,
+    ToHgRepository,
     )
 bzrlib.repository.InterRepository.register_optimiser(InterHgRepository)
 bzrlib.repository.InterRepository.register_optimiser(FromHgRepository)
+bzrlib.repository.InterRepository.register_optimiser(ToHgRepository)

@@ -50,3 +50,20 @@ ctags:: tags
 
 coverage::
 	$(MAKE) check BZR_OPTIONS="--coverage ,coverage"
+
+.PHONY: update-pot po/bzr-hg.pot
+update-pot: po/bzr-hg.pot
+
+TRANSLATABLE_PYFILES:=$(shell find . -name '*.py' \
+		| grep -v 'tests/' \
+		)
+
+po/bzr-hg.pot: $(PYFILES) $(DOCFILES)
+	BZR_PLUGINS_AT=hg@$(shell pwd) bzr export-pot \
+          --plugin=hg > po/bzr-hg.pot
+	echo $(TRANSLATABLE_PYFILES) | xargs \
+	  xgettext --package-name "bzr-hg" \
+	  --msgid-bugs-address "<bazaar@lists.canonical.com>" \
+	  --copyright-holder "Canonical Ltd <canonical-bazaar@lists.canonical.com>" \
+	  --from-code ISO-8859-1 --sort-by-file --join --add-comments=i18n: \
+	  -d bzr-hg -p po -o bzr-hg.pot

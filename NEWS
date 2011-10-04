@@ -35,6 +35,8 @@
   * Support non-smart server access to Mercurial repositories.
     (Jelmer Vernooij, #804227)
 
+  * Add i18n support. (Jelmer Vernooij)
+
  BUG FIXES
 
   * Mark as compatible with Bazaar 2.1, 2.2, 2.3 and 2.4. (Jelmer Vernooij)

@@ -115,6 +115,8 @@ def has_hg_http_smart_server(transport, external_url):
             else:
                 return False
     ct = headers.getheader("Content-Type")
+    if ct is None:
+        return False
     return ct.startswith("application/mercurial")
 
 

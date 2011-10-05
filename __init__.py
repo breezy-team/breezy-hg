@@ -32,6 +32,14 @@ from info import (
 
 bzrlib.api.require_any_api(bzrlib, bzr_compatible_versions)
 
+try:
+    from bzrlib.i18n import load_plugin_translations
+except ImportError: # No translations for bzr < 2.5
+    gettext = lambda x: x
+else:
+    translation = load_plugin_translations("bzr-hg")
+    gettext = translation.gettext
+
 from bzrlib import (
     errors,
     trace,

@@ -102,6 +102,9 @@
   * Prevent problems with revision specs being activated against
     non-hg branches. (Jelmer Vernooij, #813506)
 
+  * Fix fetching of referenced inventories when there are
+    fallback repositories. (Jelmer Vernooij, #866028)
+
  DOCUMENTATION
 
   * Add some basic instructions in INSTALL. (Martin Pool)

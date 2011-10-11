@@ -348,8 +348,7 @@ class FromHgRepository(InterRepository):
     def _lookup_file_metadata(self, key):
         return self._text_metadata[key]
 
-    def _import_manifest_delta(self, manifest, flags, files, rev, mapping):
-        parent_invs = self._get_inventories(rev.parent_ids)
+    def _import_manifest_delta(self, parent_invs, manifest, flags, files, rev, mapping):
         if not len(rev.parent_ids) in (0, 1, 2):
             raise AssertionError
         if len(rev.parent_ids) == 0:
@@ -377,6 +376,10 @@ class FromHgRepository(InterRepository):
 
     def _get_inventories_or_manifests(self, revids):
         for revid in revids:
+            try:
+                yield self._inventories[revid]
+            except KeyError:
+                pass
             try:
                 yield self.target.get_inventory(revid)
             except errors.NoSuchRevision:
@@ -435,8 +438,10 @@ class FromHgRepository(InterRepository):
                 basis_revid = NULL_REVISION
             else:
                 basis_revid = rev.parent_ids[0]
+            parent_invs = self._get_inventories(rev.parent_ids)
+            self.ensure_inventories_in_repo(parent_invs)
             basis_inv, invdelta = self._import_manifest_delta(
-                manifest, flags, files, rev, mapping)
+                parent_invs, manifest, flags, files, rev, mapping)
             # FIXME: Add empty directories if this revision was roundtripped.
             create_directory_texts(self.target.texts, invdelta)
             (validator, new_inv) = self.target.add_inventory_by_delta(
@@ -539,6 +544,15 @@ class FromHgRepository(InterRepository):
                 return parent[fileid].revision
             except errors.NoSuchId:
                 return None
+
+    def ensure_inventories_in_repo(self, inventories):
+        real_inv_vf = self.target.inventories.without_fallbacks()
+        for inv in inventories:
+            if inv.revision_id == NULL_REVISION:
+                continue
+            if not real_inv_vf.get_parent_map([(inv.revision_id, )]):
+                self.target.add_inventory(inv.revision_id, inv,
+                    self.get_parent_map([inv.revision_id])[inv.revision_id])
 
     def _process_manifest(self, manifest, flags, revid, mapping, kind_map):
         """Process a manifest.

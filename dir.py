@@ -408,3 +408,14 @@ class HgControlDirFormat(ControlDirFormat):
         repository = mercurial.hg.repository(ui(), path, create=_create)
         lock = HgLock(transport, repository, supports_read_lock)
         return HgDir(repository, transport, lock, self)
+
+    def supports_transport(self, transport):
+        try:
+            external_url = transport.external_url()
+        except errors.InProcessTransport:
+            raise errors.NotBranchError(path=transport.base)
+        from bzrlib.plugins.hg import HgProber
+        scheme = external_url.split(":")[0]
+        if scheme not in HgProber._supported_schemes:
+            return False
+        return True

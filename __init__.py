@@ -113,6 +113,7 @@ def has_hg_http_smart_server(transport, external_url):
                 conn.setopt(pycurl.HTTPGET, 1)
                 header = StringIO()
                 data = StringIO()
+                conn.setopt(pycurl.FOLLOWLOCATION, 1)
                 conn.setopt(pycurl.HEADERFUNCTION, header.write)
                 conn.setopt(pycurl.WRITEFUNCTION, data.write)
                 transport._curl_perform(conn, header)

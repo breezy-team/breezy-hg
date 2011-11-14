@@ -60,6 +60,7 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     supports_external_lookups = False
     supports_full_versioned_files = False
     supports_nesting_repositories = True
+    supports_revision_signatures = False
     supports_versioned_directories = False
     revision_graph_can_have_wrong_parents = False
 
@@ -134,6 +135,17 @@ class HgRepository(ForeignRepository):
         Always False for Mercurial for now.
         """
         return False
+
+    def add_signature_text(self, revision_id, signature):
+        """Store a signature text for a revision.
+
+        :param revision_id: Revision id of the revision
+        :param signature: Signature text.
+        """
+        raise errors.UnsupportedOperation(self.add_signature_text, self)
+
+    def sign_revision(self, revision_id, gpg_strategy):
+        raise errors.UnsupportedOperation(self.add_signature_text, self)
 
 
 class HgLocalRepository(HgRepository):

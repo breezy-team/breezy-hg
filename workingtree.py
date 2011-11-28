@@ -23,6 +23,7 @@ import stat
 
 from bzrlib import (
     conflicts as _mod_conflicts,
+    lock,
     osutils,
     )
 
@@ -80,12 +81,11 @@ class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
 class HgWorkingTree(bzrlib.workingtree.WorkingTree):
     """An adapter to mercurial repositories for bzr WorkingTree obejcts."""
 
-    def __init__(self, hgrepo, hgbranch, hgdir, lockfiles):
+    def __init__(self, hgrepo, hgbranch, hgdir):
         self._inventory = Inventory()
         self._hgrepo = hgrepo
         self.bzrdir = hgdir
         self.repository = hgdir.open_repository()
-        self._control_files = lockfiles
         self._branch = hgbranch
         self._format = HgWorkingTreeFormat()
         self._transport = hgdir.root_transport
@@ -94,6 +94,60 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self._rules_searcher = None
         self.views = self._make_views()
         self._dirstate = self._hgrepo[None]
+        self._lock_mode = None
+        self._lock_count = 0
+
+    def lock_read(self):
+        """Lock the repository for read operations.
+
+        :return: A bzrlib.lock.LogicalLockResult.
+        """
+        if not self._lock_mode:
+            self._lock_mode = 'r'
+            self._lock_count = 1
+        else:
+            self._lock_count += 1
+        self.branch.lock_read()
+        return lock.LogicalLockResult(self.unlock)
+
+    def lock_tree_write(self):
+        if not self._lock_mode:
+            self._lock_mode = 'w'
+            self._lock_count = 1
+        elif self._lock_mode == 'r':
+            raise errors.ReadOnlyError(self)
+        else:
+            self._lock_count +=1
+        self.branch.lock_read()
+        return lock.LogicalLockResult(self.unlock)
+
+    def lock_write(self, token=None):
+        if not self._lock_mode:
+            self._lock_mode = 'w'
+            self._lock_count = 1
+        elif self._lock_mode == 'r':
+            raise errors.ReadOnlyError(self)
+        else:
+            self._lock_count +=1
+        self.branch.lock_write()
+        return lock.LogicalLockResult(self.unlock)
+
+    def is_locked(self):
+        return self._lock_count >= 1
+
+    def get_physical_lock_status(self):
+        return False
+
+    def unlock(self):
+        if not self._lock_count:
+            return lock.cant_unlock_not_held(self)
+        self._cleanup()
+        self._lock_count -= 1
+        if self._lock_count > 0:
+            return
+        self._lock_mode = None
+        self.branch.unlock()
+
 
     def _detect_case_handling(self):
         try:
@@ -104,19 +158,9 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             self.case_sensitive = False
 
     def flush(self):
-        if self._control_files._lock_mode != 'w':
+        if self._lock_mode != 'w':
             raise NotWriteLocked(self)
         self._dirstate.write()
-
-    def unlock(self):
-        # non-implementation specific cleanup
-        self._cleanup()
-
-        # reverse order of locking.
-        try:
-            return self._control_files.unlock()
-        finally:
-            self.branch.unlock()
 
     def update_basis_by_delta(self, revid, delta):
         # FIXME

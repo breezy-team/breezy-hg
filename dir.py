@@ -142,7 +142,7 @@ class HgDir(ControlDir):
         return name
 
     def open_branch(self, name=None, unsupported=False,
-            ignore_fallbacks=False):
+            ignore_fallbacks=False, possible_transports=None):
         """'create' a branch for this dir."""
         name = self._get_branch_name(name)
         from bzrlib.plugins.hg.branch import HgLocalBranch, HgRemoteBranch
@@ -170,8 +170,7 @@ class HgDir(ControlDir):
     def open_workingtree(self, shared=False, recommend_upgrade=False):
         """'open' a workingtree for this dir."""
         from bzrlib.plugins.hg.workingtree import HgWorkingTree
-        return HgWorkingTree(self._hgrepo, self.open_branch(), self,
-                             self._lockfiles)
+        return HgWorkingTree(self._hgrepo, self.open_branch(), self)
 
     def cloning_metadir(self, stacked=False):
         return bzrlib.bzrdir.format_registry.make_bzrdir("default-rich-root")

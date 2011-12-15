@@ -20,6 +20,7 @@
 import os
 
 from bzrlib import (
+    config as _mod_bzr_config,
     errors,
     revision as _mod_revision,
     )
@@ -32,7 +33,6 @@ from bzrlib.branch import (
     InterBranch,
     PullResult,
     )
-from bzrlib.config import GlobalConfig
 from bzrlib.decorators import (
     needs_read_lock,
     needs_write_lock,
@@ -48,9 +48,6 @@ from bzrlib.tag import (
     DisabledTags,
     )
 
-from bzrlib.plugins.hg.changegroup import (
-    dchangegroup,
-    )
 from bzrlib.plugins.hg.repository import (
     MercurialSmartRemoteNotSupported,
     )
@@ -175,7 +172,6 @@ class HgBranchFormat(BranchFormat):
             return DisabledTags(branch)
 
 
-
 class HgBranchConfig(object):
     """Access Branch Configuration data for an HgBranch.
 
@@ -193,7 +189,7 @@ class HgBranchConfig(object):
         username = self._ui.config("username", "default")
         if username is not None:
             return username
-        return GlobalConfig().username()
+        return _mod_bzr_config.GlobalConfig().username()
 
     def post_commit(self):
         return None
@@ -223,6 +219,25 @@ class HgBranchConfig(object):
     def log_format(self):
         """What log format should be used"""
         return "long"
+
+
+class HgBranchConfigStack(_mod_bzr_config._CompatibleStack):
+    """GitBranch stack."""
+
+    def __init__(self, branch):
+        lstore = _mod_bzr_config.LocationStore()
+        loc_matcher = _mod_bzr_config.LocationMatcher(lstore, branch.base)
+        # FIXME: This should also be looking in .hg/config for
+        # local hg branches.
+        gstore = _mod_bzr_config.GlobalStore()
+        super(HgBranchConfigStack, self).__init__(
+            [self._get_overrides,
+             loc_matcher.get_sections,
+             gstore.get_sections],
+            # All modifications go to the corresponding section in
+            # locations.conf
+            lstore, branch.base)
+        self.branch = branch
 
 
 class HgReadLock(object):
@@ -291,6 +306,9 @@ class HgBranch(ForeignBranch):
         functionality.
         """
         return HgBranchConfig(self)
+
+    def get_config_stack(self):
+        return HgBranchConfigStack(self)
 
     def lock_write(self, token=None):
         if token is not None:

@@ -317,7 +317,7 @@ class HgBranch(ForeignBranch):
         return HgWriteLock(self.unlock)
 
     @needs_read_lock
-    def revision_history(self):
+    def _gen_revision_history(self):
         revs = list(self.repository.iter_reverse_revision_history(self.last_revision()))
         revs.reverse()
         return revs

@@ -207,14 +207,12 @@ repository_network_format_registry.register_lazy('hg',
 
 
 from bzrlib.branch import (
+    format_registry as branch_format_registry,
     network_format_registry as branch_network_format_registry,
     )
 branch_network_format_registry.register_lazy(
     "hg", "bzrlib.plugins.hg.branch", "HgBranchFormat")
 
-from bzrlib.branch import (
-    format_registry as branch_format_registry,
-    )
 branch_format_registry.register_extra_lazy(
     "bzrlib.plugins.hg.branch", "HgBranchFormat")
 

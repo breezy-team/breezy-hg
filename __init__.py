@@ -20,11 +20,13 @@
 
 """
 
+from __future__ import absolute_import
+
 import bzrlib
 import bzrlib.api
 from bzrlib.transport import register_transport_proto
 
-from info import (
+from bzrlib.plugins.hg.info import (
     bzr_compatible_versions,
     hg_compatible_version_strings,
     bzr_plugin_version as version_info,
@@ -188,16 +190,6 @@ class HgProber(Prober):
 
 ControlDirFormat.register_prober(HgProber)
 ControlDirFormat._server_probers.insert(0, HgProber)
-if not getattr(Prober, "known_formats", False): # bzr < 2.4
-    from bzrlib.plugins.hg.dir import HgControlDirFormat
-    ControlDirFormat.register_format(HgControlDirFormat())
-    # Provide RevisionTree.get_file_revision, so various parts of bzr-svn
-    # can avoid inventories.
-    from bzrlib.revisiontree import RevisionTree
-    def get_file_revision(tree, file_id, path=None):
-        return tree.inventory[file_id].revision
-    RevisionTree.get_file_revision = get_file_revision
-
 
 controldir_network_format_registry.register_lazy("hg",
     "bzrlib.plugins.hg.dir", "HgControlDirFormat")
@@ -220,34 +212,19 @@ from bzrlib.branch import (
 branch_network_format_registry.register_lazy(
     "hg", "bzrlib.plugins.hg.branch", "HgBranchFormat")
 
-try:
-    from bzrlib.branch import (
-        format_registry as branch_format_registry,
-        )
-except ImportError: # bzr < 2.4
-    pass
-else:
-    branch_format_registry.register_extra_lazy(
-        "bzrlib.plugins.hg.branch", "HgBranchFormat")
+from bzrlib.branch import (
+    format_registry as branch_format_registry,
+    )
+branch_format_registry.register_extra_lazy(
+    "bzrlib.plugins.hg.branch", "HgBranchFormat")
 
-try:
-    from bzrlib.workingtree import (
-        format_registry as workingtree_format_registry,
-        )
-except ImportError: # bzr < 2.4
-    pass
-else:
-    workingtree_format_registry.register_extra_lazy(
-        "bzrlib.plugins.hg.workingtree", "HgWorkingTreeFormat")
+from bzrlib.workingtree import (
+    format_registry as workingtree_format_registry,
+    )
+workingtree_format_registry.register_extra_lazy(
+    "bzrlib.plugins.hg.workingtree", "HgWorkingTreeFormat")
 
-
-try:
-    register_extra_lazy_repository_format = getattr(repository_format_registry,
-        "register_extra_lazy")
-except AttributeError: # bzr < 2.4
-    pass
-else:
-    register_extra_lazy_repository_format('bzrlib.plugins.hg.repository',
+repository_format_registry.register_extra_lazy('bzrlib.plugins.hg.repository',
         'HgRepositoryFormat')
 
 send_format_registry.register_lazy('hg', 'bzrlib.plugins.hg.send',
@@ -265,13 +242,9 @@ plugin_cmds.register_lazy('cmd_hg_import', [], 'bzrlib.plugins.hg.commands')
 register_transport_proto('hg+ssh://',
         help="Access using the Mercurial smart server protocol over SSH.")
 
-from bzrlib.revisionspec import dwim_revspecs, RevisionSpec_dwim
-if getattr(RevisionSpec_dwim, "append_possible_lazy_revspec", None):
-    RevisionSpec_dwim.append_possible_lazy_revspec(
-        "bzrlib.plugins.hg.revspec", "RevisionSpec_hg")
-else: # bzr < 2.4
-    from bzrlib.plugins.hg.revspec import RevisionSpec_hg
-    dwim_revspecs.append(RevisionSpec_hg)
+from bzrlib.revisionspec import RevisionSpec_dwim
+RevisionSpec_dwim.append_possible_lazy_revspec(
+    "bzrlib.plugins.hg.revspec", "RevisionSpec_hg")
 
 def test_suite():
     from unittest import TestSuite, TestLoader

@@ -34,10 +34,7 @@ from bzrlib.controldir import (
 from bzrlib.decorators import (
     only_raises,
     )
-try:
-    from bzrlib.controldir import Converter
-except ImportError: # bzr < 2.4
-    from bzrlib.bzrdir import Converter
+from bzrlib.controldir import Converter
 from bzrlib.plugins.hg import (
     lazy_load_mercurial,
     )

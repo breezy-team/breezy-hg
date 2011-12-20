@@ -171,10 +171,7 @@ def text_contents(repo, path, keys, overlay):
             return overlay.lookup_text_node_by_revid_and_path(revision, path)
     text_nodes = {}
     base_reported = False
-    try:
-        file_graph = repo.get_file_graph()
-    except AttributeError: # bzr < 2.4
-        file_graph = repo.texts
+    file_graph = repo.get_file_graph()
     first_parents = file_graph.get_parent_map([keys[0]])[keys[0]]
     if len(first_parents) == 0:
         yield ""

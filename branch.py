@@ -648,11 +648,6 @@ class InterToHgBranch(InterBranch):
             result.revidmap = revidmap
         return result
 
-    @needs_read_lock
-    def lossy_push(self, stop_revision=None):
-        # For compatibility with bzr < 2.4
-        return self.push(lossy=True, stop_revision=stop_revision)
-
 
 InterBranch.register_optimiser(InterFromHgBranch)
 InterBranch.register_optimiser(InterToHgBranch)

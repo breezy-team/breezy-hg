@@ -17,6 +17,7 @@
 # Please note that imports are delayed as much as possible here since
 # if DWIM revspecs are supported this module is imported by __init__.py.
 
+from bzrlib import version_info as bzrlib_version
 from bzrlib.errors import (
     InvalidRevisionId,
     InvalidRevisionSpec,
@@ -60,25 +61,14 @@ class RevisionSpec_hg(RevisionSpec):
         bzr_revid = mapping.revision_id_foreign_to_bzr(csid)
         try:
             if branch.repository.has_revision(bzr_revid):
-                history = self._history(branch, bzr_revid)
-                return RevisionInfo.from_revision_id(branch, bzr_revid, history)
+                if bzrlib_version < (2, 5):
+                    history = branch.revision_history()
+                    return RevisionInfo.from_revision_id(branch, bzr_revid, history)
+                else:
+                    return RevisionInfo.from_revision_id(branch, bzr_revid)
         except MercurialSmartRemoteNotSupported:
             return RevisionInfo(branch, None, bzr_revid)
         raise InvalidRevisionSpec(self.user_spec, branch)
-
-    def _history(self, branch, revid):
-        graph = branch.repository.get_graph()
-        history = list(graph.iter_lefthand_ancestry(revid, (NULL_REVISION,)))
-        history.reverse()
-        return history
-
-    def __nonzero__(self):
-        # The default implementation uses branch.repository.has_revision()
-        if self.rev_id is None:
-            return False
-        if self.rev_id == NULL_REVISION:
-            return False
-        return True
 
     def _find_short_csid(self, branch, csid):
         import mercurial.node
@@ -96,8 +86,11 @@ class RevisionSpec_hg(RevisionSpec):
                 except InvalidRevisionId:
                     continue
                 if mercurial.node.hex(foreign_revid).startswith(csid):
-                    history = self._history(branch, revid)
-                    return RevisionInfo.from_revision_id(branch, revid, history)
+                    if bzrlib_version < (2, 5):
+                        history = branch.revision_history()
+                        return RevisionInfo.from_revision_id(branch, revid, history)
+                    else:
+                        return RevisionInfo.from_revision_id(branch, revid)
             raise InvalidRevisionSpec(self.user_spec, branch)
         finally:
             branch.repository.unlock()

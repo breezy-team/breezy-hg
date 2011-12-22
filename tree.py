@@ -89,6 +89,10 @@ class HgRevisionTree(RevisionTree):
     def get_file_sha1(self, file_id, path=None, stat_value=None):
         return osutils.sha_string(self.get_file_text(file_id, path))
 
+    def get_file_mtime(self, file_id, path=None):
+        revid = self.get_file_revision(file_id, path)
+        return self._repository.get_revision(revid).timestamp
+
     def kind(self, file_id, path=None):
         if path is None:
             path = self.id2path(file_id)

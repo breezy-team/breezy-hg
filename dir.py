@@ -134,7 +134,7 @@ class HgDir(ControlDir):
     def _get_branch_name(self, name=None):
         if name is None and getattr(self, "_get_selected_branch", False):
             name = self._get_selected_branch()
-        if name is None:
+        if not name:
             name = 'default'
         return name
 

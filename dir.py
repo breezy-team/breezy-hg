@@ -111,6 +111,10 @@ class HgDir(ControlDir):
             raise NotImplementedError("from_branch argument not yet supported")
         return self.open_workingtree()
 
+    def set_branch_reference(self, target_branch, name=None):
+        # Sorry, no branch references.
+        raise errors.IncompatibleFormat(target_branch._format, self._format)
+
     def _find_or_create_repository(self, force_new_repo):
         """Create a new repository if needed, returning the repository."""
         return self.open_repository()

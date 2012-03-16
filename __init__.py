@@ -46,13 +46,6 @@ from bzrlib import (
     errors,
     trace,
     )
-from bzrlib.foreign import (
-    foreign_vcs_registry,
-    )
-from bzrlib.send import (
-    format_registry as send_format_registry,
-    )
-
 from bzrlib.controldir import (
     network_format_registry as controldir_network_format_registry,
     ControlDirFormat,
@@ -81,8 +74,24 @@ def lazy_load_mercurial():
     trace.mutter("bzr-hg: using Mercurial %s" % hg_version)
 
 
-foreign_vcs_registry.register_lazy("hg",
-    "bzrlib.plugins.hg.mapping", "foreign_hg", "Mercurial")
+try:
+    from bzrlib.registry import register_lazy
+except ImportError:
+    from bzrlib.foreign import (
+        foreign_vcs_registry,
+        )
+    foreign_vcs_registry.register_lazy("hg",
+        "bzrlib.plugins.hg.mapping", "foreign_hg", "Mercurial")
+    from bzrlib.send import (
+        format_registry as send_format_registry,
+        )
+    send_format_registry.register_lazy('hg', 'bzrlib.plugins.hg.send',
+                                       'send_hg', 'Mecurial bundle format')
+else:
+    register_lazy("bzrlib.foreign", "foreign_vcs_registry", "hg",
+        "bzrlib.plugins.hg.mapping", "foreign_hg", "Mercurial")
+    register_lazy("bzrlib.send", "format_registry", 'hg',
+            'bzrlib.plugins.hg.send', 'send_hg', 'Mecurial bundle format')
 
 def has_hg_http_smart_server(transport, external_url):
     """Check if there is a Mercurial smart server at the remote location.
@@ -224,9 +233,6 @@ workingtree_format_registry.register_extra_lazy(
 
 repository_format_registry.register_extra_lazy('bzrlib.plugins.hg.repository',
         'HgRepositoryFormat')
-
-send_format_registry.register_lazy('hg', 'bzrlib.plugins.hg.send',
-                                   'send_hg', 'Mecurial bundle format')
 
 from bzrlib.revisionspec import revspec_registry
 revspec_registry.register_lazy("hg:", "bzrlib.plugins.hg.revspec",

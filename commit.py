@@ -53,7 +53,7 @@ class HgCommitBuilder(CommitBuilder):
                 csid = self.repository.lookup_bzr_revision_id(self.parents[i])[0]
                 hgchange = self._hgrepo.changelog.read(csid)
                 manifest_id = hgchange[0]
-                manifest = self._hgrepo.manifest.read(manifest_id)
+                manifest = self._hgrepo.manifestlog[manifest_id].read()
                 self._parent_manifest_ids.append(manifest_id)
                 self._parent_manifests.append(manifest)
                 self._parent_changeset_ids.append(csid)
@@ -61,8 +61,7 @@ class HgCommitBuilder(CommitBuilder):
                 self._parent_manifests.append(manifestdict())
                 self._parent_manifest_ids.append(mercurial.node.nullid)
                 self._parent_changeset_ids.append(mercurial.node.nullid)
-        self._manifest = dict(self._parent_manifests[0])
-        self._flags = dict(self._parent_manifests[0]._flags)
+        self._manifest = self._parent_manifests[0].copy()
 
     def any_changes(self):
         return self._any_changes
@@ -100,9 +99,9 @@ class HgCommitBuilder(CommitBuilder):
                 self._changelist.append(utf8_path)
             if changed_content:
                 if kind[1] == "file":
-                    text = workingtree.get_file_text(file_id, path[1])
+                    text = workingtree.get_file_text(path[1], file_id)
                 elif kind[1] == "symlink":
-                    text = workingtree.get_symlink_target(file_id, path[1]).encode("utf-8")
+                    text = workingtree.get_symlink_target(path[1], file_id).encode("utf-8")
                 else:
                     raise AssertionError
                 meta = {} # for now
@@ -113,10 +112,10 @@ class HgCommitBuilder(CommitBuilder):
                 self._manifest[utf8_path] = fparents[0]
             self._changed.append(utf8_path)
             if executable[1]:
-                self._flags[utf8_path] = 'x'
+                self._manifest.setflag(utf8_path, 'x')
             if kind[1] == "symlink":
-                self._flags[utf8_path] = 'l'
-            f, st = workingtree.get_file_with_stat(file_id, path[1])
+                self._manifest.setflag(utf8_path, 'l')
+            f, st = workingtree.get_file_with_stat(path[1], file_id)
             yield file_id, path[1], (osutils.sha_file(f), st)
         if not seen_root and len(self.parents) == 0:
             raise RootMissing()
@@ -127,11 +126,10 @@ class HgCommitBuilder(CommitBuilder):
         return []
 
     def finish_inventory(self):
-        manifest = manifestdict(self._manifest, self._flags)
-        self._manifest_id = self._hgrepo.manifest.add(manifest, self._transaction,
+        self._manifest_id = self._hgrepo.manifestlog._revlog.add(self._manifest, self._transaction,
             self._linkrev, self._parent_manifest_ids[0], self._parent_manifest_ids[1],
-            (self._changed, self._removed))
-        self._hgrepo.changelog.delayupdate()
+            self._changed, self._removed)
+        self._hgrepo.changelog.delayupdate(self._transaction)
 
     def commit(self, message):
         self._validate_unicode_text(message, 'commit message')
@@ -145,7 +143,6 @@ class HgCommitBuilder(CommitBuilder):
         mapping = self.repository.get_mapping()
         self._new_revision_id = mapping.revision_id_foreign_to_bzr(mercurial.node.hex(n))
         self.repository.commit_write_group()
-        self._hgrepo.changelog.finalize(self._transaction)
         self._transaction.close()
         return self._new_revision_id
 

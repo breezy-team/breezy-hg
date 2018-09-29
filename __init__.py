@@ -26,7 +26,7 @@ import breezy
 from breezy import version_info
 from breezy.transport import register_transport_proto
 
-hg_compatible_versions = [(1, 6), (1, 7), (1, 8), (1, 9), (2, 0), (2, 1)]
+hg_compatible_versions = [(4, 7)]
 
 hg_compatible_version_strings = ["%d.%d" % x for x in hg_compatible_versions]
 

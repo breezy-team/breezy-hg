@@ -159,9 +159,9 @@ class HgRevisionTree(RevisionTree):
         ie.revision = self.get_file_revision(file_id, path)
         return ie
 
-    def iter_entries_by_dir(self, specific_file_ids=None, yield_parents=False):
+    def iter_entries_by_dir(self, specific_files=None, yield_parents=False):
         # FIXME: Support specific_file_ids and yield_parents
-        if specific_file_ids is not None:
+        if specific_files is not None:
             raise NotImplementedError(self.iter_entries_by_dir)
         directories = set()
         for p in self._manifest:
@@ -311,3 +311,20 @@ class HgRevisionTree(RevisionTree):
             return True
         # FIXME: What about directories?
         return False
+
+    def find_related_paths_across_trees(self, paths, trees=[],
+            require_versioned=True):
+        if paths is None:
+            return None
+        if require_versioned:
+            trees = [self] + (trees if trees is not None else [])
+            unversioned = set()
+            for p in paths:
+                for t in trees:
+                    if t.is_versioned(p):
+                        break
+                else:
+                    unversioned.add(p)
+            if unversioned:
+                raise errors.PathsNotVersionedError(unversioned)
+        return filter(self.is_versioned, paths)

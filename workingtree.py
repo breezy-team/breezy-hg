@@ -133,6 +133,9 @@ class HgWorkingTree(breezy.workingtree.WorkingTree):
     def get_physical_lock_status(self):
         return False
 
+    def _cleanup(self):
+        pass
+
     def unlock(self):
         if not self._lock_count:
             return lock.cant_unlock_not_held(self)
@@ -181,9 +184,7 @@ class HgWorkingTree(breezy.workingtree.WorkingTree):
             path = self.id2path(file_id)
             self._dirstate.remove(path.encode("utf-8"))
 
-    def stored_kind(self, file_id, path=None):
-        if path is not None:
-            path = self.id2path(file_id)
+    def stored_kind(self, path, file_id=None):
         return mode_kind(self._dirstate._map[path.encode("utf-8")][1])
 
     def _validate_unicode_text(self, text, context):
@@ -242,31 +243,26 @@ class HgWorkingTree(breezy.workingtree.WorkingTree):
         return self._dirstate.extra()
 
     if not osutils.supports_executable():
-        def is_executable(self, file_id, path=None):
+        def is_executable(self, path, file_id=None):
             basis_tree = self.basis_tree()
-            if file_id in basis_tree:
-                return basis_tree.is_executable(file_id)
-            # Default to not executable
-            return False
+            try:
+                return basis_tree.is_executable(path, file_id)
+            except NoSuchFile:
+                # Default to not executable
+                return False
     else:
-        def is_executable(self, file_id, path=None):
-            if not path:
-                path = self.id2path(file_id)
+        def is_executable(self, path, file_id=None):
             mode = os.lstat(self.abspath(path)).st_mode
             return bool(stat.S_ISREG(mode) and stat.S_IEXEC & mode)
 
         _is_executable_from_path_and_stat = \
             _is_executable_from_path_and_stat_from_stat
 
-    def get_file_mtime(self, file_id, path=None):
+    def get_file_mtime(self, path, file_id=None):
         """See Tree.get_file_mtime."""
-        if not path:
-            path = self.id2path(file_id)
         return os.lstat(self.abspath(path)).st_mtime
 
-    def get_file_sha1(self, file_id, path=None, stat_value=None):
-        if path is None:
-            path = self.id2path(file_id)
+    def get_file_sha1(self, path, file_id=None, stat_value=None):
         try:
             return osutils.sha_file_by_name(self.abspath(path).encode(osutils._fs_enc))
         except OSError, (num, msg):
@@ -294,10 +290,10 @@ class HgWorkingTree(breezy.workingtree.WorkingTree):
             ie.executable = ('x' in flags)
         return ie
 
-    def iter_entries_by_dir(self, specific_file_ids=None, yield_parents=False):
-        # FIXME: Support specific_file_ids
+    def iter_entries_by_dir(self, specific_files=None, yield_parents=False):
+        # FIXME: Support specific_files
         # FIXME: yield actual inventory entries
-        if specific_file_ids is not None:
+        if specific_files is not None:
             raise NotImplementedError(self.iter_entries_by_dir)
         # Everything has a root directory
         yield u"", self._get_dir_ie(u"")
@@ -314,3 +310,22 @@ class HgWorkingTree(breezy.workingtree.WorkingTree):
             fflags = self._dirstate.flags(p)
             decoded_path = p.decode("utf-8")
             yield decoded_path, self._get_file_ie(decoded_path, self.path2id(parent), fflags)
+
+    def find_related_paths_across_trees(self, paths, trees=[],
+            require_versioned=True):
+        if paths is None:
+            return None
+
+        if require_versioned:
+            trees = [self] + (trees if trees is not None else [])
+            unversioned = set()
+            for p in paths:
+                for t in trees:
+                    if t.is_versioned(p):
+                        break
+                else:
+                    unversioned.add(p)
+            if unversioned:
+                raise errors.PathsNotVersionedError(unversioned)
+
+        return filter(self.is_versioned, paths)

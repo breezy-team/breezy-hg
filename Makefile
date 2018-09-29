@@ -6,7 +6,7 @@ PYDOCTOR ?= pydoctor
 CTAGS ?= ctags
 PYLINT ?= pylint
 RST2HTML ?= rst2html
-TESTS ?= -s bt.per_foreign_vcs.*Hg -s bp.hg
+TESTS ?= Hg -s bp.hg
 
 all:: build 
 

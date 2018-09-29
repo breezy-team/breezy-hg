@@ -310,7 +310,7 @@ class HgMappingv1(foreign.VcsMapping):
         if isinstance(path, unicode):
             path = path.encode("utf-8")
         if path == "":
-            return inventory.ROOT_ID
+            return "TREE_ROOT"
         return "hg:" + escape_path(path)
 
     @classmethod

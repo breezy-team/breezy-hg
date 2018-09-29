@@ -217,7 +217,7 @@ class HgLocalRepository(HgRepository):
     def revision_tree(self, revision_id):
         hgid, mapping = self.lookup_bzr_revision_id(revision_id)
         log = self._hgrepo.changelog.read(hgid)
-        manifest = self._hgrepo.manifest.read(log[0])
+        manifest = self._hgrepo.manifestlog[log[0]].read()
         return HgRevisionTree(self, revision_id, hgid, manifest, mapping)
 
     def has_foreign_revision(self, foreign_revid):

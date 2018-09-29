@@ -241,12 +241,26 @@ class HgReadLock(object):
     def __init__(self, unlock):
         self.unlock = unlock
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.unlock()
+        return False
+
 
 class HgWriteLock(object):
 
     def __init__(self, unlock):
         self.branch_token = None
         self.unlock = unlock
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.unlock()
+        return False
 
 
 class HgBranch(ForeignBranch):
@@ -373,7 +387,8 @@ class HgLocalBranch(HgBranch):
 
     def _write_last_revision_info(self, revno, revid):
         (hgid, mapping) = self.repository.lookup_bzr_revision_id(revid)
-        self.repository._hgrepo.dirstate.setparents(hgid, mercurial.node.nullid)
+        with self.repository._hgrepo.dirstate.parentchange():
+            self.repository._hgrepo.dirstate.setparents(hgid, mercurial.node.nullid)
 
     def set_last_revision_info(self, revno, revision_id):
         if not revision_id or not isinstance(revision_id, basestring):

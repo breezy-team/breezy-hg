@@ -16,25 +16,49 @@
 
 """Mercurial Repository revision tree."""
 
-from bzrlib import (
+from breezy import (
     errors,
     osutils,
     )
 
-from bzrlib.inventory import (
-    InventoryDirectory,
-    InventoryFile,
-    InventoryLink,
+from breezy.tree import (
+    TreeDirectory,
+    TreeFile,
+    TreeLink,
     )
-from bzrlib.revision import (
+from breezy.revision import (
     NULL_REVISION,
     )
 
-from bzrlib.revisiontree import RevisionTree
+from breezy.revisiontree import RevisionTree
 
 import mercurial.node
 
 import posixpath
+
+
+class HgTreeDirectory(TreeDirectory):
+
+    def __init__(self, file_id, basename, parent_id):
+        self.file_id = file_id
+        self.name = basename
+        self.parent_id = parent_id
+
+
+class HgTreeLink(TreeLink):
+
+    def __init__(self, file_id, basename, parent_id):
+        self.file_id = file_id
+        self.name = basename
+        self.parent_id = parent_id
+
+
+class HgTreeFile(TreeFile):
+
+    def __init__(self, file_id, basename, parent_id):
+        self.file_id = file_id
+        self.name = basename
+        self.parent_id = parent_id
 
 
 class HgRevisionTree(RevisionTree):
@@ -116,7 +140,7 @@ class HgRevisionTree(RevisionTree):
             parent_id = None
         else:
             parent_id = self.path2id(posixpath.dirname(path))
-        ie = InventoryDirectory(self.path2id(path), posixpath.basename(path), parent_id)
+        ie = HgTreeDirectory(self.path2id(path), posixpath.basename(path), parent_id)
         ie.revision = self._get_dir_last_modified(path)
         return ie
 
@@ -124,10 +148,10 @@ class HgRevisionTree(RevisionTree):
         file_id = self.path2id(path)
         parent_id = self.path2id(posixpath.dirname(path))
         if 'l' in flags:
-            ie = InventoryLink(file_id, posixpath.basename(path), parent_id)
+            ie = TreeLink(file_id, posixpath.basename(path), parent_id)
             ie.symlink_target = self.get_symlink_target(file_id, path)
         else:
-            ie = InventoryFile(file_id, posixpath.basename(path), parent_id)
+            ie = TreeFile(file_id, posixpath.basename(path), parent_id)
             text = self.get_file_text(file_id, path)
             ie.text_sha1 = osutils.sha_string(text)
             ie.text_size = len(text)
@@ -182,7 +206,7 @@ class HgRevisionTree(RevisionTree):
         assert some_revision_id in self._all_relevant_revisions
         ancestry = set()
         # add what can be reached from some_revision_id
-        # TODO: must factor this trivial iteration in bzrlib.graph cleanly.
+        # TODO: must factor this trivial iteration in breezy.graph cleanly.
         pending = set([some_revision_id])
         while len(pending) > 0:
             node = pending.pop()

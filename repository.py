@@ -17,27 +17,27 @@
 
 """Mercurial Repository handling."""
 
-from bzrlib import (
+from breezy import (
     errors,
     graph as _mod_graph,
     )
-from bzrlib.foreign import (
+from breezy.foreign import (
     ForeignRepository,
     )
-import bzrlib.repository
-from bzrlib.revision import (
+import breezy.repository
+from breezy.revision import (
     NULL_REVISION,
     )
 
-from bzrlib.plugins.hg.commit import (
+from breezy.plugins.hg.commit import (
     HgCommitBuilder,
     )
-from bzrlib.plugins.hg.mapping import (
+from breezy.plugins.hg.mapping import (
     as_bzr_parents,
     default_mapping,
     mapping_registry,
     )
-from bzrlib.plugins.hg.tree import (
+from breezy.plugins.hg.tree import (
     HgRevisionTree,
     )
 
@@ -46,7 +46,7 @@ class MercurialSmartRemoteNotSupported(errors.BzrError):
     _fmt = "This operation is not supported by the Mercurial smart server protocol."
 
 
-class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
+class HgRepositoryFormat(breezy.repository.RepositoryFormat):
     """Mercurial Repository Format.
 
     This is currently not aware of different repository formats,
@@ -65,12 +65,12 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
     revision_graph_can_have_wrong_parents = False
 
     @property
-    def _matchingbzrdir(self):
-        from bzrlib.plugins.hg.dir import HgControlDirFormat
+    def _matchingcontroldir(self):
+        from breezy.plugins.hg.dir import HgControlDirFormat
         return HgControlDirFormat()
 
     def initialize(self, controldir, shared=False, _internal=False):
-        from bzrlib.plugins.hg.dir import HgDir
+        from breezy.plugins.hg.dir import HgDir
         if shared:
             raise errors.IncompatibleFormat(self, controldir._format)
         if isinstance(controldir, HgDir):
@@ -88,7 +88,7 @@ class HgRepositoryFormat(bzrlib.repository.RepositoryFormat):
         return "hg"
 
     def get_foreign_tests_repository_factory(self):
-        from bzrlib.plugins.hg.tests.test_repository import (
+        from breezy.plugins.hg.tests.test_repository import (
             ForeignTestsRepositoryFactory,
             )
         return ForeignTestsRepositoryFactory()
@@ -118,7 +118,7 @@ class HgRepository(ForeignRepository):
 
     def _check(self, revision_ids, callback_refs, check_repo):
         # TODO: Call out to mercurial for consistency checking?
-        return bzrlib.branch.BranchCheckResult(self)
+        return breezy.branch.BranchCheckResult(self)
 
     def make_working_trees(self):
         return True # Do bare repositories exist at all in Mercurial?
@@ -263,11 +263,11 @@ class HgRemoteRepository(HgRepository):
         raise MercurialSmartRemoteNotSupported()
 
 
-from bzrlib.plugins.hg.fetch import (
+from breezy.plugins.hg.fetch import (
     FromHgRepository,
     InterHgRepository,
     ToHgRepository,
     )
-bzrlib.repository.InterRepository.register_optimiser(InterHgRepository)
-bzrlib.repository.InterRepository.register_optimiser(FromHgRepository)
-bzrlib.repository.InterRepository.register_optimiser(ToHgRepository)
+breezy.repository.InterRepository.register_optimiser(InterHgRepository)
+breezy.repository.InterRepository.register_optimiser(FromHgRepository)
+breezy.repository.InterRepository.register_optimiser(ToHgRepository)

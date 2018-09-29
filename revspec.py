@@ -17,15 +17,15 @@
 # Please note that imports are delayed as much as possible here since
 # if DWIM revspecs are supported this module is imported by __init__.py.
 
-from bzrlib import version_info as bzrlib_version
-from bzrlib.errors import (
+from breezy import version_info as breezy_version
+from breezy.errors import (
     InvalidRevisionId,
     InvalidRevisionSpec,
     )
-from bzrlib.revision import (
+from breezy.revision import (
     NULL_REVISION,
     )
-from bzrlib.revisionspec import (
+from breezy.revisionspec import (
     RevisionInfo,
     RevisionSpec,
     )
@@ -50,7 +50,7 @@ class RevisionSpec_hg(RevisionSpec):
     wants_revision_history = False
 
     def _lookup_csid(self, branch, csid):
-        from bzrlib.plugins.hg.repository import (
+        from breezy.plugins.hg.repository import (
             MercurialSmartRemoteNotSupported,
             )
         mapping = getattr(branch, "mapping", None)
@@ -61,7 +61,7 @@ class RevisionSpec_hg(RevisionSpec):
         bzr_revid = mapping.revision_id_foreign_to_bzr(csid)
         try:
             if branch.repository.has_revision(bzr_revid):
-                if bzrlib_version < (2, 5):
+                if breezy_version < (2, 5):
                     history = branch.revision_history()
                     return RevisionInfo.from_revision_id(branch, bzr_revid, history)
                 else:
@@ -72,7 +72,7 @@ class RevisionSpec_hg(RevisionSpec):
 
     def _find_short_csid(self, branch, csid):
         import mercurial.node
-        from bzrlib.plugins.hg.mapping import (
+        from breezy.plugins.hg.mapping import (
             mapping_registry,
             )
         parse_revid = getattr(branch.repository, "lookup_bzr_revision_id",
@@ -86,7 +86,7 @@ class RevisionSpec_hg(RevisionSpec):
                 except InvalidRevisionId:
                     continue
                 if mercurial.node.hex(foreign_revid).startswith(csid):
-                    if bzrlib_version < (2, 5):
+                    if breezy_version < (2, 5):
                         history = branch.revision_history()
                         return RevisionInfo.from_revision_id(branch, revid, history)
                     else:
@@ -100,7 +100,7 @@ class RevisionSpec_hg(RevisionSpec):
         csid = self.spec[loc+1:].encode("utf-8")
         if len(csid) > 40 or not valid_hg_csid(csid):
             raise InvalidRevisionSpec(self.user_spec, branch)
-        from bzrlib.plugins.hg import (
+        from breezy.plugins.hg import (
             lazy_load_mercurial,
             )
         lazy_load_mercurial()

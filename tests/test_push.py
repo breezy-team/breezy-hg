@@ -17,22 +17,22 @@
 """Tests for pushing revisions into Mercurial repositories."""
 
 
-from bzrlib.tests import (
+from breezy.tests import (
     TestCase,
     TestCaseWithTransport,
     )
 
 from mercurial.node import nullid
 
-from bzrlib.plugins.hg.changegroup import (
+from breezy.plugins.hg.changegroup import (
     chunkify,
     dinventories,
     drevisions,
     extract_base,
     text_contents,
     )
-from bzrlib.plugins.hg.mapping import default_mapping
-from bzrlib.plugins.hg.overlay import get_overlay
+from breezy.plugins.hg.mapping import default_mapping
+from breezy.plugins.hg.overlay import get_overlay
 
 
 class ChunkifyTests(TestCase):

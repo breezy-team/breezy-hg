@@ -22,31 +22,23 @@
 
 from __future__ import absolute_import
 
-import bzrlib
-import bzrlib.api
-from bzrlib.transport import register_transport_proto
+import breezy
+from breezy import version_info
+from breezy.transport import register_transport_proto
 
-from bzrlib.plugins.hg.info import (
-    bzr_compatible_versions,
-    hg_compatible_version_strings,
-    bzr_plugin_version as version_info,
-    )
+hg_compatible_versions = [(1, 6), (1, 7), (1, 8), (1, 9), (2, 0), (2, 1)]
 
-bzrlib.api.require_any_api(bzrlib, bzr_compatible_versions)
+hg_compatible_version_strings = ["%d.%d" % x for x in hg_compatible_versions]
 
-try:
-    from bzrlib.i18n import load_plugin_translations
-except ImportError: # No translations for bzr < 2.5
-    gettext = lambda x: x
-else:
-    translation = load_plugin_translations("bzr-hg")
-    gettext = translation.gettext
+from breezy.i18n import load_plugin_translations
+translation = load_plugin_translations("bzr-hg")
+gettext = translation.gettext
 
-from bzrlib import (
+from breezy import (
     errors,
     trace,
     )
-from bzrlib.controldir import (
+from breezy.controldir import (
     network_format_registry as controldir_network_format_registry,
     ControlDirFormat,
     Prober,
@@ -75,23 +67,23 @@ def lazy_load_mercurial():
 
 
 try:
-    from bzrlib.registry import register_lazy
+    from breezy.registry import register_lazy
 except ImportError:
-    from bzrlib.foreign import (
+    from breezy.foreign import (
         foreign_vcs_registry,
         )
     foreign_vcs_registry.register_lazy("hg",
-        "bzrlib.plugins.hg.mapping", "foreign_hg", "Mercurial")
-    from bzrlib.send import (
+        "breezy.plugins.hg.mapping", "foreign_hg", "Mercurial")
+    from breezy.send import (
         format_registry as send_format_registry,
         )
-    send_format_registry.register_lazy('hg', 'bzrlib.plugins.hg.send',
+    send_format_registry.register_lazy('hg', 'breezy.plugins.hg.send',
                                        'send_hg', 'Mecurial bundle format')
 else:
-    register_lazy("bzrlib.foreign", "foreign_vcs_registry", "hg",
-        "bzrlib.plugins.hg.mapping", "foreign_hg", "Mercurial")
-    register_lazy("bzrlib.send", "format_registry", 'hg',
-            'bzrlib.plugins.hg.send', 'send_hg', 'Mecurial bundle format')
+    register_lazy("breezy.foreign", "foreign_vcs_registry", "hg",
+        "breezy.plugins.hg.mapping", "foreign_hg", "Mercurial")
+    register_lazy("breezy.send", "format_registry", 'hg',
+            'breezy.plugins.hg.send', 'send_hg', 'Mecurial bundle format')
 
 def has_hg_http_smart_server(transport, external_url):
     """Check if there is a Mercurial smart server at the remote location.
@@ -101,7 +93,7 @@ def has_hg_http_smart_server(transport, external_url):
     :return: Boolean indicating whether transport is backed onto hg
     """
     url = external_url.rstrip("/") + "?pairs=%s-%s&cmd=between" % ("0" * 40, "0" * 40)
-    from bzrlib.transport.http._urllib import HttpTransport_urllib, Request
+    from breezy.transport.http._urllib import HttpTransport_urllib, Request
     if isinstance(transport, HttpTransport_urllib):
         req = Request('GET', url, accepted_errors=[200, 403, 404, 405])
         req.follow_redirections = True
@@ -111,7 +103,7 @@ def has_hg_http_smart_server(transport, external_url):
         headers = resp.headers
     else:
         try:
-            from bzrlib.transport.http._pycurl import PyCurlTransport
+            from breezy.transport.http._pycurl import PyCurlTransport
         except errors.DependencyNotPresent:
             return False
         else:
@@ -161,7 +153,7 @@ class HgProber(Prober):
         scheme = external_url.split(":")[0]
         if scheme not in self._supported_schemes:
             raise errors.NotBranchError(path=transport.base)
-        from bzrlib import urlutils
+        from breezy import urlutils
         external_url = urlutils.split_segment_parameters(external_url)[0]
         # Explicitly check for .hg directories here, so we avoid
         # loading foreign branches through Mercurial.
@@ -177,7 +169,7 @@ class HgProber(Prober):
         from mercurial import error as hg_errors
 
         import urllib2
-        from bzrlib.plugins.hg.dir import HgControlDirFormat
+        from breezy.plugins.hg.dir import HgControlDirFormat
         format = HgControlDirFormat()
         try:
             format.open(transport)
@@ -193,7 +185,7 @@ class HgProber(Prober):
 
     @classmethod
     def known_formats(cls):
-        from bzrlib.plugins.hg.dir import HgControlDirFormat
+        from breezy.plugins.hg.dir import HgControlDirFormat
         return set([HgControlDirFormat()])
 
 
@@ -201,58 +193,58 @@ ControlDirFormat.register_prober(HgProber)
 ControlDirFormat._server_probers.insert(0, HgProber)
 
 controldir_network_format_registry.register_lazy("hg",
-    "bzrlib.plugins.hg.dir", "HgControlDirFormat")
+    "breezy.plugins.hg.dir", "HgControlDirFormat")
 
-bzrlib.bzrdir.format_registry.register_lazy("hg",
-    "bzrlib.plugins.hg.dir", "HgControlDirFormat",
+breezy.controldir.format_registry.register_lazy("hg",
+    "breezy.plugins.hg.dir", "HgControlDirFormat",
     "Mercurial repository. ", native=False, hidden=False)
 
-from bzrlib.repository import (
+from breezy.repository import (
     format_registry as repository_format_registry,
     network_format_registry as repository_network_format_registry,
     )
 repository_network_format_registry.register_lazy('hg',
-    'bzrlib.plugins.hg.repository', 'HgRepositoryFormat')
+    'breezy.plugins.hg.repository', 'HgRepositoryFormat')
 
 
-from bzrlib.branch import (
+from breezy.branch import (
     format_registry as branch_format_registry,
     network_format_registry as branch_network_format_registry,
     )
 branch_network_format_registry.register_lazy(
-    "hg", "bzrlib.plugins.hg.branch", "HgBranchFormat")
+    "hg", "breezy.plugins.hg.branch", "HgBranchFormat")
 
 branch_format_registry.register_extra_lazy(
-    "bzrlib.plugins.hg.branch", "HgBranchFormat")
+    "breezy.plugins.hg.branch", "HgBranchFormat")
 
-from bzrlib.workingtree import (
+from breezy.workingtree import (
     format_registry as workingtree_format_registry,
     )
 workingtree_format_registry.register_extra_lazy(
-    "bzrlib.plugins.hg.workingtree", "HgWorkingTreeFormat")
+    "breezy.plugins.hg.workingtree", "HgWorkingTreeFormat")
 
-repository_format_registry.register_extra_lazy('bzrlib.plugins.hg.repository',
+repository_format_registry.register_extra_lazy('breezy.plugins.hg.repository',
         'HgRepositoryFormat')
 
-from bzrlib.revisionspec import revspec_registry
-revspec_registry.register_lazy("hg:", "bzrlib.plugins.hg.revspec",
+from breezy.revisionspec import revspec_registry
+revspec_registry.register_lazy("hg:", "breezy.plugins.hg.revspec",
     "RevisionSpec_hg")
 
-from bzrlib.commands import (
+from breezy.commands import (
     plugin_cmds,
     )
-plugin_cmds.register_lazy('cmd_hg_import', [], 'bzrlib.plugins.hg.commands')
+plugin_cmds.register_lazy('cmd_hg_import', [], 'breezy.plugins.hg.commands')
 
 register_transport_proto('hg+ssh://',
         help="Access using the Mercurial smart server protocol over SSH.")
 
-from bzrlib.revisionspec import RevisionSpec_dwim
+from breezy.revisionspec import RevisionSpec_dwim
 RevisionSpec_dwim.append_possible_lazy_revspec(
-    "bzrlib.plugins.hg.revspec", "RevisionSpec_hg")
+    "breezy.plugins.hg.revspec", "RevisionSpec_hg")
 
 def test_suite():
     from unittest import TestSuite, TestLoader
-    from bzrlib.plugins.hg import tests
+    from breezy.plugins.hg import tests
 
     suite = TestSuite()
 

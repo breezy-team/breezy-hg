@@ -18,12 +18,12 @@
 
 import os
 
-from bzrlib.branch import Branch
+from breezy.branch import Branch
 
-from bzrlib.plugins.hg.dir import HgControlDirFormat
-from bzrlib.plugins.hg.ui import ui as hgui
+from breezy.plugins.hg.dir import HgControlDirFormat
+from breezy.plugins.hg.ui import ui as hgui
 
-from bzrlib.tests import TestCaseWithTransport
+from breezy.tests import TestCaseWithTransport
 
 from mercurial import hg
 import mercurial.localrepo

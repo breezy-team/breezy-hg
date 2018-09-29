@@ -1,5 +1,5 @@
 DEBUGGER ?= 
-BZR ?= $(shell which bzr)
+BRZ ?= $(shell which brz)
 PYTHON ?= $(shell which python)
 SETUP ?= ./setup.py
 PYDOCTOR ?= pydoctor
@@ -23,7 +23,7 @@ clean::
 	rm -f *.so
 
 check:: build-inplace 
-	BZR_PLUGINS_AT=hg@$(shell pwd) $(DEBUGGER) $(PYTHON) $(PYTHON_OPTIONS) $(BZR) $(BZR_OPTIONS) selftest $(TEST_OPTIONS) $(TESTS)
+	BRZ_PLUGINS_AT=hg@$(shell pwd) $(DEBUGGER) $(PYTHON) $(PYTHON_OPTIONS) $(BRZ) $(BRZ_OPTIONS) selftest $(TEST_OPTIONS) $(TESTS)
 
 check-all::
 	$(MAKE) check TESTS="^bzrlib.plugins.hg. Hg"
@@ -38,7 +38,7 @@ check-random::
 	$(MAKE) check TEST_OPTIONS="--random=now --verbose --one"
 
 show-plugins::
-	BZR_PLUGINS_AT=hg@$(shell pwd) $(BZR) plugins -v
+	BRZ_PLUGINS_AT=hg@$(shell pwd) $(BRZ) plugins -v
 
 lint::
 	$(PYLINT) -f parseable *.py */*.py
@@ -49,7 +49,7 @@ tags::
 ctags:: tags
 
 coverage::
-	$(MAKE) check BZR_OPTIONS="--coverage ,coverage"
+	$(MAKE) check BRZ_OPTIONS="--coverage ,coverage"
 
 .PHONY: update-pot po/bzr-hg.pot
 update-pot: po/bzr-hg.pot
@@ -59,7 +59,7 @@ TRANSLATABLE_PYFILES:=$(shell find . -name '*.py' \
 		)
 
 po/bzr-hg.pot: $(PYFILES) $(DOCFILES)
-	BZR_PLUGINS_AT=hg@$(shell pwd) bzr export-pot \
+	BRZ_PLUGINS_AT=hg@$(shell pwd) bzr export-pot \
           --plugin=hg > po/bzr-hg.pot
 	echo $(TRANSLATABLE_PYFILES) | xargs \
 	  xgettext --package-name "bzr-hg" \

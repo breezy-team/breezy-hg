@@ -24,35 +24,35 @@ from mercurial import (
     error as hgerrors,
     )
 
-from bzrlib import (
+from breezy import (
     errors,
     lru_cache,
     revision as _mod_revision,
     ui,
     )
-from bzrlib.knit import (
+from breezy.bzr.knit import (
     make_file_factory,
     )
-from bzrlib.versionedfile import (
+from breezy.bzr.versionedfile import (
     AbsentContentFactory,
     ConstantMapper,
     FulltextContentFactory,
     )
 
-from bzrlib.plugins.hg.changegroup import (
+from breezy.plugins.hg.changegroup import (
     text_contents,
     )
-from bzrlib.plugins.hg.idmap import (
+from breezy.plugins.hg.idmap import (
     MemoryIdmap,
     from_repository as idmap_from_repository,
     )
-from bzrlib.plugins.hg.mapping import (
+from breezy.plugins.hg.mapping import (
     as_hg_parents,
     default_mapping,
     files_from_delta,
     manifest_and_flags_from_tree,
     )
-from bzrlib.plugins.hg.parsers import (
+from breezy.plugins.hg.parsers import (
     format_changeset,
     format_manifest,
     parse_manifest,
@@ -207,7 +207,7 @@ class MercurialRepositoryOverlay(object):
         if key == 'null':
             return mercurial.node.nullid
         if key == 'tip':
-            revid = self._bzrdir.open_branch().last_revision()
+            revid = self._controldir.open_branch().last_revision()
             return self._overlay.lookup_changeset_id_by_revid(revid)[0]
         if key == '.':
             raise NotImplementedError
@@ -389,7 +389,7 @@ class MercurialRepositoryOverlay(object):
             revids = [revid for revid in self.repo.all_revision_ids() if revid != _mod_revision.NULL_REVISION]
         else:
             revids = [self.lookup_revision_by_changeset_id(node) for node in nodes]
-        from bzrlib.plugins.hg.changegroup import dchangegroup
+        from breezy.plugins.hg.changegroup import dchangegroup
         self.repo.lock_read()
         try:
             return dchangegroup(self.repo, self.mapping, revids, lossy=False)[0]

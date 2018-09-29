@@ -30,22 +30,22 @@ from mercurial.revlog import (
     )
 import struct
 
-from bzrlib import (
+from breezy import (
     debug,
     revision as _mod_revision,
     )
 
-from bzrlib.plugins.hg.mapping import (
+from breezy.plugins.hg.mapping import (
     as_hg_parents,
     files_from_delta,
     manifest_and_flags_from_tree,
     )
-from bzrlib.plugins.hg.parsers import (
+from breezy.plugins.hg.parsers import (
     format_changeset,
     format_manifest,
     pack_chunk_iter,
     )
-from bzrlib.plugins.hg.util import (
+from breezy.plugins.hg.util import (
     lazydict,
     )
 
@@ -136,12 +136,12 @@ def dinventories(repo, mapping, revids, manifest_ids, files, overlay, texts,
         # base text for the manifest delta's.
         if revid != skip_revid:
             for p in files[revid]:
-                fileid = tree.inventory.path2id(p)
+                fileid = tree.path2id(p)
                 if fileid is not None:
                     # FIXME: This is probably not correct, as 'files'
                     # don't include new revisions that don't include changes
                     # (but are e.g. relevant for parents)
-                    texts[p].add((fileid, tree.inventory[fileid].revision))
+                    texts[p].add((fileid, tree.get_file_revision(p)))
         text = format_manifest(manifest, flags)
         node_parents = as_hg_parents(rev.parent_ids, manifest_ids.__getitem__)
         manifest_id = hghash(text, node_parents[0], node_parents[1])
@@ -287,7 +287,7 @@ class ChunkStringIO(object):
 
 
 def dchangegroup(repo, mapping, revids, lossy=True):
-    from bzrlib.plugins.hg.overlay import get_overlay
+    from breezy.plugins.hg.overlay import get_overlay
     repo.lock_read()
     try:
         overlay = get_overlay(repo, mapping)

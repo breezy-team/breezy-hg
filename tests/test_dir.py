@@ -14,15 +14,15 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-from bzrlib.bzrdir import (
+from breezy.controldir import (
     format_registry,
     )
 
-from bzrlib.tests import (
+from breezy.tests import (
     TestCase,
     )
 
-from bzrlib.plugins.hg.dir import (
+from breezy.plugins.hg.dir import (
     HgControlDirFormat,
     )
 
@@ -34,14 +34,14 @@ class HgControlDirFormatTests(TestCase):
         format2 = HgControlDirFormat()
         self.assertEquals(format1, format2)
         self.assertEquals(format1, format1)
-        bzr_format = format_registry.make_bzrdir("default")
+        bzr_format = format_registry.make_controldir("default")
         self.assertNotEquals(bzr_format, format1)
 
     def test_hash(self):
         format1 = HgControlDirFormat()
         format2 = HgControlDirFormat()
         self.assertEquals(hash(format1), hash(format2))
-        bzr_format = format_registry.make_bzrdir("default")
+        bzr_format = format_registry.make_controldir("default")
         self.assertNotEquals(hash(bzr_format), hash(format1))
 
     def test_network_name(self):

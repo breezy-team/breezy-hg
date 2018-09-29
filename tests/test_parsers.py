@@ -16,14 +16,14 @@
 
 import mercurial
 
-from bzrlib.plugins.hg.parsers import (
+from breezy.plugins.hg.parsers import (
     decode_str,
     deserialize_file_text,
     format_changeset,
     parse_changeset,
     serialize_file_text,
     )
-from bzrlib.tests import (
+from breezy.tests import (
     TestCase,
     )
 

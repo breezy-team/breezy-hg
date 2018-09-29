@@ -16,10 +16,10 @@
 
 """Tests for HgRepository."""
 
-from bzrlib.plugins.hg.dir import (
+from breezy.plugins.hg.dir import (
     HgControlDirFormat,
     )
-from bzrlib.tests import (
+from breezy.tests import (
     TestCaseWithTransport,
     )
 

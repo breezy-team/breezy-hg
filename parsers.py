@@ -29,7 +29,10 @@ import mercurial.changegroup
 import mercurial.manifest
 import mercurial.mdiff
 import mercurial.node
-import mercurial.parsers
+try:
+    from mercurial.cext.parsers import parse_manifest
+except ImportError:
+    from mercurial.parsers import parse_manifest
 import struct
 
 from mercurial.revlog import (
@@ -178,7 +181,7 @@ def parse_manifest(fulltext):
     """
     manifest = mercurial.manifest.manifestdict()
     flags = {}
-    mercurial.parsers.parse_manifest(manifest, flags, fulltext)
+    parse_manifest(manifest, flags, fulltext)
     return manifest, flags
 
 

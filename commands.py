@@ -18,10 +18,10 @@
 """Commands specific to dealing with Mercurial branches."""
 
 
-from bzrlib import (
+from breezy import (
     errors,
     )
-from bzrlib.commands import (
+from breezy.commands import (
     Command,
     )
 
@@ -36,14 +36,14 @@ class cmd_hg_import(Command):
     takes_args = ['from_location', 'to_location?']
 
     def run(self, from_location, to_location=None):
-        from bzrlib.bzrdir import BzrDir
+        from breezy.controldir import ControlDir
         if to_location is None:
             to_location = os.path.basename(from_location.rstrip("/\\"))
-        from_dir = BzrDir.open(from_location)
+        from_dir = ControlDir.open(from_location)
         try:
-            to_dir = BzrDir.open(to_location)
+            to_dir = ControlDir.open(to_location)
         except errors.NotBranchError:
-            to_dir = BzrDir.create(to_location)
+            to_dir = ControlDir.create(to_location)
         try:
             to_repo = to_dir.open_repository()
         except errors.NoRepositoryPresent:

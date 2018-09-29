@@ -22,7 +22,7 @@ from mercurial.node import (
     nullid,
     )
 
-from bzrlib.plugins.hg.mapping import (
+from breezy.plugins.hg.mapping import (
     ExperimentalHgMapping,
     HgMappingv1,
     convert_converted_from,
@@ -33,14 +33,14 @@ from bzrlib.plugins.hg.mapping import (
     flags_kind,
     unescape_path,
     )
-from bzrlib import (
+from breezy import (
     errors,
     )
-from bzrlib.revision import (
+from breezy.revision import (
     NULL_REVISION,
     Revision,
     )
-from bzrlib.tests import (
+from breezy.tests import (
     TestCase,
     )
 

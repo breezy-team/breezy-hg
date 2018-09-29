@@ -7,7 +7,7 @@ if __name__ == '__main__':
 
     command_classes = {}
     try:
-        from bzrlib.bzr_distutils import build_mo
+        from breezy.bzr_distutils import build_mo
     except ImportError:
         pass
     else:
@@ -26,7 +26,7 @@ if __name__ == '__main__':
           This plugin adds limited support for checking out and viewing
           Mercurial branches in Bazaar.
           """,
-          package_dir={'bzrlib.plugins.hg':'.'},
-          packages=['bzrlib.plugins.hg', 'bzrlib.plugins.hg.tests'],
+          package_dir={'breezy.plugins.hg':'.'},
+          packages=['breezy.plugins.hg', 'breezy.plugins.hg.tests'],
           cmdclass=command_classes,
           )

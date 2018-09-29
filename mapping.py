@@ -27,11 +27,10 @@ from mercurial.revlog import (
     hash as hghash,
     )
 
-from bzrlib import (
+from breezy import (
     bencode,
     errors,
     foreign,
-    inventory,
     osutils,
     revision as _mod_revision,
     trace,
@@ -151,7 +150,7 @@ def as_bzr_parents(parents, lookup_id):
 def files_from_delta(delta, tree, revid):
     """Create a Mercurial-style 'files' set from a Bazaar tree delta.
 
-    :param delta: bzrlib.delta.TreeDelta instance
+    :param delta: breezy.delta.TreeDelta instance
     :param tree: Tree
     :param revid: Revision id
     :return: Set with changed files
@@ -186,7 +185,7 @@ def entry_sha1(entry):
 
 def find_matching_entry(parent_trees, path, text_sha1):
     for i, ptree in enumerate(parent_trees):
-        fid = ptree.inventory.path2id(path)
+        fid = ptree.path2id(path)
         if fid is None:
             continue
         if entry_sha1(ptree.inventory[fid]) == text_sha1:
@@ -217,7 +216,7 @@ def manifest_and_flags_from_tree(parent_trees, tree, mapping, parent_node_lookup
         return tuple(ret)
     manifest = {}
     flags = {}
-    for path, entry in tree.inventory.iter_entries():
+    for path, entry in tree.iter_entries_by_dir():
         this_sha1 = entry_sha1(entry)
         prev_entry = find_matching_entry(parent_trees, path, this_sha1)
         utf8_path = path.encode("utf-8")
@@ -233,7 +232,7 @@ def manifest_and_flags_from_tree(parent_trees, tree, mapping, parent_node_lookup
         if entry.kind in ('file', 'symlink') and prev_entry is not None:
             manifest[utf8_path] = parent_node_lookup[prev_entry](utf8_path)
         if ((mapping.generate_file_id(utf8_path) != entry.file_id or entry.kind == 'directory') and
-            (parent_trees == [] or parent_trees[0].inventory.path2id(path) != entry.file_id)):
+            (parent_trees == [] or parent_trees[0].path2id(path) != entry.file_id)):
             unusual_fileids[utf8_path] = entry.file_id
     return (manifest, flags, unusual_fileids)
 
@@ -424,9 +423,9 @@ class HgMappingRegistry(foreign.VcsMappingRegistry):
 
 
 mapping_registry = HgMappingRegistry()
-mapping_registry.register_lazy("hg-v1", "bzrlib.plugins.hg.mapping",
+mapping_registry.register_lazy("hg-v1", "breezy.plugins.hg.mapping",
     "HgMappingv1")
-mapping_registry.register_lazy("hg-experimental", "bzrlib.plugins.hg.mapping",
+mapping_registry.register_lazy("hg-experimental", "breezy.plugins.hg.mapping",
     "ExperimentalHgMapping")
 mapping_registry.set_default('hg-v1')
 
@@ -435,12 +434,12 @@ class ForeignHg(foreign.ForeignVcs):
 
     @property
     def branch_format(self):
-        from bzrlib.plugins.hg.branch import HgBranchFormat
+        from breezy.plugins.hg.branch import HgBranchFormat
         return HgBranchFormat()
 
     @property
     def repository_format(self):
-        from bzrlib.plugins.hg.repository import HgRepositoryFormat
+        from breezy.plugins.hg.repository import HgRepositoryFormat
         return HgRepositoryFormat()
 
     def __init__(self):

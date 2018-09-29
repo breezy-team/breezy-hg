@@ -18,20 +18,20 @@
 
 import binascii
 
-from bzrlib.errors import (
+from breezy.errors import (
     InvalidRevisionSpec,
     )
 
-from bzrlib.revisionspec import (
+from breezy.revisionspec import (
     RevisionSpec,
     )
 
-from bzrlib.tests import (
+from breezy.tests import (
     TestCase,
     TestCaseWithTransport,
     )
 
-from bzrlib.plugins.hg.revspec import (
+from breezy.plugins.hg.revspec import (
     valid_hg_csid,
     )
 

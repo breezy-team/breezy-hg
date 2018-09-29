@@ -16,7 +16,7 @@
 
 """Mercurial UI interface implementation that translates to Bazaar calls."""
 
-from bzrlib import (
+from breezy import (
     config,
     trace,
     )

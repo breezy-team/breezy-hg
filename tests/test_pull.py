@@ -14,9 +14,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-from bzrlib.inventory import Inventory
-from bzrlib.plugins.hg.dir import HgControlDirFormat
-from bzrlib.tests import TestCaseWithTransport
+from breezy.bzr.inventory import Inventory
+from breezy.plugins.hg.dir import HgControlDirFormat
+from breezy.tests import TestCaseWithTransport
 
 import base64
 import copy

@@ -16,12 +16,12 @@
 
 """Commit creation support for Mercurial."""
 
-from bzrlib import osutils
+from breezy import osutils
 
-from bzrlib.errors import (
+from breezy.errors import (
     RootMissing,
     )
-from bzrlib.repository import (
+from breezy.repository import (
     CommitBuilder,
     )
 

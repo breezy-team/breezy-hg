@@ -21,16 +21,16 @@ import mercurial.node
 import os
 import threading
 
-from bzrlib import (
+from breezy import (
     errors,
     registry,
     trace,
     )
-from bzrlib.transport import (
+from breezy.transport import (
     get_transport,
     )
 
-from bzrlib.plugins.hg.mapping import (
+from breezy.plugins.hg.mapping import (
     mapping_registry,
     )
 
@@ -38,7 +38,7 @@ def get_cache_dir():
     try:
         from xdg.BaseDirectory import xdg_cache_home
     except ImportError:
-        from bzrlib.config import config_dir
+        from breezy.config import config_dir
         ret = os.path.join(config_dir(), "hg")
     else:
         ret = os.path.join(xdg_cache_home, "bazaar", "hg")

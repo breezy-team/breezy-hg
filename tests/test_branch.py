@@ -16,16 +16,16 @@
 
 """Tests for Mercurial branches."""
 
-from bzrlib.tests import (
+from breezy.tests import (
     TestCase,
     TestCaseWithTransport,
     )
 
-from bzrlib.plugins.hg.branch import (
+from breezy.plugins.hg.branch import (
     HgBranchFormat,
     FileHgTags,
     )
-from bzrlib.plugins.hg.dir import (
+from breezy.plugins.hg.dir import (
     HgControlDirFormat,
     )
 

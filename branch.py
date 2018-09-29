@@ -19,12 +19,12 @@
 
 import os
 
-from bzrlib import (
+from breezy import (
     config as _mod_bzr_config,
     errors,
     revision as _mod_revision,
     )
-from bzrlib.branch import (
+from breezy.branch import (
     Branch,
     BranchCheckResult,
     BranchFormat,
@@ -33,22 +33,18 @@ from bzrlib.branch import (
     InterBranch,
     PullResult,
     )
-from bzrlib.decorators import (
-    needs_read_lock,
-    needs_write_lock,
-    )
-from bzrlib.foreign import (
+from breezy.foreign import (
     ForeignBranch,
     )
-from bzrlib.repository import (
+from breezy.repository import (
     InterRepository,
     )
-from bzrlib.tag import (
+from breezy.tag import (
     BasicTags,
     DisabledTags,
     )
 
-from bzrlib.plugins.hg.repository import (
+from breezy.plugins.hg.repository import (
     MercurialSmartRemoteNotSupported,
     )
 
@@ -135,8 +131,8 @@ class HgBranchFormat(BranchFormat):
     """
 
     @property
-    def _matchingbzrdir(self):
-        from bzrlib.plugins.hg.dir import HgControlDirFormat
+    def _matchingcontroldir(self):
+        from breezy.plugins.hg.dir import HgControlDirFormat
         return HgControlDirFormat()
 
     def get_format_description(self):
@@ -147,24 +143,24 @@ class HgBranchFormat(BranchFormat):
         return "hg"
 
     def get_foreign_tests_branch_factory(self):
-        from bzrlib.plugins.hg.tests.test_branch import ForeignTestsBranchFactory
+        from breezy.plugins.hg.tests.test_branch import ForeignTestsBranchFactory
         return ForeignTestsBranchFactory()
 
-    def initialize(self, a_bzrdir, name=None, repository=None,
+    def initialize(self, a_controldir, name=None, repository=None,
                    append_revisions_only=None):
-        from bzrlib.plugins.hg.dir import HgDir
+        from breezy.plugins.hg.dir import HgDir
         if name is None:
             name = 'default'
-        if not isinstance(a_bzrdir, HgDir):
-            raise errors.IncompatibleFormat(self, a_bzrdir._format)
-        bm = a_bzrdir._hgrepo.branchmap()
+        if not isinstance(a_controldir, HgDir):
+            raise errors.IncompatibleFormat(self, a_controldir._format)
+        bm = a_controldir._hgrepo.branchmap()
         if name in bm:
-            raise errors.AlreadyBranchError(a_bzrdir.user_url)
-        return a_bzrdir.create_branch(name=name,
+            raise errors.AlreadyBranchError(a_controldir.user_url)
+        return a_controldir.create_branch(name=name,
             append_revisions_only=append_revisions_only)
 
     def make_tags(self, branch):
-        """See bzrlib.branch.BranchFormat.make_tags()."""
+        """See breezy.branch.BranchFormat.make_tags()."""
         if (getattr(branch.repository._hgrepo, "tags", None) is not None and
             getattr(branch.repository, "lookup_foreign_revision_id", None) is not None):
             return LocalHgTags(branch)
@@ -258,18 +254,18 @@ class HgBranch(ForeignBranch):
 
     @property
     def control_url(self):
-        return self.bzrdir.control_url
+        return self.controldir.control_url
 
     @property
     def control_transport(self):
-        return self.bzrdir.control_transport
+        return self.controldir.control_transport
 
     def __init__(self, hgrepo, name, hgdir, lockfiles):
         self.repository = hgdir.open_repository()
         self.base = hgdir.root_transport.base
         super(HgBranch, self).__init__(self.repository.get_mapping())
         self._hgrepo = hgrepo
-        self.bzrdir = hgdir
+        self.controldir = hgdir
         self.control_files = lockfiles
         self.name = name
 
@@ -316,11 +312,11 @@ class HgBranch(ForeignBranch):
         self.control_files.lock_write()
         return HgWriteLock(self.unlock)
 
-    @needs_read_lock
     def _gen_revision_history(self):
-        revs = list(self.repository.iter_reverse_revision_history(self.last_revision()))
-        revs.reverse()
-        return revs
+        with self.lock_read():
+            revs = list(self.repository.iter_reverse_revision_history(self.last_revision()))
+            revs.reverse()
+            return revs
 
     def lock_read(self):
         self.control_files.lock_read()
@@ -404,10 +400,10 @@ class HgRemoteBranch(HgBranch):
     def _read_last_revision_info(self):
         raise MercurialSmartRemoteNotSupported()
 
-    @needs_read_lock
     def last_revision(self):
-        tip = self._tip()
-        return self.mapping.revision_id_foreign_to_bzr(tip)
+        with self.lock_read():
+            tip = self._tip()
+            return self.mapping.revision_id_foreign_to_bzr(tip)
 
 
 class InterHgBranch(GenericInterBranch):
@@ -483,7 +479,7 @@ class InterFromHgBranch(GenericInterBranch):
 
     @staticmethod
     def _get_branch_formats_to_test():
-        from bzrlib.branch import format_registry as branch_format_registry
+        from breezy.branch import format_registry as branch_format_registry
         return [(HgBranchFormat(), branch_format_registry.get_default())]
 
     @staticmethod
@@ -548,16 +544,16 @@ class InterFromHgBranch(GenericInterBranch):
             hook(result)
         return result
 
-    @needs_write_lock
     def copy_content_into(self, revision_id=None):
         """Copy the content of source into target
 
         revision_id: if not None, the revision history in the new branch will
                      be truncated to end with revision_id.
         """
-        self.source._synchronize_history(self.target, revision_id)
-        tags = self._get_tags(revision_id)
-        tags.merge_to(self.target.tags, overwrite=True)
+        with self.lock_write():
+            self.source._synchronize_history(self.target, revision_id)
+            tags = self._get_tags(revision_id)
+            tags.merge_to(self.target.tags, overwrite=True)
 
     def _get_tags(self, revision_id):
         return FileHgTags(self.source, revision_id, self.target)
@@ -600,7 +596,7 @@ class InterToHgBranch(InterBranch):
 
     @staticmethod
     def _get_branch_formats_to_test():
-        from bzrlib.branch import format_registry as branch_format_registry
+        from breezy.branch import format_registry as branch_format_registry
         return [(branch_format_registry.get_default(), HgBranchFormat())]
 
     @classmethod
@@ -623,30 +619,30 @@ class InterToHgBranch(InterBranch):
             remote.addchangegroup(cg, 'push', self.source.base)
         return dict((k, self.target.mapping.revision_id_foreign_to_bzr(v)) for (k, v) in revidmap.iteritems())
 
-    @needs_read_lock
     def push(self, overwrite=True, stop_revision=None,
              lossy=False, _override_hook_source_branch=None):
-        result = HgBranchPushResult()
-        result.source_branch = self.source
-        result.target_branch = self.target
-        result.old_revid = self.target.last_revision()
-        if stop_revision is None:
-            stop_revision = self.source.last_revision()
-        self._push_helper(stop_revision=stop_revision, overwrite=overwrite,
-            lossy=False)
-        # FIXME: Check for diverged branches
-        if not lossy:
-            result.new_revid = stop_revision
-        else:
-            if stop_revision != result.old_revid:
-                revidmap = self._push_helper(stop_revision=stop_revision,
-                    lossy=True)
-                result.new_revid = revidmap.get(stop_revision, result.old_revid)
-            else:
-                result.new_revid = result.old_revid
+        with self.lock_read():
+            result = HgBranchPushResult()
+            result.source_branch = self.source
+            result.target_branch = self.target
+            result.old_revid = self.target.last_revision()
+            if stop_revision is None:
+                stop_revision = self.source.last_revision()
+            self._push_helper(stop_revision=stop_revision, overwrite=overwrite,
+                lossy=False)
             # FIXME: Check for diverged branches
-            result.revidmap = revidmap
-        return result
+            if not lossy:
+                result.new_revid = stop_revision
+            else:
+                if stop_revision != result.old_revid:
+                    revidmap = self._push_helper(stop_revision=stop_revision,
+                        lossy=True)
+                    result.new_revid = revidmap.get(stop_revision, result.old_revid)
+                else:
+                    result.new_revid = result.old_revid
+                # FIXME: Check for diverged branches
+                result.revidmap = revidmap
+            return result
 
 
 InterBranch.register_optimiser(InterFromHgBranch)

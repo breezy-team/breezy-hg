@@ -31,7 +31,7 @@ from collections import (
 import mercurial.node
 import os
 
-from bzrlib import (
+from breezy import (
     debug,
     errors,
     lru_cache,
@@ -39,38 +39,35 @@ from bzrlib import (
     trace,
     ui,
     )
-from bzrlib.decorators import (
-    needs_write_lock,
-    )
-from bzrlib.graph import (
+from breezy.graph import (
     Graph,
     )
-from bzrlib.inventory import (
-    InventoryDirectory,
-    InventoryFile,
-    InventoryLink,
+from .tree import (
+    HgTreeDirectory,
+    HgTreeFile,
+    HgTreeLink,
     )
-from bzrlib.repository import (
+from breezy.repository import (
     InterRepository,
     )
-from bzrlib.revision import (
+from breezy.revision import (
     NULL_REVISION,
     )
-from bzrlib.revisiontree import InventoryRevisionTree
-from bzrlib.versionedfile import (
+from breezy.bzr.inventorytree import InventoryRevisionTree
+from breezy.bzr.versionedfile import (
     FulltextContentFactory,
     )
 
-from bzrlib.plugins.hg.mapping import (
+from breezy.plugins.hg.mapping import (
     as_bzr_parents,
     files_from_delta,
     flags_kind,
     manifest_and_flags_from_tree,
     )
-from bzrlib.plugins.hg.overlay import (
+from breezy.plugins.hg.overlay import (
     get_overlay,
     )
-from bzrlib.plugins.hg.parsers import (
+from breezy.plugins.hg.parsers import (
     chunkiter,
     deserialize_file_text,
     parse_changeset,
@@ -106,7 +103,7 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
         other_inv.has_filename(path)):
         other_fileid = other_inv.path2id(path)
         other_ie = other_inv[other_fileid]
-        ie = InventoryDirectory(other_fileid, other_ie.name,
+        ie = HgTreeDirectory(other_fileid, other_ie.name,
                                 other_ie.parent_id)
         ie.revision = other_ie.revision
         directories[path] = other_fileid
@@ -119,7 +116,7 @@ def inventory_create_directory(directories, basis_inv, other_inv, path,
         ret = []
         parent_id = None
     fileid = lookup_file_id(path.encode("utf-8"))
-    ie = InventoryDirectory(fileid, os.path.basename(path), parent_id)
+    ie = HgTreeDirectory(fileid, os.path.basename(path), parent_id)
     ie.revision = revid
     ret.append((None, path, fileid, ie))
     directories[path] = fileid
@@ -194,9 +191,9 @@ def manifest_to_inventory_delta(lookup_file_id, basis_inv, other_inv,
                     yield e
             f = flags.get(utf8_path, "")
             if 'l' in f:
-                entry_factory = InventoryLink
+                entry_factory = HgTreeLink
             else:
-                entry_factory = InventoryFile
+                entry_factory = HgTreeFile
             ie = entry_factory(fileid, basename, parent_id)
             if ie.kind == "file":
                 ie.executable = ('x' in f)
@@ -738,39 +735,39 @@ class FromHgRepository(InterRepository):
                 search = newsearch
         return fetch
 
-    @needs_write_lock
     def copy_content(self, revision_id=None, basis=None):
         """See InterRepository.copy_content. Partial implementation of that.
 
         To date the basis parameter is not supported.
         """
-        if basis is not None:
-            trace.mutter('Ignoring basis argument %r', basis)
-        self.target.fetch(self.source, revision_id=revision_id)
+        with self.lock_tree_write():
+            if basis is not None:
+                trace.mutter('Ignoring basis argument %r', basis)
+            self.target.fetch(self.source, revision_id=revision_id)
 
-    @needs_write_lock
     def fetch(self, revision_id=None, pb=None, find_ghosts=False,
               fetch_spec=None, limit=None):
         """Fetch revisions. """
-        heads = self.heads(fetch_spec, revision_id)
-        missing = self.findmissing(heads)
-        if not missing:
-            return
-        cg = self.source._hgrepo.changegroup(missing, 'pull')
-        mapping = self.source.get_mapping()
-        self.target.start_write_group()
-        try:
-            self.addchangegroup(cg, mapping, limit=limit)
-        except:
-            self.target.abort_write_group()
-            raise
-        else:
-            self.target.commit_write_group()
+        with self.lock_tree_write():
+            heads = self.heads(fetch_spec, revision_id)
+            missing = self.findmissing(heads)
+            if not missing:
+                return
+            cg = self.source._hgrepo.changegroup(missing, 'pull')
+            mapping = self.source.get_mapping()
+            self.target.start_write_group()
+            try:
+                self.addchangegroup(cg, mapping, limit=limit)
+            except:
+                self.target.abort_write_group()
+                raise
+            else:
+                self.target.commit_write_group()
 
     @staticmethod
     def is_compatible(source, target):
         """Be compatible with HgRepositories."""
-        from bzrlib.plugins.hg.repository import (
+        from breezy.plugins.hg.repository import (
             HgRepository, )
         return (isinstance(source, HgRepository) and
                 getattr(target._format, "supports_full_versioned_files", True))
@@ -778,7 +775,6 @@ class FromHgRepository(InterRepository):
 
 class InterHgRepository(FromHgRepository):
 
-    @needs_write_lock
     def fetch(self, revision_id=None, pb=None, find_ghosts=False,
               fetch_spec=None, limit=None):
         """Fetch revisions. This is a partial implementation."""
@@ -788,15 +784,16 @@ class InterHgRepository(FromHgRepository):
             raise NotImplementedError("fetch_spec argument not yet supported")
         if limit is not None:
             raise NotImplementedError("limit argument not yet supported")
-        if self.target._hgrepo.local():
-            self.target._hgrepo.pull(self.source._hgrepo)
-        else:
-            self.source._hgrepo.push(self.target._hgrepo)
+        with self.lock_tree_write():
+            if self.target._hgrepo.local():
+                self.target._hgrepo.pull(self.source._hgrepo)
+            else:
+                self.source._hgrepo.push(self.target._hgrepo)
 
     @staticmethod
     def is_compatible(source, target):
         """Be compatible with HgRepositories."""
-        from bzrlib.plugins.hg.repository import HgRepository
+        from breezy.plugins.hg.repository import HgRepository
         return (isinstance(source, HgRepository) and
                 isinstance(target, HgRepository))
 
@@ -811,25 +808,25 @@ class ToHgRepository(InterRepository):
     def __init__(self, source, target):
         InterRepository.__init__(self, source, target)
 
-    @needs_write_lock
     def fetch(self, revision_id=None, pb=None, find_ghosts=False,
               fetch_spec=None, limit=None, lossy=False):
-        mapping = self.target.get_mapping()
-        cg, revidmap = self._generate_changegroup(revision_id, mapping, lossy=lossy)
-        remote = self.target.repository._hgrepo
-        remote.addchangegroup(cg, 'push', self.source.base)
+        with self.lock_tree_write():
+            mapping = self.target.get_mapping()
+            cg, revidmap = self._generate_changegroup(revision_id, mapping, lossy=lossy)
+            remote = self.target.repository._hgrepo
+            remote.addchangegroup(cg, 'push', self.source.base)
 
     def _generate_changegroup(self, revision_id, mapping, lossy=False):
         assert revision_id is not None
         graph = self.source.get_graph()
         revs = graph.find_difference(
             self.target.last_revision(), revision_id)[1]
-        from bzrlib.plugins.hg.changegroup import dchangegroup
+        from breezy.plugins.hg.changegroup import dchangegroup
         return dchangegroup(self.source, mapping, revs, lossy=lossy)
 
     @staticmethod
     def is_compatible(source, target):
-        from bzrlib.plugins.hg.repository import HgRepository
+        from breezy.plugins.hg.repository import HgRepository
         return (isinstance(target, HgRepository) and
                 getattr(source._format, "supports_full_versioned_files", True))
 

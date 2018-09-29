@@ -17,7 +17,7 @@
 """Support in "bzr send" for Mercurial bundles."""
 
 import time
-from bzrlib import (
+from breezy import (
     branch as _mod_branch,
     merge_directive,
     osutils,
@@ -26,10 +26,10 @@ from mercurial import (
     changegroup,
     )
 
-from bzrlib.plugins.hg.mapping import (
+from breezy.plugins.hg.mapping import (
     default_mapping,
     )
-from bzrlib.plugins.hg.changegroup import (
+from breezy.plugins.hg.changegroup import (
     dchangegroup,
     )
 

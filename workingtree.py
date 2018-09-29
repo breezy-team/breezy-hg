@@ -21,27 +21,23 @@ import os
 import posixpath
 import stat
 
-from bzrlib import (
+from breezy import (
     conflicts as _mod_conflicts,
     lock,
     osutils,
     )
 
-from bzrlib.errors import (
+from breezy.errors import (
     IncompatibleFormat,
     NoSuchFile,
     NotWriteLocked,
     )
-from bzrlib.inventory import (
-    Inventory,
-    InventoryDirectory,
-    InventoryFile,
-    InventoryLink,
+from .tree import (
+    HgTreeDirectory,
+    HgTreeLink,
+    HgTreeFile,
     )
-import bzrlib.workingtree
-from bzrlib.decorators import (
-    needs_write_lock,
-    )
+import breezy.workingtree
 
 
 from mercurial.hg import (
@@ -49,10 +45,10 @@ from mercurial.hg import (
     )
 
 
-from bzrlib.plugins.hg.mapping import mode_kind
+from breezy.plugins.hg.mapping import mode_kind
 
 
-class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
+class HgWorkingTreeFormat(breezy.workingtree.WorkingTreeFormat):
     """Working Tree format for Mercurial Working Trees.
 
     This is currently not aware of different working tree formats,
@@ -63,28 +59,27 @@ class HgWorkingTreeFormat(bzrlib.workingtree.WorkingTreeFormat):
     supports_versioned_directories = False
 
     @property
-    def _matchingbzrdir(self):
-        from bzrlib.plugins.hg.dir import HgControlDirFormat
+    def _matchingcontroldir(self):
+        from breezy.plugins.hg.dir import HgControlDirFormat
         return HgControlDirFormat()
 
     def get_format_description(self):
         """See WorkingTreeFormat.get_format_description()."""
         return "Mercurial Working Tree"
 
-    def initialize(self, to_bzrdir):
-        from bzrlib.plugins.hg.dir import HgDir
-        if not isinstance(to_bzrdir, HgDir):
-            raise IncompatibleFormat(self, to_bzrdir._format)
-        return to_bzrdir.create_workingtree()
+    def initialize(self, to_controldir):
+        from breezy.plugins.hg.dir import HgDir
+        if not isinstance(to_controldir, HgDir):
+            raise IncompatibleFormat(self, to_controldir._format)
+        return to_controldir.create_workingtree()
 
 
-class HgWorkingTree(bzrlib.workingtree.WorkingTree):
+class HgWorkingTree(breezy.workingtree.WorkingTree):
     """An adapter to mercurial repositories for bzr WorkingTree obejcts."""
 
     def __init__(self, hgrepo, hgbranch, hgdir):
-        self._inventory = Inventory()
         self._hgrepo = hgrepo
-        self.bzrdir = hgdir
+        self.controldir = hgdir
         self.repository = hgdir.open_repository()
         self._branch = hgbranch
         self._format = HgWorkingTreeFormat()
@@ -100,7 +95,7 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
     def lock_read(self):
         """Lock the repository for read operations.
 
-        :return: A bzrlib.lock.LogicalLockResult.
+        :return: A breezy.lock.LogicalLockResult.
         """
         if not self._lock_mode:
             self._lock_mode = 'r'
@@ -148,10 +143,9 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         self._lock_mode = None
         self.branch.unlock()
 
-
     def _detect_case_handling(self):
         try:
-            self.bzrdir.control_transport.stat("RequiReS")
+            self.controldir.control_transport.stat("RequiReS")
         except NoSuchFile:
             self.case_sensitive = True
         else:
@@ -166,21 +160,21 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
         # FIXME
         pass
 
-    @needs_write_lock
     def add(self, files, ids=None, kinds=None):
         # hg does not use ids, toss them out
-        if isinstance(files, basestring):
-            files = [files]
-        if kinds is None:
-            kinds = [osutils.file_kind(self.abspath(f)) for f in files]
-        hg_files = []
-        for file, kind in zip(files, kinds):
-            if kind == "directory":
-                continue
-            hg_files.append(file.encode('utf-8'))
+        with self.lock_tree_write():
+            if isinstance(files, basestring):
+                files = [files]
+            if kinds is None:
+                kinds = [osutils.file_kind(self.abspath(f)) for f in files]
+            hg_files = []
+            for file, kind in zip(files, kinds):
+                if kind == "directory":
+                    continue
+                hg_files.append(file.encode('utf-8'))
 
-        # hg does not canonicalise paths : make them absolute
-        self._dirstate.add(hg_files)
+            # hg does not canonicalise paths : make them absolute
+            self._dirstate.add(hg_files)
 
     def unversion(self, file_ids):
         for file_id in file_ids:
@@ -285,17 +279,17 @@ class HgWorkingTree(bzrlib.workingtree.WorkingTree):
             parent_id = None
         else:
             parent_id = self.path2id(posixpath.dirname(path))
-        return InventoryDirectory(self.path2id(path), posixpath.basename(path),
+        return HgTreeDirectory(self.path2id(path), posixpath.basename(path),
             parent_id)
 
     def _get_file_ie(self, path, parent_id, flags):
         file_id = self.path2id(path)
         name = osutils.basename(path)
         if 'l' in flags:
-            ie = InventoryLink(file_id, name, parent_id)
+            ie = HgTreeLink(file_id, name, parent_id)
             ie.symlink_target = self.get_symlink_target(file_id, path)
         else:
-            ie = InventoryFile(file_id, name, parent_id)
+            ie = HgTreeFile(file_id, name, parent_id)
             ie.text_sha1 = self.get_file_sha1(file_id, path)
             ie.executable = ('x' in flags)
         return ie

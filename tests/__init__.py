@@ -16,7 +16,7 @@
 
 def test_suite():
     from unittest import TestSuite
-    from bzrlib.tests import TestUtil
+    from breezy.tests import TestUtil
 
     loader = TestUtil.TestLoader()
 

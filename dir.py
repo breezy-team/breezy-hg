@@ -19,23 +19,23 @@
 
 """
 
-import bzrlib.bzrdir
-from bzrlib import (
+import breezy.controldir
+from breezy import (
     errors,
     lock,
     transactions,
     urlutils,
     )
 
-from bzrlib.controldir import (
+from breezy.controldir import (
     ControlDir,
     ControlDirFormat,
     )
-from bzrlib.decorators import (
+from breezy.decorators import (
     only_raises,
     )
-from bzrlib.controldir import Converter
-from bzrlib.plugins.hg import (
+from breezy.controldir import Converter
+from breezy.plugins.hg import (
     lazy_load_mercurial,
     )
 
@@ -70,7 +70,7 @@ class HgDir(ControlDir):
         self._hgrepo = hgrepo
         self._lockfiles = lockfiles
 
-    def backup_bzrdir(self):
+    def backup_controldir(self):
         self.root_transport.copy_tree(".hg", ".hg.backup")
         return (self.root_transport.abspath(".hg"),
                 self.root_transport.abspath(".hg.backup"))
@@ -146,7 +146,7 @@ class HgDir(ControlDir):
             ignore_fallbacks=False, possible_transports=None):
         """'create' a branch for this dir."""
         name = self._get_branch_name(name)
-        from bzrlib.plugins.hg.branch import HgLocalBranch, HgRemoteBranch
+        from breezy.plugins.hg.branch import HgLocalBranch, HgRemoteBranch
         if self._hgrepo.local():
             branch_klass = HgLocalBranch
         else:
@@ -158,7 +158,7 @@ class HgDir(ControlDir):
 
     def open_repository(self, shared=False):
         """'open' a repository for this dir."""
-        from bzrlib.plugins.hg.repository import (
+        from breezy.plugins.hg.repository import (
             HgLocalRepository,
             HgRemoteRepository,
             )
@@ -170,11 +170,11 @@ class HgDir(ControlDir):
 
     def open_workingtree(self, shared=False, recommend_upgrade=False):
         """'open' a workingtree for this dir."""
-        from bzrlib.plugins.hg.workingtree import HgWorkingTree
+        from breezy.plugins.hg.workingtree import HgWorkingTree
         return HgWorkingTree(self._hgrepo, self.open_branch(), self)
 
     def cloning_metadir(self, stacked=False):
-        return bzrlib.bzrdir.format_registry.make_bzrdir("default-rich-root")
+        return breezy.controldir.format_registry.make_controldir("default-rich-root")
 
     def get_config(self):
         return HgControlDirConfig()
@@ -183,9 +183,9 @@ class HgDir(ControlDir):
                recurse='down', possible_transports=None,
                accelerator_tree=None, hardlink=False, stacked=False,
                source_branch=None, create_tree_if_local=True):
-        from bzrlib.repository import InterRepository
-        from bzrlib.transport.local import LocalTransport
-        from bzrlib.transport import get_transport
+        from breezy.repository import InterRepository
+        from breezy.transport.local import LocalTransport
+        from breezy.transport import get_transport
         target_transport = get_transport(url, possible_transports)
         target_transport.ensure_base()
         cloning_format = self.cloning_metadir()
@@ -230,16 +230,16 @@ class HgToSomethingConverter(Converter):
         if self.format is None:
             self.format = ControlDirFormat.get_default_format()
 
-    def convert(self, bzrdir, pb):
-        source_repo = bzrdir.open_repository()
-        source_branch = bzrdir.open_branch()
-        target = self.format.initialize_on_transport(bzrdir.root_transport)
+    def convert(self, controldir, pb):
+        source_repo = controldir.open_repository()
+        source_branch = controldir.open_branch()
+        target = self.format.initialize_on_transport(controldir.root_transport)
         target_repo = target.create_repository()
         target_repo.fetch(source_repo, pb=pb)
         target_branch = target.create_branch()
         target_branch.generate_revision_history(source_branch.last_revision())
         target_wt = target.create_workingtree()
-        bzrdir.root_transport.delete_tree(".hg")
+        controldir.root_transport.delete_tree(".hg")
         return target
 
 
@@ -340,9 +340,9 @@ class HgControlDirFormat(ControlDirFormat):
         create_prefix=False, force_new_repo=False, stacked_on=None,
         stack_on_pwd=None, repo_format_name=None, make_working_trees=None,
         shared_repo=False, vfs_only=False):
-        from bzrlib import trace
-        from bzrlib.bzrdir import CreateRepository
-        from bzrlib.transport import do_catching_redirections
+        from breezy import trace
+        from breezy.controldir import CreateRepository
+        from breezy.transport import do_catching_redirections
         def make_directory(transport):
             transport.mkdir('.')
             return transport
@@ -365,12 +365,12 @@ class HgControlDirFormat(ControlDirFormat):
         return (repository, controldir, False, CreateRepository(controldir))
 
     def get_branch_format(self):
-        from bzrlib.plugins.hg.branch import HgBranchFormat
+        from breezy.plugins.hg.branch import HgBranchFormat
         return HgBranchFormat()
 
     @property
     def repository_format(self):
-        from bzrlib.plugins.hg.repository import HgRepositoryFormat
+        from breezy.plugins.hg.repository import HgRepositoryFormat
         return HgRepositoryFormat()
 
     def initialize_on_transport(self, transport):
@@ -404,7 +404,7 @@ class HgControlDirFormat(ControlDirFormat):
             supports_read_lock = True
         lazy_load_mercurial()
         import mercurial.hg
-        from bzrlib.plugins.hg.ui import ui
+        from breezy.plugins.hg.ui import ui
         repository = mercurial.hg.repository(ui(), path, create=_create)
         lock = HgLock(transport, repository, supports_read_lock)
         return HgDir(repository, transport, lock, self)
@@ -414,7 +414,7 @@ class HgControlDirFormat(ControlDirFormat):
             external_url = transport.external_url()
         except errors.InProcessTransport:
             raise errors.NotBranchError(path=transport.base)
-        from bzrlib.plugins.hg import HgProber
+        from breezy.plugins.hg import HgProber
         scheme = external_url.split(":")[0]
         if scheme not in HgProber._supported_schemes:
             return False

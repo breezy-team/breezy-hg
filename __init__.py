@@ -92,40 +92,14 @@ def has_hg_http_smart_server(transport, external_url):
     :param externa_url: External URL for transport
     :return: Boolean indicating whether transport is backed onto hg
     """
+    from breezy.transport.http import Request
     url = external_url.rstrip("/") + "?pairs=%s-%s&cmd=between" % ("0" * 40, "0" * 40)
-    from breezy.transport.http._urllib import HttpTransport_urllib, Request
-    if isinstance(transport, HttpTransport_urllib):
-        req = Request('GET', url, accepted_errors=[200, 403, 404, 405])
-        req.follow_redirections = True
-        resp = transport._perform(req)
-        if resp.code == 404:
-            return False
-        headers = resp.headers
-    else:
-        try:
-            from breezy.transport.http._pycurl import PyCurlTransport
-        except errors.DependencyNotPresent:
-            return False
-        else:
-            import pycurl
-            from cStringIO import StringIO
-            if isinstance(transport, PyCurlTransport):
-                conn = transport._get_curl()
-                conn.setopt(pycurl.URL, url)
-                transport._set_curl_options(conn)
-                conn.setopt(pycurl.HTTPGET, 1)
-                header = StringIO()
-                data = StringIO()
-                conn.setopt(pycurl.FOLLOWLOCATION, 1)
-                conn.setopt(pycurl.HEADERFUNCTION, header.write)
-                conn.setopt(pycurl.WRITEFUNCTION, data.write)
-                transport._curl_perform(conn, header)
-                code = conn.getinfo(pycurl.HTTP_CODE)
-                if code == 404:
-                    return False
-                headers = transport._parse_headers(header)
-            else:
-                return False
+    req = Request('GET', url, accepted_errors=[200, 403, 404, 405])
+    req.follow_redirections = True
+    resp = transport._perform(req)
+    if resp.code == 404:
+        return False
+    headers = resp.headers
     ct = headers.getheader("Content-Type")
     if ct is None:
         return False
@@ -186,7 +160,7 @@ class HgProber(Prober):
     @classmethod
     def known_formats(cls):
         from breezy.plugins.hg.dir import HgControlDirFormat
-        return set([HgControlDirFormat()])
+        return [HgControlDirFormat()]
 
 
 ControlDirFormat.register_prober(HgProber)

@@ -39,6 +39,9 @@ import posixpath
 
 class HgTreeDirectory(TreeDirectory):
 
+    kind = 'directory'
+    executable = False
+
     def __init__(self, file_id, basename, parent_id):
         self.file_id = file_id
         self.name = basename
@@ -46,6 +49,9 @@ class HgTreeDirectory(TreeDirectory):
 
 
 class HgTreeLink(TreeLink):
+
+    kind = 'link'
+    executable = False
 
     def __init__(self, file_id, basename, parent_id):
         self.file_id = file_id
@@ -55,10 +61,13 @@ class HgTreeLink(TreeLink):
 
 class HgTreeFile(TreeFile):
 
+    kind = 'file'
+
     def __init__(self, file_id, basename, parent_id):
         self.file_id = file_id
         self.name = basename
         self.parent_id = parent_id
+        self.executable = False
 
 
 class HgRevisionTree(RevisionTree):
@@ -92,34 +101,29 @@ class HgRevisionTree(RevisionTree):
             return None, False, None
         return entry.kind, entry.executable, None
 
-    def is_executable(self, file_id, path=None):
-        if path is None:
-            path = self.id2path(file_id)
+    def is_executable(self, path, file_id=None):
         return ('x' in self._manifest(path.encode("utf-8")))
 
-    def get_symlink_target(self, file_id, path=None):
-        if path is None:
-            path = self.id2path(file_id)
+    def get_symlink_target(self, path, file_id=None):
         encoded_path = path.encode("utf-8")
         revlog = self._repository._hgrepo.file(encoded_path)
         return revlog.read(self._manifest[encoded_path])
 
-    def get_file_text(self, file_id, path=None):
-        if path is None:
-            path = self.id2path(file_id)
+    def get_file_text(self, path, file_id=None):
         revlog = self._repository._hgrepo.file(path)
-        return revlog.read(self._manifest[path.encode("utf-8")])
+        try:
+            return revlog.read(self._manifest[path.encode("utf-8")])
+        except KeyError:
+            raise errors.NoSuchFile(path)
 
-    def get_file_sha1(self, file_id, path=None, stat_value=None):
-        return osutils.sha_string(self.get_file_text(file_id, path))
+    def get_file_sha1(self, path, file_id=None, stat_value=None):
+        return osutils.sha_string(self.get_file_text(path, file_id))
 
-    def get_file_mtime(self, file_id, path=None):
-        revid = self.get_file_revision(file_id, path)
+    def get_file_mtime(self, path, file_id=None):
+        revid = self.get_file_revision(path, file_id)
         return self._repository.get_revision(revid).timestamp
 
-    def kind(self, file_id, path=None):
-        if path is None:
-            path = self.id2path(file_id)
+    def kind(self, path, file_id=None):
         if 'l' in self._manifest(path.encode("utf-8")):
             return 'symlink'
         else:
@@ -148,15 +152,15 @@ class HgRevisionTree(RevisionTree):
         file_id = self.path2id(path)
         parent_id = self.path2id(posixpath.dirname(path))
         if 'l' in flags:
-            ie = TreeLink(file_id, posixpath.basename(path), parent_id)
-            ie.symlink_target = self.get_symlink_target(file_id, path)
+            ie = HgTreeLink(file_id, posixpath.basename(path), parent_id)
+            ie.symlink_target = self.get_symlink_target(path, file_id)
         else:
-            ie = TreeFile(file_id, posixpath.basename(path), parent_id)
-            text = self.get_file_text(file_id, path)
+            ie = HgTreeFile(file_id, posixpath.basename(path), parent_id)
+            text = self.get_file_text(path, file_id)
             ie.text_sha1 = osutils.sha_string(text)
             ie.text_size = len(text)
             ie.executable = ('x' in flags)
-        ie.revision = self.get_file_revision(file_id, path)
+        ie.revision = self.get_file_revision(path, file_id)
         return ie
 
     def iter_entries_by_dir(self, specific_files=None, yield_parents=False):
@@ -217,9 +221,7 @@ class HgRevisionTree(RevisionTree):
         self._ancestry_cache[some_revision_id] = ancestry
         return ancestry
 
-    def get_file_revision(self, file_id, path=None):
-        if path is None:
-            path = self.id2path(file_id)
+    def get_file_revision(self, path, file_id=None):
         utf8_path = path.encode("utf-8")
         if utf8_path in self._manifest:
             # it's a file
@@ -259,12 +261,11 @@ class HgRevisionTree(RevisionTree):
                 continue
             if current_cl not in self._known_manifests:
                 current_manifest_id = self._repository._hgrepo.changelog.read(current_cl)[0]
-                self._known_manifests[current_cl] = self._repository._hgrepo.manifest.read(
-                    current_manifest_id)
+                self._known_manifests[current_cl] = self._repository._hgrepo.manifestlog[current_manifest_id].read()
             current_manifest = self._known_manifests[current_cl]
             done_cls.add(current_cl)
-            if (current_manifest.get(file, None) != hg_file_revision or
-                current_manifest.flags(file) != hg_file_flags):
+            if (current_manifest.get(path, None) != hg_file_revision or
+                current_manifest.flags(path) != hg_file_flags):
                 continue
             # unchanged in parent, advance to the parent.
             good_id = current_cl
@@ -284,8 +285,7 @@ class HgRevisionTree(RevisionTree):
                 continue
             if current_cl_id not in self._known_manifests:
                 current_manifest_id = self._repository._hgrepo.changelog.read(current_cl_id)[0]
-                self._known_manifests[current_cl_id] = self._repository._hgrepo.manifest.read(
-                    current_manifest_id)
+                self._known_manifests[current_cl_id] = self._repository._hgrepo.manifestlog[current_manifest_id].read()
             current_manifest = self._known_manifests[current_cl_id]
             done_cls.add(current_cl_id)
             if current_manifest.get(path, None) is None:

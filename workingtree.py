@@ -283,10 +283,10 @@ class HgWorkingTree(breezy.workingtree.WorkingTree):
         name = osutils.basename(path)
         if 'l' in flags:
             ie = HgTreeLink(file_id, name, parent_id)
-            ie.symlink_target = self.get_symlink_target(file_id, path)
+            ie.symlink_target = self.get_symlink_target(path, file_id)
         else:
             ie = HgTreeFile(file_id, name, parent_id)
-            ie.text_sha1 = self.get_file_sha1(file_id, path)
+            ie.text_sha1 = self.get_file_sha1(path, file_id)
             ie.executable = ('x' in flags)
         return ie
 

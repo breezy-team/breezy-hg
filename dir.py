@@ -168,7 +168,8 @@ class HgDir(ControlDir):
             repo_klass = HgRemoteRepository
         return repo_klass(self._hgrepo, self, self._lockfiles)
 
-    def open_workingtree(self, shared=False, recommend_upgrade=False):
+    def open_workingtree(self, shared=False, recommend_upgrade=False,
+                         unsupported=False):
         """'open' a workingtree for this dir."""
         from breezy.plugins.hg.workingtree import HgWorkingTree
         return HgWorkingTree(self._hgrepo, self.open_branch(), self)
@@ -261,7 +262,7 @@ class HgLock(object):
             self._lock_count += 1
         else:
             self._lock_mode = 'w'
-            self._lock = self._hgrepo.wlock()
+            self._lock = self._hgrepo.wlock(wait=False)
             self._transaction = transactions.PassThroughTransaction()
             self._lock_count = 1
 
@@ -278,6 +279,9 @@ class HgLock(object):
                 self._lock = None
             self._transaction = transactions.PassThroughTransaction()
             self._lock_count = 1
+
+    def break_lock(self):
+        raise NotImplementedError(self.break_lock)
 
     def is_locked(self):
         return (self._lock_count > 0)

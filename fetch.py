@@ -740,7 +740,7 @@ class FromHgRepository(InterRepository):
 
         To date the basis parameter is not supported.
         """
-        with self.lock_tree_write():
+        with self.lock_write():
             if basis is not None:
                 trace.mutter('Ignoring basis argument %r', basis)
             self.target.fetch(self.source, revision_id=revision_id)
@@ -748,7 +748,7 @@ class FromHgRepository(InterRepository):
     def fetch(self, revision_id=None, pb=None, find_ghosts=False,
               fetch_spec=None, limit=None):
         """Fetch revisions. """
-        with self.lock_tree_write():
+        with self.lock_write():
             heads = self.heads(fetch_spec, revision_id)
             missing = self.findmissing(heads)
             if not missing:

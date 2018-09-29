@@ -82,7 +82,7 @@ class TestPulling(TestCaseWithTransport):
         self.revthree_inventory = copy.deepcopy(self.revtwo_inventory)
         tip = self.tree.last_revision()
         # should be a new file revision with exec reset
-        entry = self.revthree_inventory['hg:b']
+        entry = self.revthree_inventory.get_entry('hg:b')
         entry.revision = tip
         entry.executable = False
         self.revidthree = tip
@@ -93,7 +93,7 @@ class TestPulling(TestCaseWithTransport):
         self.tree.commit('change dir/c')
         self.revfour_inventory = copy.deepcopy(self.revthree_inventory)
         tip = self.tree.last_revision()
-        entry = self.revfour_inventory['hg:dir_sc']
+        entry = self.revfour_inventory.get_entry('hg:dir_sc')
         entry.revision = tip
         entry.text_size = len('new contents')
         entry.text_sha1 = "7ffa72b76d5d66da37f4b614b7a822c01f23c183"

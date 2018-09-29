@@ -32,6 +32,7 @@ from breezy.branch import (
     GenericInterBranch,
     InterBranch,
     PullResult,
+    UnstackableBranchFormat,
     )
 from breezy.foreign import (
     ForeignBranch,
@@ -106,9 +107,8 @@ class FileHgTags(HgTags):
         file_id = revtree.path2id(".hgtags")
         if file_id is None:
             return {}
-        revtree.lock_read()
-        try:
-            f = revtree.get_file(file_id, ".hgtags")
+        with revtree.lock_read():
+            f = revtree.get_file(".hgtags", file_id)
             ret = {}
             for l in f.readlines():
                 try:
@@ -117,9 +117,7 @@ class FileHgTags(HgTags):
                     pass # Invalid value, just ignore?
                 else:
                     ret[name] = hgtag
-        finally:
-            revtree.unlock()
-        return ret
+            return ret
 
 
 class HgBranchFormat(BranchFormat):
@@ -192,7 +190,7 @@ class HgBranchConfig(object):
 
     def get_nickname(self):
         # remove the trailing / and take the basename.
-        return os.path.basename(self._branch.base[:-1])
+        return os.path.basename(self._branch.base[:-1]).decode('utf-8')
 
     def get_parent(self):
         return self._ui.config("paths", "default")
@@ -253,6 +251,7 @@ class HgWriteLock(object):
 
     def __init__(self, unlock):
         self.branch_token = None
+        self.token = None
         self.unlock = unlock
 
     def __enter__(self):
@@ -346,7 +345,7 @@ class HgBranch(ForeignBranch):
         self.control_files.unlock()
 
     def get_stacked_on_url(self):
-        raise errors.UnstackableBranchFormat(self._format, self.base)
+        raise UnstackableBranchFormat(self._format, self.base)
 
     def _set_parent_location(self, parent_url):
         self.get_config().set_parent(parent_url)

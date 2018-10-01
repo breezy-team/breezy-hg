@@ -6,7 +6,7 @@ PYDOCTOR ?= pydoctor
 CTAGS ?= ctags
 PYLINT ?= pylint
 RST2HTML ?= rst2html
-TESTS ?= Hg -s bp.hg
+TESTS ?= Hg breezy.plugins.hg
 
 all:: build 
 
@@ -22,8 +22,8 @@ clean::
 	$(SETUP) clean
 	rm -f *.so
 
-check:: build-inplace 
-	BRZ_PLUGINS_AT=hg@$(shell pwd) $(DEBUGGER) $(PYTHON) $(PYTHON_OPTIONS) $(BRZ) $(BRZ_OPTIONS) selftest $(TEST_OPTIONS) $(TESTS)
+check:: build-inplace
+	BRZ_PLUGINS_AT=hg@$(shell pwd) $(DEBUGGER) $(PYTHON) $(PYTHON_OPTIONS) $(BRZ) $(BRZ_OPTIONS) selftest $(TEST_OPTIONS) --subunit2 $(TESTS) | subunit-filter --fixup-expected-failures=known-failing | subunit2pyunit
 
 check-all::
 	$(MAKE) check TESTS="^bzrlib.plugins.hg. Hg"

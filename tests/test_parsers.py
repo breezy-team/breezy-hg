@@ -1,4 +1,4 @@
-# Copyright (C) 2009 Jelmer Vernooij <jelmer@samba.org>
+# Copyright (C) 2009 Jelmer Vernooij <jelmer@jelmer.uk>
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ class ChangesetFormatterTests(TestCase):
 
     def test_simple(self):
         self.assertEquals("""0000000000000000000000000000000000000000
-Jelmer Vernooij <jelmer@samba.org>
+Jelmer Vernooij <jelmer@jelmer.uk>
 1253260798 -7200
 myfile
 
@@ -39,13 +39,13 @@ Some
 commit
 message""",
             format_changeset(mercurial.node.nullid, ["myfile"],
-                u"Jelmer Vernooij <jelmer@samba.org>",
+                u"Jelmer Vernooij <jelmer@jelmer.uk>",
                 (1253260798.0, -7200), u"Some\ncommit\nmessage",
                 {}))
 
     def test_extra(self):
         self.assertEquals("""0000000000000000000000000000000000000000
-Jelmer Vernooij <jelmer@samba.org>
+Jelmer Vernooij <jelmer@jelmer.uk>
 1253260798 -7200 extra:data\x00more:extra
 myfile
 
@@ -53,7 +53,7 @@ Some
 commit
 message""",
             format_changeset(mercurial.node.nullid, ["myfile"],
-                u"Jelmer Vernooij <jelmer@samba.org>",
+                u"Jelmer Vernooij <jelmer@jelmer.uk>",
                 (1253260798.0, -7200), u"Some\ncommit\nmessage",
                 {"extra": "data", "more":"extra"}))
 
@@ -72,7 +72,7 @@ message""",
     def test_invalid_date(self):
         self.assertRaises(TypeError, format_changeset, 
                 mercurial.node.nullid, ["myfile"],
-                u"Jelmer Vernooij <jelmer@samba.org>",
+                u"Jelmer Vernooij <jelmer@jelmer.uk>",
                 1253260798, u"Some\ncommit\nmessage",
                 {})
 
@@ -81,10 +81,10 @@ class ParseChangesetTests(TestCase):
 
     def test_simple(self):
         self.assertEquals((mercurial.node.nullid, 
-                u"Jelmer Vernooij <jelmer@samba.org>",
+                u"Jelmer Vernooij <jelmer@jelmer.uk>",
                 (1253260798.0, -7200), ["myfile"], u"Some\ncommit\nmessage",
                 {}), parse_changeset("""0000000000000000000000000000000000000000
-Jelmer Vernooij <jelmer@samba.org>
+Jelmer Vernooij <jelmer@jelmer.uk>
 1253260798 -7200
 myfile
 
@@ -94,11 +94,11 @@ message"""))
 
     def test_extra(self):
         self.assertEquals((mercurial.node.nullid, 
-                u"Jelmer Vernooij <jelmer@samba.org>",
+                u"Jelmer Vernooij <jelmer@jelmer.uk>",
                 (1253260798.0, -7200), ["myfile"], u"Some\ncommit\nmessage",
                 {"date": "extra"}), 
                 parse_changeset("""0000000000000000000000000000000000000000
-Jelmer Vernooij <jelmer@samba.org>
+Jelmer Vernooij <jelmer@jelmer.uk>
 1253260798 -7200 date:extra
 myfile
 
@@ -108,11 +108,11 @@ message"""))
 
     def test_invalid_timezone(self):
         self.assertEquals((mercurial.node.nullid, 
-                "Jelmer Vernooij <jelmer@samba.org>",
+                "Jelmer Vernooij <jelmer@jelmer.uk>",
                 (1253260798.0, 0), ["myfile"], "Some\ncommit\nmessage",
                 {}), 
                 parse_changeset("""0000000000000000000000000000000000000000
-Jelmer Vernooij <jelmer@samba.org>
+Jelmer Vernooij <jelmer@jelmer.uk>
 1253260798 bla
 myfile
 

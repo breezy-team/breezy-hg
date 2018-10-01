@@ -1,5 +1,5 @@
 # Copyright (C) 2005-2011 Canonical Ltd
-# Copyright (C) 2008-2010 Jelmer Vernooij <jelmer@samba.org>
+# Copyright (C) 2008-2010 Jelmer Vernooij <jelmer@jelmer.uk>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -211,15 +211,12 @@ class HgDir(ControlDir):
             and (result_repo is None or result_repo.make_working_trees())):
             wt = result.create_workingtree(accelerator_tree=accelerator_tree,
                 hardlink=hardlink, from_branch=result_branch)
-            wt.lock_write()
-            try:
+            with wt.lock_write():
                 if wt.path2id('') is None:
                     try:
                         wt.set_root_id(self.open_workingtree.get_root_id())
                     except errors.NoWorkingTree:
                         pass
-            finally:
-                wt.unlock()
         return result
 
 

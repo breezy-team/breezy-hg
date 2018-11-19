@@ -31,6 +31,7 @@ from breezy.errors import (
     IncompatibleFormat,
     NoSuchFile,
     NotWriteLocked,
+    UnsupportedOperation,
     )
 from .tree import (
     HgTreeDirectory,
@@ -57,6 +58,7 @@ class HgWorkingTreeFormat(breezy.workingtree.WorkingTreeFormat):
     """
 
     supports_versioned_directories = False
+    supports_setting_file_ids = False
 
     @property
     def _matchingcontroldir(self):
@@ -91,6 +93,9 @@ class HgWorkingTree(breezy.workingtree.WorkingTree):
         self._dirstate = self._hgrepo[None]
         self._lock_mode = None
         self._lock_count = 0
+
+    def all_file_ids(self):
+        raise UnsupportedOperation(self.all_file_ids, self)
 
     def lock_read(self):
         """Lock the repository for read operations.
@@ -179,12 +184,16 @@ class HgWorkingTree(breezy.workingtree.WorkingTree):
             # hg does not canonicalise paths : make them absolute
             self._dirstate.add(hg_files)
 
-    def unversion(self, file_ids):
-        for file_id in file_ids:
-            path = self.id2path(file_id)
-            self._dirstate.remove(path.encode("utf-8"))
+    def unversion(self, paths):
+        for path in paths:
+            self._dirstate.forget(path.encode("utf-8"))
 
-    def stored_kind(self, path, file_id=None):
+    def remove(self, files, verbose=False, to_file=None, keep_files=True,
+               force=False):
+        for path in files:
+            self._dirstate.forget(path.encode("utf-8"))
+
+    def stored_kind(self, path):
         return mode_kind(self._dirstate._map[path.encode("utf-8")][1])
 
     def _validate_unicode_text(self, text, context):
@@ -220,6 +229,8 @@ class HgWorkingTree(breezy.workingtree.WorkingTree):
 
     def path2id(self, path):
         # FIXME: For the time being; should use file id map eventually
+        if isinstance(path, list):
+            path = '/'.join(path)
         return self._branch.mapping.generate_file_id(path)
 
     def has_or_had_id(self, file_id):
@@ -229,7 +240,8 @@ class HgWorkingTree(breezy.workingtree.WorkingTree):
         raise NotImplementedError(self.has_id)
 
     def id2path(self, file_id):
-        assert type(file_id) == str
+        if not isinstance(file_id, bytes):
+            raise TypeError(file_id)
         return self._branch.mapping.parse_file_id(file_id)
 
     def revision_tree(self, revid):
@@ -243,26 +255,26 @@ class HgWorkingTree(breezy.workingtree.WorkingTree):
         return self._dirstate.extra()
 
     if not osutils.supports_executable():
-        def is_executable(self, path, file_id=None):
+        def is_executable(self, path):
             basis_tree = self.basis_tree()
             try:
-                return basis_tree.is_executable(path, file_id)
+                return basis_tree.is_executable(path)
             except NoSuchFile:
                 # Default to not executable
                 return False
     else:
-        def is_executable(self, path, file_id=None):
+        def is_executable(self, path):
             mode = os.lstat(self.abspath(path)).st_mode
             return bool(stat.S_ISREG(mode) and stat.S_IEXEC & mode)
 
         _is_executable_from_path_and_stat = \
             _is_executable_from_path_and_stat_from_stat
 
-    def get_file_mtime(self, path, file_id=None):
+    def get_file_mtime(self, path):
         """See Tree.get_file_mtime."""
         return os.lstat(self.abspath(path)).st_mtime
 
-    def get_file_sha1(self, path, file_id=None, stat_value=None):
+    def get_file_sha1(self, path, stat_value=None):
         try:
             return osutils.sha_file_by_name(self.abspath(path).encode(osutils._fs_enc))
         except OSError, (num, msg):
@@ -283,10 +295,10 @@ class HgWorkingTree(breezy.workingtree.WorkingTree):
         name = osutils.basename(path)
         if 'l' in flags:
             ie = HgTreeLink(file_id, name, parent_id)
-            ie.symlink_target = self.get_symlink_target(path, file_id)
+            ie.symlink_target = self.get_symlink_target(path)
         else:
             ie = HgTreeFile(file_id, name, parent_id)
-            ie.text_sha1 = self.get_file_sha1(path, file_id)
+            ie.text_sha1 = self.get_file_sha1(path)
             ie.executable = ('x' in flags)
         return ie
 

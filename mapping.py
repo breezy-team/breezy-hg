@@ -35,17 +35,18 @@ from breezy import (
     revision as _mod_revision,
     trace,
     )
+from breezy.sixish import text_type
 
 import urllib
 
 
 def mode_kind(mode):
     """Determine the Bazaar inventory kind based on Unix file mode."""
-    entry_kind = (mode & 0700000) / 0100000
+    entry_kind = (mode & 0o700000) / 0o100000
     if entry_kind == 0:
         return 'directory'
     elif entry_kind == 1:
-        file_kind = (mode & 070000) / 010000
+        file_kind = (mode & 0o70000) / 0o10000
         if file_kind == 0:
             return 'file'
         elif file_kind == 2:
@@ -307,7 +308,7 @@ class HgMappingv1(foreign.VcsMapping):
     @classmethod
     def generate_file_id(self, path):
         """Create a synthetic file_id for an hg file."""
-        if isinstance(path, unicode):
+        if isinstance(path, text_type):
             path = path.encode("utf-8")
         if path == "":
             return "TREE_ROOT"
@@ -317,8 +318,8 @@ class HgMappingv1(foreign.VcsMapping):
     def parse_file_id(self, fileid):
         """Parse a file id."""
         assert isinstance(fileid, str)
-        if not fileid.startswith("hg:"):
-            raise ValueError
+        if not fileid.startswith(b"hg:"):
+            raise ValueError('invalid file id %r' % fileid)
         return unescape_path(fileid[len("hg:"):])
 
     def export_revision(self, rev, lossy=True, fileids={}):

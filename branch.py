@@ -104,17 +104,16 @@ class FileHgTags(HgTags):
 
     def _get_hg_tags(self):
         revtree = self.source_branch.repository.revision_tree(self.revid)
-        file_id = revtree.path2id(".hgtags")
-        if file_id is None:
+        if not revtree.is_versioned(".hgtags"):
             return {}
         with revtree.lock_read():
-            f = revtree.get_file(".hgtags", file_id)
+            f = revtree.get_file(".hgtags")
             ret = {}
             for l in f.readlines():
                 try:
                     (hgtag, name) = l.strip().split(" ", 1)
                 except ValueError:
-                    pass # Invalid value, just ignore?
+                    pass  # Invalid value, just ignore?
                 else:
                     ret[name] = hgtag
             return ret
@@ -542,7 +541,7 @@ class InterFromHgBranch(GenericInterBranch):
         result.source_branch = self.source
         result.target_branch = self.target
         result.old_revid = self.target.last_revision()
-        if stop_revision is not None:
+        if stop_revision is None:
             stop_revision = self.source.last_revision()
         self.fetch(stop_revision, fetch_tags=True)
         if overwrite:

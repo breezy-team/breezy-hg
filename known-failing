@@ -641,3 +641,12 @@ breezy.tests.per_workingtree.test_workingtree.TestWorkingTree.test_update_takes_
 breezy.plugins.hg.tests.test_pull.TestPulling.test_inventory_from_manifest
 breezy.plugins.hg.tests.test_pull.TestPulling.test_pull_into_bzr
 breezy.tests.per_interbranch.test_get.TestInterBranchGet.test_gets_right_inter(InterHgBranch,HgBranchFormat,HgBranchFormat)
+breezy.tests.per_interbranch.test_push.TestPush.test_between_colocated(InterHgBranch,HgBranchFormat,HgBranchFormat)
+breezy.tests.per_branch.test_pull.TestPull.test_pull_overwrite_set(HgBranchFormat)
+breezy.tests.per_branch.test_pull.TestPull.test_pull_overwrite_set_tags(HgBranchFormat)
+breezy.tests.per_interbranch.test_push.TestPush.test_between_colocated(InterFromHgBranch,HgBranchFormat,BzrBranchFormat7)
+breezy.tests.per_interbranch.test_push.TestPush.test_between_colocated(InterToHgBranch,BzrBranchFormat7,HgBranchFormat)
+breezy.tests.per_tree.test_symlinks.TestTreeWithSymlinks.test_symlink_target_tree(HgWorkingTreeFormat)
+breezy.tests.per_tree.test_symlinks.TestTreeWithSymlinks.test_symlink(HgWorkingTreeFormat)
+breezy.tests.per_tree.test_symlinks.TestTreeWithSymlinks.test_symlink_target(HgWorkingTreeFormat)
+breezy.tests.per_tree.test_symlinks.TestTreeWithSymlinks.test_kind_symlink(HgWorkingTreeFormat)

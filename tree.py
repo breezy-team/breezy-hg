@@ -101,29 +101,29 @@ class HgRevisionTree(RevisionTree):
             return None, False, None
         return entry.kind, entry.executable, None
 
-    def is_executable(self, path, file_id=None):
+    def is_executable(self, path):
         return ('x' in self._manifest(path.encode("utf-8")))
 
-    def get_symlink_target(self, path, file_id=None):
+    def get_symlink_target(self, path):
         encoded_path = path.encode("utf-8")
         revlog = self._repository._hgrepo.file(encoded_path)
         return revlog.read(self._manifest[encoded_path])
 
-    def get_file_text(self, path, file_id=None):
+    def get_file_text(self, path):
         revlog = self._repository._hgrepo.file(path)
         try:
             return revlog.read(self._manifest[path.encode("utf-8")])
         except KeyError:
             raise errors.NoSuchFile(path)
 
-    def get_file_sha1(self, path, file_id=None, stat_value=None):
-        return osutils.sha_string(self.get_file_text(path, file_id))
+    def get_file_sha1(self, path, stat_value=None):
+        return osutils.sha_string(self.get_file_text(path))
 
-    def get_file_mtime(self, path, file_id=None):
-        revid = self.get_file_revision(path, file_id)
+    def get_file_mtime(self, path):
+        revid = self.get_file_revision(path)
         return self._repository.get_revision(revid).timestamp
 
-    def kind(self, path, file_id=None):
+    def kind(self, path):
         if 'l' in self._manifest(path.encode("utf-8")):
             return 'symlink'
         else:
@@ -153,14 +153,14 @@ class HgRevisionTree(RevisionTree):
         parent_id = self.path2id(posixpath.dirname(path))
         if 'l' in flags:
             ie = HgTreeLink(file_id, posixpath.basename(path), parent_id)
-            ie.symlink_target = self.get_symlink_target(path, file_id)
+            ie.symlink_target = self.get_symlink_target(path)
         else:
             ie = HgTreeFile(file_id, posixpath.basename(path), parent_id)
-            text = self.get_file_text(path, file_id)
+            text = self.get_file_text(path)
             ie.text_sha1 = osutils.sha_string(text)
             ie.text_size = len(text)
             ie.executable = ('x' in flags)
-        ie.revision = self.get_file_revision(path, file_id)
+        ie.revision = self.get_file_revision(path)
         return ie
 
     def iter_entries_by_dir(self, specific_files=None, yield_parents=False):
@@ -221,7 +221,7 @@ class HgRevisionTree(RevisionTree):
         self._ancestry_cache[some_revision_id] = ancestry
         return ancestry
 
-    def get_file_revision(self, path, file_id=None):
+    def get_file_revision(self, path):
         utf8_path = path.encode("utf-8")
         if utf8_path in self._manifest:
             # it's a file
@@ -229,7 +229,7 @@ class HgRevisionTree(RevisionTree):
         elif self._has_directory(utf8_path):
             return self._get_dir_last_modified(utf8_path)
         else:
-            raise errors.NoSuchId(self, file_id)
+            raise errors.NoSuchFile(path)
 
     def _get_dir_last_modified(self, path):
         revision = self._directories.get(path)

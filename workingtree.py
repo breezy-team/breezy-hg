@@ -277,7 +277,8 @@ class HgWorkingTree(breezy.workingtree.WorkingTree):
     def get_file_sha1(self, path, stat_value=None):
         try:
             return osutils.sha_file_by_name(self.abspath(path).encode(osutils._fs_enc))
-        except OSError, (num, msg):
+        except OSError as xxx_todo_changeme:
+            (num, msg) = xxx_todo_changeme.args
             if num in (errno.EISDIR, errno.ENOENT):
                 return None
             raise

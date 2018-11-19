@@ -318,6 +318,8 @@ class HgMappingv1(foreign.VcsMapping):
     def parse_file_id(self, fileid):
         """Parse a file id."""
         assert isinstance(fileid, str)
+        if fileid == b'TREE_ROOT':
+            return ""
         if not fileid.startswith(b"hg:"):
             raise ValueError('invalid file id %r' % fileid)
         return unescape_path(fileid[len("hg:"):])

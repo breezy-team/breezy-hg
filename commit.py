@@ -70,7 +70,7 @@ class HgCommitBuilder(CommitBuilder):
         content_summary):
         raise NotImplementedError(self.record_entry_contents)
 
-    def record_delete(self, path, file_id):
+    def record_delete(self, path):
         self._any_changes = True
         self._removed.append(path.encode("utf-8"))
         del self._manifest[path.encode("utf-8")]
@@ -81,12 +81,12 @@ class HgCommitBuilder(CommitBuilder):
              executable) in iter_changes:
             if kind[1] in ("directory",):
                 if kind[0] in ("file", "symlink"):
-                    self.record_delete(path[0], file_id)
+                    self.record_delete(path[0])
                 if path[1] == u"":
                     seen_root = True
                 continue
             if path[1] is None:
-                self.record_delete(path[0], file_id)
+                self.record_delete(path[0])
                 continue
             utf8_path = path[1].encode("utf-8")
             fparents = tuple([m.get(utf8_path, mercurial.node.nullid)
@@ -99,9 +99,9 @@ class HgCommitBuilder(CommitBuilder):
                 self._changelist.append(utf8_path)
             if changed_content:
                 if kind[1] == "file":
-                    text = workingtree.get_file_text(path[1], file_id)
+                    text = workingtree.get_file_text(path[1])
                 elif kind[1] == "symlink":
-                    text = workingtree.get_symlink_target(path[1], file_id).encode("utf-8")
+                    text = workingtree.get_symlink_target(path[1]).encode("utf-8")
                 else:
                     raise AssertionError
                 meta = {} # for now
@@ -115,7 +115,7 @@ class HgCommitBuilder(CommitBuilder):
                 self._manifest.setflag(utf8_path, 'x')
             if kind[1] == "symlink":
                 self._manifest.setflag(utf8_path, 'l')
-            f, st = workingtree.get_file_with_stat(path[1], file_id)
+            f, st = workingtree.get_file_with_stat(path[1])
             yield file_id, path[1], (osutils.sha_file(f), st)
         if not seen_root and len(self.parents) == 0:
             raise RootMissing()

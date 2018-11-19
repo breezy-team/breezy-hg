@@ -75,7 +75,7 @@ try:
     try:
         import sqlite3
         check_pysqlite_version(sqlite3)
-    except (ImportError, errors.BzrError), e:
+    except (ImportError, errors.BzrError) as e:
         from pysqlite2 import dbapi2 as sqlite3
         check_pysqlite_version(sqlite3)
 except:

@@ -124,7 +124,7 @@ class HgRevisionTree(RevisionTree):
         return self._repository.get_revision(revid).timestamp
 
     def kind(self, path):
-        if 'l' in self._manifest(path.encode("utf-8")):
+        if 'l' in self._manifest[path.encode("utf-8")]:
             return 'symlink'
         else:
             return 'file'

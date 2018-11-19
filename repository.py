@@ -63,6 +63,7 @@ class HgRepositoryFormat(breezy.repository.RepositoryFormat):
     supports_revision_signatures = False
     supports_versioned_directories = False
     revision_graph_can_have_wrong_parents = False
+    supports_storing_branch_nick = False
 
     @property
     def _matchingcontroldir(self):

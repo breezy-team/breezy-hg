@@ -147,12 +147,12 @@ class HgProber(Prober):
         format = HgControlDirFormat()
         try:
             format.open(transport)
-        except hg_errors.RepoError, e:
+        except hg_errors.RepoError as e:
             raise errors.NotBranchError(path=transport.base)
-        except hg_errors.Abort, e:
+        except hg_errors.Abort as e:
             trace.mutter('not a hg branch: %s', e)
             raise errors.NotBranchError(path=transport.base)
-        except urllib2.HTTPError, e:
+        except urllib2.HTTPError as e:
             trace.mutter('not a hg branch: %s', e)
             raise errors.NotBranchError(path=transport.base)
         return format
